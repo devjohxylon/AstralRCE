@@ -221,14 +221,17 @@ input:focus, textarea:focus, select:focus { outline: 1px solid #555; border-colo
 .login-card button.primary:active { transform: translateY(0); }
 
 .login-cursor-dot, .login-cursor-frame {
-  position: fixed; pointer-events: none; z-index: 50; opacity: 0; transition: opacity .2s;
+  position: fixed; top: 0; left: 0; pointer-events: none; z-index: 50;
+  opacity: 0; will-change: transform;
 }
 .login-cursor-dot {
-  width: 5px; height: 5px; margin: -2.5px 0 0 -2.5px; border-radius: 50%;
+  width: 5px; height: 5px; border-radius: 50%;
   background: #eee; box-shadow: 0 0 10px rgba(255,255,255,.7);
+  transform: translate3d(-100px, -100px, 0);
 }
 .login-cursor-frame {
-  width: 28px; height: 28px; margin: -14px 0 0 -14px;
+  width: 28px; height: 28px;
+  transform: translate3d(-100px, -100px, 0);
 }
 .login-cursor-frame i {
   position: absolute; width: 7px; height: 7px; border-color: rgba(230,230,230,.85); border-style: solid;
@@ -237,12 +240,19 @@ input:focus, textarea:focus, select:focus { outline: 1px solid #555; border-colo
 .login-cursor-frame i:nth-child(2) { top: 0; right: 0; border-width: 1.5px 1.5px 0 0; }
 .login-cursor-frame i:nth-child(3) { bottom: 0; left: 0; border-width: 0 0 1.5px 1.5px; }
 .login-cursor-frame i:nth-child(4) { bottom: 0; right: 0; border-width: 0 1.5px 1.5px 0; }
-body.login-hud #login ~ *,
-body.login-hud #login { cursor: none; }
-body.login-hud #login input,
-body.login-hud #login button { cursor: none; }
+body.login-hud { cursor: none; }
+body.login-hud input,
+body.login-hud button,
+body.login-hud .login-card {
+  cursor: auto;
+}
+body.login-hud input { cursor: text; }
+body.login-hud button { cursor: pointer; }
+body.login-hud.login-over-ui { cursor: auto; }
+body.login-hud.login-over-ui .login-cursor-dot,
+body.login-hud.login-over-ui .login-cursor-frame { opacity: 0 !important; }
 @media (pointer: coarse), (max-width: 800px) {
-  body.login-hud #login, body.login-hud #login input, body.login-hud #login button { cursor: auto; }
+  body.login-hud { cursor: auto; }
   .login-cursor-dot, .login-cursor-frame { display: none !important; }
   #login { padding-left: 1.25rem; }
   .login-rail { display: none; }
@@ -428,8 +438,9 @@ function fmtUptime(s) {
 }
 
 function stopLoginScene() {
-  document.body.classList.remove("login-hud");
+  document.body.classList.remove("login-hud", "login-over-ui");
   if (state.loginFx?.raf) cancelAnimationFrame(state.loginFx.raf);
+  if (state.loginFx?.cursorRaf) cancelAnimationFrame(state.loginFx.cursorRaf);
   if (state.loginFx?.cleanups) state.loginFx.cleanups.forEach((fn) => fn());
   state.loginFx = null;
 }
@@ -441,7 +452,7 @@ function initLoginScene() {
   document.body.classList.add("login-hud");
   const cleanups = [];
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const finePointer = window.matchMedia("(pointer: fine)").matches;
+  const finePointer = window.matchMedia("(pointer: fine)").matches && window.innerWidth > 800;
 
   // Kinetic title
   const title = document.getElementById("loginTitle");
@@ -464,26 +475,27 @@ function initLoginScene() {
   const typingEl = document.getElementById("loginTyping");
   const phrase = "CONTROL · RCON · OPS";
   let ti = 0;
+  let typeTimer = null;
   const type = () => {
     if (ti <= phrase.length) {
       typingEl.innerHTML = phrase.slice(0, ti) + '<span class="caret"></span>';
       ti += 1;
-      const t = setTimeout(type, reduceMotion ? 0 : 38);
-      cleanups.push(() => clearTimeout(t));
+      typeTimer = setTimeout(type, reduceMotion ? 0 : 38);
     } else {
       typingEl.textContent = phrase;
     }
   };
   if (reduceMotion) typingEl.textContent = phrase;
-  else setTimeout(type, 420);
+  else typeTimer = setTimeout(type, 420);
+  cleanups.push(() => clearTimeout(typeTimer));
 
   requestAnimationFrame(() => root.classList.add("is-entered"));
 
-  // Paint trail canvas
+  // Paint trail — only on empty background, never over the form
   const canvas = document.getElementById("loginPaint");
-  const ctx = canvas.getContext("2d");
+  const ctx = canvas.getContext("2d", { alpha: true });
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  let w = 0, h = 0, last = null, painting = false;
+  let w = 0, h = 0, last = null, overUi = false;
 
   const resize = () => {
     w = window.innerWidth;
@@ -498,68 +510,126 @@ function initLoginScene() {
   window.addEventListener("resize", resize);
   cleanups.push(() => window.removeEventListener("resize", resize));
 
-  const fade = () => {
-    ctx.fillStyle = "rgba(5,5,5,0.045)";
-    ctx.fillRect(0, 0, w, h);
-    state.loginFx.raf = requestAnimationFrame(fade);
+  const isOverUi = (x, y) => {
+    const el = document.elementFromPoint(x, y);
+    if (!el) return false;
+    return !!(el.closest(".login-card") || el.closest("input") || el.closest("button"));
   };
 
   const stroke = (x, y) => {
-    if (!last) { last = { x, y }; return; }
-    const dx = x - last.x, dy = y - last.y;
+    if (overUi) {
+      last = null;
+      return;
+    }
+    if (!last) {
+      last = { x, y };
+      return;
+    }
+    const dx = x - last.x;
+    const dy = y - last.y;
     const dist = Math.hypot(dx, dy);
-    if (dist < 1.5) return;
-    ctx.strokeStyle = "rgba(235,235,235,0.55)";
-    ctx.lineWidth = Math.min(18, 3 + dist * 0.08);
+    if (dist < 2) return;
+    // Jump guard — pointer left the form / window and came back
+    if (dist > 120) {
+      last = { x, y };
+      return;
+    }
+    ctx.strokeStyle = "rgba(235,235,235,0.42)";
+    ctx.lineWidth = Math.min(14, 2.5 + dist * 0.06);
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
-    ctx.shadowColor = "rgba(255,255,255,0.35)";
-    ctx.shadowBlur = 12;
     ctx.beginPath();
     ctx.moveTo(last.x, last.y);
     ctx.lineTo(x, y);
     ctx.stroke();
-    ctx.shadowBlur = 0;
     last = { x, y };
   };
 
-  const onMove = (e) => {
-    const x = e.clientX, y = e.clientY;
-    if (finePointer) {
-      const dot = document.getElementById("loginCursorDot");
-      const frame = document.getElementById("loginCursorFrame");
-      dot.style.opacity = "1";
-      frame.style.opacity = "1";
-      dot.style.transform = `translate3d(${x}px,${y}px,0)`;
-      frame.style.transform = `translate3d(${x}px,${y}px,0)`;
+  // Smooth HUD cursor via rAF lerp
+  const dot = document.getElementById("loginCursorDot");
+  const frame = document.getElementById("loginCursorFrame");
+  let mx = -100, my = -100, cx = -100, cy = -100, cursorVisible = false;
+  let cursorRaf = 0;
+
+  const tickCursor = () => {
+    if (!finePointer) return;
+    cx += (mx - cx) * 0.28;
+    cy += (my - cy) * 0.28;
+    const show = cursorVisible && !overUi;
+    const op = show ? "1" : "0";
+    dot.style.opacity = op;
+    frame.style.opacity = op;
+    if (show) {
+      dot.style.transform = `translate3d(${cx - 2.5}px,${cy - 2.5}px,0)`;
+      frame.style.transform = `translate3d(${cx - 14}px,${cy - 14}px,0)`;
     }
-    if (painting || e.buttons === 1) stroke(x, y);
-    else if (!painting) {
-      // ambient trail while moving
-      stroke(x, y);
-    }
-  };
-  const onDown = (e) => { painting = true; last = { x: e.clientX, y: e.clientY }; };
-  const onUp = () => { painting = false; last = null; };
-  const onLeave = () => {
-    last = null;
-    document.getElementById("loginCursorDot").style.opacity = "0";
-    document.getElementById("loginCursorFrame").style.opacity = "0";
+    cursorRaf = requestAnimationFrame(tickCursor);
   };
 
-  window.addEventListener("pointermove", onMove);
-  window.addEventListener("pointerdown", onDown);
-  window.addEventListener("pointerup", onUp);
-  root.addEventListener("pointerleave", onLeave);
+  const onMove = (e) => {
+    // Ignore multi-touch / pen noise
+    if (e.pointerType === "touch") return;
+    const x = e.clientX;
+    const y = e.clientY;
+    mx = x;
+    my = y;
+    cursorVisible = true;
+
+    const nextOver = isOverUi(x, y);
+    if (nextOver !== overUi) {
+      overUi = nextOver;
+      document.body.classList.toggle("login-over-ui", overUi);
+      if (overUi) last = null;
+    }
+
+    if (!reduceMotion && !overUi) stroke(x, y);
+  };
+
+  const onLeaveWindow = () => {
+    cursorVisible = false;
+    last = null;
+    document.body.classList.remove("login-over-ui");
+    overUi = false;
+  };
+
+  // Hide "slide to paint" once they've painted a bit
+  let paintHits = 0;
+  const hint = root.querySelector(".login-hint");
+  const onPaintProgress = () => {
+    paintHits += 1;
+    if (paintHits > 40 && hint) hint.style.opacity = "0";
+  };
+
+  const onMoveWithHint = (e) => {
+    onMove(e);
+    if (!overUi) onPaintProgress();
+  };
+
+  window.addEventListener("pointermove", onMoveWithHint, { passive: true });
+  document.addEventListener("mouseleave", onLeaveWindow);
   cleanups.push(() => {
-    window.removeEventListener("pointermove", onMove);
-    window.removeEventListener("pointerdown", onDown);
-    window.removeEventListener("pointerup", onUp);
-    root.removeEventListener("pointerleave", onLeave);
+    window.removeEventListener("pointermove", onMoveWithHint);
+    document.removeEventListener("mouseleave", onLeaveWindow);
   });
 
-  state.loginFx = { raf: 0, cleanups };
-  if (!reduceMotion) fade();
+  // Soft fade loop (only when there's something to fade)
+  let fadeRaf = 0;
+  const fade = () => {
+    ctx.fillStyle = "rgba(5,5,5,0.035)";
+    ctx.fillRect(0, 0, w, h);
+    fadeRaf = requestAnimationFrame(fade);
+    if (state.loginFx) state.loginFx.raf = fadeRaf;
+  };
+
+  state.loginFx = { raf: 0, cursorRaf: 0, cleanups };
+  if (!reduceMotion) {
+    fadeRaf = requestAnimationFrame(fade);
+    state.loginFx.raf = fadeRaf;
+  }
+  if (finePointer && !reduceMotion) {
+    cursorRaf = requestAnimationFrame(tickCursor);
+    state.loginFx.cursorRaf = cursorRaf;
+  }
 }
 
 async function boot() {
