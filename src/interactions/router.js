@@ -22,6 +22,7 @@ import {
   handleTprCommand,
   handleWarpCommand,
 } from "./player-commands.js";
+import { handleLinkModal } from "../modules/panels/link-panel.js";
 
 const MOD_COMMANDS = new Set([
   "warn",
@@ -70,6 +71,10 @@ export function attachInteractionRouter(client) {
 
       if (interaction.isButton()) {
         return await handleButton(interaction, client);
+      }
+
+      if (interaction.isModalSubmit()) {
+        if (await handleLinkModal(interaction)) return;
       }
     } catch (error) {
       console.error("Interaction error:", error);

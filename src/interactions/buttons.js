@@ -4,11 +4,16 @@ import {
 } from "../modules/giveaways/manager.js";
 import { openTicket, closeTicket } from "../modules/tickets/manager.js";
 import { handleVerifyButton } from "../modules/welcome/handlers.js";
+import { handleLinkPanelButton } from "../modules/panels/link-panel.js";
 import { requireStaff, isStaff } from "../lib/permissions.js";
 import { findTicketByChannel } from "../modules/tickets/manager.js";
 
 export async function handleButton(interaction, client) {
   const [namespace, action, id] = interaction.customId.split(":");
+
+  if (namespace === "link" && action === "open") {
+    return handleLinkPanelButton(interaction);
+  }
 
   if (namespace === "giveaway" && action === "enter") {
     const result = await enterGiveaway(id, interaction.user.id, interaction.member);

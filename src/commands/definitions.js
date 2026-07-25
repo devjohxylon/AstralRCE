@@ -145,6 +145,11 @@ export const commandDefinitions = [
     .addSubcommand((sub) => sub.setName("unlink").setDescription("Unlink your Discord from your IGN"))
     .addSubcommand((sub) =>
       sub
+        .setName("panel")
+        .setDescription("Staff: post the Link Account panel in this channel"),
+    )
+    .addSubcommand((sub) =>
+      sub
         .setName("force")
         .setDescription("Staff: force-link a Discord user to an IGN")
         .addUserOption((o) => o.setName("user").setDescription("Discord user").setRequired(true))

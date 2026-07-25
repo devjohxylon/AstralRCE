@@ -25,6 +25,7 @@ import {
   toggleAutoMessage,
 } from "../modules/rcon/automessages.js";
 import { syncVipForDiscord } from "../modules/rcon/vip-sync.js";
+import { postLinkPanel } from "../modules/panels/link-panel.js";
 
 async function reply(interaction, content, ephemeral = true) {
   if (interaction.deferred || interaction.replied) {
@@ -53,7 +54,7 @@ export async function handleLinkCommand(interaction) {
   if (sub === "status") {
     const link = await getLinkByDiscord(interaction.user.id);
     if (!link) {
-      return reply(interaction, "Not linked. Join the server and run `/link start YourExactIGN`.");
+      return reply(interaction, "Not linked. Use the **Link Account** panel or `/link start`.");
     }
     return reply(
       interaction,
@@ -65,6 +66,12 @@ export async function handleLinkCommand(interaction) {
     const result = await unlinkDiscord(interaction.user.id);
     if (!result.ok) return reply(interaction, result.error);
     return reply(interaction, `Unlinked from **${result.ign}**.`);
+  }
+
+  if (sub === "panel") {
+    if (!(await requireStaff(interaction))) return;
+    await postLinkPanel(interaction.channel);
+    return reply(interaction, "Link panel posted.");
   }
 
   if (sub === "force") {

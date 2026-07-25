@@ -235,6 +235,10 @@ export const config = {
     // Public URL for logs / bookmarks, e.g. https://admin.astralrce.com
     publicUrl: optional("ADMIN_PANEL_URL") || null,
   },
+  brand: {
+    // Logo for Discord panels (thumbnail/footer). Falls back to server icon.
+    logoUrl: optional("BRAND_LOGO_URL") || null,
+  },
   vip: {
     kitId: optional("VIP_KIT_ID", "vip") || "vip",
     grantCommand: optional("VIP_RCON_GRANT") || null,
