@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Astral Control</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" />
+<style>
+:root {
+  --bg: #0c0e10;
+  --bg2: #13171b;
+  --bg3: #1a2026;
+  --line: #2a333c;
+  --text: #e8ecef;
+  --muted: #8b98a5;
+  --accent: #e85d04;
+  --accent2: #faa307;
+  --ok: #2a9d8f;
+  --bad: #e63946;
+  --warn: #f4a261;
+  --font: "Syne", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--text); font-family: var(--font); }
+body {
+  background:
+    radial-gradient(1200px 600px at 10% -10%, rgba(232,93,4,.12), transparent 55%),
+    radial-gradient(900px 500px at 100% 0%, rgba(42,157,143,.08), transparent 50%),
+    var(--bg);
+}
+button, input, select, textarea { font: inherit; }
+button {
+  cursor: pointer; border: 1px solid var(--line); background: var(--bg3); color: var(--text);
+  padding: .55rem .9rem; border-radius: 6px; transition: .15s ease;
+}
+button:hover { border-color: var(--accent); color: #fff; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #110800; font-weight: 700; }
+button.danger { border-color: var(--bad); color: #ffb4b8; }
+button.ghost { background: transparent; }
+input, select, textarea {
+  width: 100%; background: var(--bg); border: 1px solid var(--line); color: var(--text);
+  padding: .6rem .75rem; border-radius: 6px; font-family: var(--mono); font-size: .85rem;
+}
+input:focus, textarea:focus, select:focus { outline: 1px solid var(--accent); border-color: var(--accent); }
+.hidden { display: none !important; }
+
+#login {
+  min-height: 100vh; display: grid; place-items: center; padding: 2rem;
+}
+.login-card {
+  width: min(420px, 100%); background: var(--bg2); border: 1px solid var(--line);
+  padding: 2rem; border-radius: 12px; box-shadow: 0 30px 80px rgba(0,0,0,.45);
+}
+.login-card h1 { margin: 0 0 .25rem; font-size: 1.8rem; letter-spacing: -.03em; }
+.login-card p { margin: 0 0 1.5rem; color: var(--muted); font-family: var(--mono); font-size: .8rem; }
+.login-card .row { display: grid; gap: .75rem; }
+
+#app { display: grid; grid-template-columns: 220px 1fr; min-height: 100vh; }
+@media (max-width: 900px) {
+  #app { grid-template-columns: 1fr; }
+  .nav { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; gap: .35rem; }
+  .nav .brand, .nav .nav-foot { width: 100%; }
+}
+
+.nav {
+  background: rgba(19,23,27,.92); border-right: 1px solid var(--line);
+  padding: 1.25rem 1rem; backdrop-filter: blur(10px);
+}
+.brand { font-size: 1.15rem; font-weight: 800; letter-spacing: -.03em; margin-bottom: 1.25rem; }
+.brand span { color: var(--accent); }
+.nav button {
+  width: 100%; text-align: left; margin-bottom: .35rem; background: transparent;
+  border-color: transparent; font-weight: 600;
+}
+.nav button.active { background: var(--bg3); border-color: var(--line); color: var(--accent2); }
+.nav-foot { margin-top: 1.5rem; font-family: var(--mono); font-size: .72rem; color: var(--muted); }
+
+.main { padding: 1.25rem 1.5rem 3rem; }
+.topbar {
+  display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; justify-content: space-between;
+  margin-bottom: 1.25rem;
+}
+.topbar h2 { margin: 0; font-size: 1.45rem; letter-spacing: -.03em; }
+.pills { display: flex; gap: .5rem; flex-wrap: wrap; }
+.pill {
+  font-family: var(--mono); font-size: .72rem; padding: .35rem .6rem; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--bg2);
+}
+.pill.ok { color: var(--ok); border-color: rgba(42,157,143,.4); }
+.pill.bad { color: var(--bad); border-color: rgba(230,57,70,.4); }
+
+.grid { display: grid; gap: 1rem; }
+.grid.stats { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+.card {
+  background: var(--bg2); border: 1px solid var(--line); border-radius: 10px; padding: 1rem 1.1rem;
+}
+.card h3 { margin: 0 0 .75rem; font-size: .95rem; letter-spacing: -.01em; }
+.metric { font-family: var(--mono); font-size: 1.6rem; font-weight: 600; }
+.metric small { display: block; color: var(--muted); font-size: .72rem; font-weight: 400; margin-top: .2rem; }
+
+.table { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: .8rem; }
+.table th, .table td { text-align: left; padding: .55rem .4rem; border-bottom: 1px solid var(--line); }
+.table th { color: var(--muted); font-weight: 500; }
+.actions { display: flex; gap: .35rem; flex-wrap: wrap; }
+.actions button { padding: .35rem .55rem; font-size: .75rem; }
+
+.console {
+  background: #070809; border: 1px solid var(--line); border-radius: 10px; min-height: 280px;
+  padding: 1rem; font-family: var(--mono); font-size: .8rem; overflow: auto; white-space: pre-wrap;
+}
+.console .in { color: var(--accent2); }
+.console .out { color: #b7c4ce; }
+.console .err { color: #ff8a93; }
+
+.form-row { display: grid; gap: .6rem; grid-template-columns: 1fr auto; margin-top: .75rem; }
+.form-grid { display: grid; gap: .6rem; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+.toast {
+  position: fixed; right: 1rem; bottom: 1rem; background: var(--bg3); border: 1px solid var(--line);
+  padding: .75rem 1rem; border-radius: 8px; font-family: var(--mono); font-size: .8rem;
+  max-width: min(420px, calc(100vw - 2rem)); z-index: 20; box-shadow: 0 12px 40px rgba(0,0,0,.4);
+}
+.split { display: grid; gap: 1rem; grid-template-columns: 1.2fr .8fr; }
+@media (max-width: 1000px) { .split { grid-template-columns: 1fr; } }
+.muted { color: var(--muted); }
+</style>
+</head>
+<body>
+<div id="login" class="hidden">
+  <div class="login-card">
+    <h1>Astral <span style="color:var(--accent)">Control</span></h1>
+    <p>Server ops · stats · RCON · automation</p>
+    <div class="row">
+      <input id="password" type="password" placeholder="Admin password" autocomplete="current-password" />
+      <button class="primary" id="loginBtn">Enter panel</button>
+      <div id="loginError" class="muted" style="font-family:var(--mono);font-size:.75rem"></div>
+    </div>
+  </div>
+</div>
+
+<div id="app" class="hidden">
+  <aside class="nav">
+    <div class="brand">ASTRAL <span>CTRL</span></div>
+    <button data-tab="overview" class="active">Overview</button>
+    <button data-tab="players">Players</button>
+    <button data-tab="console">RCON Console</button>
+    <button data-tab="stats">Stats</button>
+    <button data-tab="warps">Warps / TP</button>
+    <button data-tab="links">Links</button>
+    <button data-tab="automsg">Auto Messages</button>
+    <button data-tab="schedule">Auto Commands</button>
+    <div class="nav-foot" id="navMeta">—</div>
+    <button class="ghost" id="logoutBtn" style="margin-top:.75rem">Log out</button>
+  </aside>
+  <main class="main">
+    <div class="topbar">
+      <h2 id="pageTitle">Overview</h2>
+      <div class="pills" id="statusPills"></div>
+    </div>
+    <section id="view"></section>
+  </main>
+</div>
+<div id="toast" class="toast hidden"></div>
+
+<script>
+const state = { tab: "overview", overview: null, consoleLog: [] };
+
+async function api(path, opts = {}) {
+  const res = await fetch(`/admin/api${path}`, {
+    credentials: "include",
+    headers: { "Content-Type": "application/json", ...(opts.headers || {}) },
+    ...opts,
+    body: opts.body ? JSON.stringify(opts.body) : undefined,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || res.statusText);
+  return data;
+}
+
+function toast(msg, bad = false) {
+  const el = document.getElementById("toast");
+  el.textContent = msg;
+  el.style.borderColor = bad ? "var(--bad)" : "var(--line)";
+  el.classList.remove("hidden");
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => el.classList.add("hidden"), 3200);
+}
+
+function fmtUptime(s) {
+  if (!s && s !== 0) return "—";
+  const h = Math.floor(s / 3600);
+  const d = Math.floor(h / 24);
+  return d ? `${d}d ${h % 24}h` : `${h}h ${Math.floor((s % 3600) / 60)}m`;
+}
+
+async function boot() {
+  const session = await api("/session");
+  document.getElementById("login").classList.toggle("hidden", session.authed);
+  document.getElementById("app").classList.toggle("hidden", !session.authed);
+  if (session.authed) {
+    await refreshOverview();
+    render();
+    setInterval(() => { if (state.tab === "overview" || state.tab === "players") refreshOverview().then(render).catch(() => {}); }, 15000);
+  }
+}
+
+async function refreshOverview() {
+  state.overview = await api("/overview");
+  const o = state.overview;
+  const pills = document.getElementById("statusPills");
+  pills.innerHTML = `
+    <span class="pill ${o.rcon.connected ? "ok" : "bad"}">RCON ${o.rcon.connected ? "ONLINE" : "OFFLINE"}</span>
+    <span class="pill ${o.bot.ready ? "ok" : "bad"}">DISCORD ${o.bot.ready ? "READY" : "DOWN"}</span>
+    <span class="pill">${o.onlinePlayers.length} ONLINE</span>
+  `;
+  document.getElementById("navMeta").textContent = o.bot.user || "Astral Bot";
+}
+
+function setTab(tab) {
+  state.tab = tab;
+  document.querySelectorAll(".nav [data-tab]").forEach((b) => b.classList.toggle("active", b.dataset.tab === tab));
+  const titles = {
+    overview: "Overview", players: "Players", console: "RCON Console", stats: "Stats",
+    warps: "Warps / Teleports", links: "Account Links", automsg: "Auto Messages", schedule: "Auto Commands",
+  };
+  document.getElementById("pageTitle").textContent = titles[tab] || tab;
+  render();
+}
+
+async function render() {
+  const view = document.getElementById("view");
+  try {
+    if (state.tab === "overview") view.innerHTML = renderOverview();
+    if (state.tab === "players") view.innerHTML = await renderPlayers();
+    if (state.tab === "console") view.innerHTML = renderConsole();
+    if (state.tab === "stats") view.innerHTML = await renderStats();
+    if (state.tab === "warps") view.innerHTML = await renderWarps();
+    if (state.tab === "links") view.innerHTML = await renderLinks();
+    if (state.tab === "automsg") view.innerHTML = await renderAutoMsg();
+    if (state.tab === "schedule") view.innerHTML = await renderSchedule();
+    bindView();
+  } catch (e) {
+    view.innerHTML = `<div class="card"><p class="muted">${e.message}</p></div>`;
+  }
+}
+
+function renderOverview() {
+  const o = state.overview || { server: null, onlinePlayers: [], stats: {}, bot: {} };
+  const s = o.server || {};
+  return `
+    <div class="grid stats">
+      <div class="card"><div class="metric">${s.players ?? "—"}<small>Players / ${s.maxPlayers ?? "?"}</small></div></div>
+      <div class="card"><div class="metric">${s.queued ?? 0}<small>Queued</small></div></div>
+      <div class="card"><div class="metric">${s.fps ?? "—"}<small>FPS</small></div></div>
+      <div class="card"><div class="metric">${fmtUptime(s.uptime)}<small>Uptime</small></div></div>
+      <div class="card"><div class="metric">${o.stats?.trackedPlayers ?? 0}<small>Tracked players</small></div></div>
+      <div class="card"><div class="metric">${o.stats?.totalKills ?? 0}<small>Total kills</small></div></div>
+    </div>
+    <div class="split" style="margin-top:1rem">
+      <div class="card">
+        <h3>Server</h3>
+        <table class="table">
+          <tr><th>Hostname</th><td>${esc(s.hostname || "—")}</td></tr>
+          <tr><th>Map</th><td>${esc(s.map || "—")}</td></tr>
+          <tr><th>Game time</th><td>${esc(s.gameTime || "—")}</td></tr>
+          <tr><th>Entities</th><td>${s.entities ?? "—"}</td></tr>
+          <tr><th>Wipe label</th><td>${esc(o.stats?.wipe || "—")}</td></tr>
+        </table>
+      </div>
+      <div class="card">
+        <h3>Quick broadcast</h3>
+        <div class="form-row">
+          <input id="broadcastMsg" placeholder="Message to say in-game" />
+          <button class="primary" data-action="broadcast">Send</button>
+        </div>
+        <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:.75rem 0 0">Bot uptime ${fmtUptime(o.bot?.uptimeSeconds)}</p>
+      </div>
+    </div>
+  `;
+}
+
+async function renderPlayers() {
+  const data = await api("/players");
+  const rows = data.online.map((p) => `
+    <tr>
+      <td><strong>${esc(p.ign)}</strong></td>
+      <td>${p.platform || "—"}</td>
+      <td>${p.ping ?? "—"}</td>
+      <td>${p.link ? `<span class="pill ok">linked</span>` : `<span class="pill">unlinked</span>`}</td>
+      <td class="actions">
+        <button data-action="kick" data-ign="${esc(p.ign)}">Kick</button>
+        <button class="danger" data-action="ban" data-ign="${esc(p.ign)}">Ban</button>
+      </td>
+    </tr>`).join("") || `<tr><td colspan="5" class="muted">Nobody online</td></tr>`;
+  return `
+    <div class="card">
+      <h3>Online now (${data.online.length})</h3>
+      <table class="table">
+        <thead><tr><th>IGN</th><th>Platform</th><th>Ping</th><th>Link</th><th></th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+}
+
+function renderConsole() {
+  const log = state.consoleLog.slice(-80).map((l) =>
+    `<div class="${l.type}">${esc(l.text)}</div>`
+  ).join("") || `<div class="muted">Ready. Type any RCON command below.</div>`;
+  return `
+    <div class="card">
+      <h3>Live RCON</h3>
+      <div class="console" id="consoleOut">${log}</div>
+      <div class="form-row">
+        <input id="rconCmd" placeholder='e.g. say hello  |  teleportpos (0,0,0) "Player"' />
+        <button class="primary" data-action="rcon">Run</button>
+      </div>
+      <div class="actions" style="margin-top:.75rem">
+        <button data-action="preset" data-cmd="serverinfo">serverinfo</button>
+        <button data-action="preset" data-cmd="global.users">users</button>
+        <button data-action="preset" data-cmd="kit list">kit list</button>
+        <button data-action="preset" data-cmd="env.time">env.time</button>
+      </div>
+    </div>`;
+}
+
+async function renderStats() {
+  const data = await api("/stats?category=kills");
+  const rows = data.rows.map((r) =>
+    `<tr><td>#${r.rank}</td><td>${esc(r.name)}</td><td>${esc(r.value)}</td></tr>`
+  ).join("") || `<tr><td colspan="3" class="muted">No stats yet</td></tr>`;
+  return `
+    <div class="split">
+      <div class="card">
+        <h3>Top kills</h3>
+        <table class="table"><thead><tr><th>#</th><th>Player</th><th>Value</th></tr></thead><tbody>${rows}</tbody></table>
+      </div>
+      <div class="card">
+        <h3>Actions</h3>
+        <div class="actions">
+          <button class="primary" data-action="pushStats">Push to website</button>
+          <button class="danger" data-action="resetStats">Reset wipe stats</button>
+        </div>
+        <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin-top:.75rem">Wipe: ${esc(data.summary?.wipe || "—")} · ${data.summary?.trackedPlayers || 0} tracked</p>
+        <h3 style="margin-top:1.25rem">Lookup</h3>
+        <div class="form-row">
+          <input id="lookupName" placeholder="Player IGN" />
+          <button data-action="lookup">Find</button>
+        </div>
+        <pre id="lookupOut" class="muted" style="font-family:var(--mono);font-size:.75rem;white-space:pre-wrap"></pre>
+      </div>
+    </div>`;
+}
+
+async function renderWarps() {
+  const data = await api("/warps");
+  const entries = Object.entries(data.warps || {});
+  const rows = entries.map(([name, w]) => `
+    <tr>
+      <td><code>${esc(name)}</code></td>
+      <td>${Number(w.x).toFixed(1)}, ${Number(w.y).toFixed(1)}, ${Number(w.z).toFixed(1)}</td>
+      <td class="actions"><button class="danger" data-action="delWarp" data-name="${esc(name)}">Delete</button></td>
+    </tr>`).join("") || `<tr><td colspan="3" class="muted">No warps yet</td></tr>`;
+  return `
+    <div class="split">
+      <div class="card">
+        <h3>Warps</h3>
+        <table class="table"><thead><tr><th>Name</th><th>Coords</th><th></th></tr></thead><tbody>${rows}</tbody></table>
+      </div>
+      <div class="card">
+        <h3>Create warp</h3>
+        <div class="form-grid">
+          <input id="warpName" placeholder="Name (outpost)" />
+          <input id="warpFrom" placeholder="Copy from online player IGN" />
+        </div>
+        <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:.6rem 0">Or set coords manually:</p>
+        <div class="form-grid">
+          <input id="warpX" placeholder="X" />
+          <input id="warpY" placeholder="Y" />
+          <input id="warpZ" placeholder="Z" />
+        </div>
+        <button class="primary" style="margin-top:.75rem" data-action="addWarp">Save warp</button>
+        <h3 style="margin-top:1.5rem">Force teleport player</h3>
+        <div class="form-grid">
+          <input id="tpIgn" placeholder="Player IGN" />
+          <input id="tpTo" placeholder="To player (optional)" />
+        </div>
+        <div class="form-grid" style="margin-top:.6rem">
+          <input id="tpX" placeholder="X" />
+          <input id="tpY" placeholder="Y" />
+          <input id="tpZ" placeholder="Z" />
+        </div>
+        <button style="margin-top:.75rem" data-action="forceTp">Teleport now</button>
+      </div>
+    </div>`;
+}
+
+async function renderLinks() {
+  const data = await api("/links");
+  const rows = data.links.map((l) => `
+    <tr>
+      <td>${esc(l.ign)}</td>
+      <td><code>${esc(l.discordId)}</code></td>
+      <td>${new Date(l.linkedAt).toLocaleString()}</td>
+      <td class="actions"><button class="danger" data-action="unlink" data-id="${esc(l.discordId)}">Unlink</button></td>
+    </tr>`).join("") || `<tr><td colspan="4" class="muted">No links</td></tr>`;
+  return `
+    <div class="split">
+      <div class="card">
+        <h3>Linked accounts</h3>
+        <table class="table"><thead><tr><th>IGN</th><th>Discord ID</th><th>Linked</th><th></th></tr></thead><tbody>${rows}</tbody></table>
+      </div>
+      <div class="card">
+        <h3>Force link</h3>
+        <div class="form-grid">
+          <input id="linkDiscord" placeholder="Discord user ID" />
+          <input id="linkIgn" placeholder="In-game name" />
+        </div>
+        <button class="primary" style="margin-top:.75rem" data-action="forceLink">Link</button>
+        <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin-top:.75rem">Players can also self-link with /link start while online — no notes.</p>
+      </div>
+    </div>`;
+}
+
+async function renderAutoMsg() {
+  const data = await api("/automessages");
+  const rows = data.messages.map((m) => `
+    <tr>
+      <td><code>${esc(m.id)}</code></td>
+      <td>${esc(m.text)}</td>
+      <td>${m.intervalMinutes}m</td>
+      <td>${m.enabled ? "ON" : "OFF"}</td>
+      <td class="actions">
+        <button data-action="toggleMsg" data-id="${esc(m.id)}" data-on="${m.enabled ? "0" : "1"}">${m.enabled ? "Pause" : "Enable"}</button>
+        <button class="danger" data-action="delMsg" data-id="${esc(m.id)}">Delete</button>
+      </td>
+    </tr>`).join("") || `<tr><td colspan="5" class="muted">None yet</td></tr>`;
+  return `
+    <div class="split">
+      <div class="card">
+        <h3>In-game auto messages</h3>
+        <table class="table"><thead><tr><th>ID</th><th>Text</th><th>Every</th><th></th><th></th></tr></thead><tbody>${rows}</tbody></table>
+      </div>
+      <div class="card">
+        <h3>Add message</h3>
+        <textarea id="msgText" rows="3" placeholder="Welcome to Astral Vanilla+"></textarea>
+        <input id="msgMins" type="number" min="1" value="15" style="margin-top:.6rem" />
+        <button class="primary" style="margin-top:.75rem" data-action="addMsg">Add</button>
+      </div>
+    </div>`;
+}
+
+async function renderSchedule() {
+  const data = await api("/schedule");
+  const rows = data.jobs.map((j) => `
+    <tr>
+      <td><strong>${esc(j.name)}</strong><div class="muted">${esc(j.command)}</div></td>
+      <td>${j.intervalMinutes}m</td>
+      <td>${j.enabled ? "ON" : "OFF"}</td>
+      <td>${j.lastRunAt ? new Date(j.lastRunAt).toLocaleString() : "—"}</td>
+      <td class="actions">
+        <button data-action="runJob" data-id="${esc(j.id)}">Run now</button>
+        <button data-action="toggleJob" data-id="${esc(j.id)}" data-on="${j.enabled ? "0" : "1"}">${j.enabled ? "Pause" : "Enable"}</button>
+        <button class="danger" data-action="delJob" data-id="${esc(j.id)}">Delete</button>
+      </td>
+    </tr>`).join("") || `<tr><td colspan="5" class="muted">No scheduled commands</td></tr>`;
+  return `
+    <div class="split">
+      <div class="card">
+        <h3>Scheduled RCON jobs</h3>
+        <table class="table"><thead><tr><th>Job</th><th>Every</th><th></th><th>Last run</th><th></th></tr></thead><tbody>${rows}</tbody></table>
+      </div>
+      <div class="card">
+        <h3>New auto command</h3>
+        <input id="jobName" placeholder="Name (hourly welcome)" />
+        <input id="jobCmd" placeholder='Command e.g. say Wipe in 2 days' style="margin-top:.6rem" />
+        <input id="jobMins" type="number" min="1" value="60" style="margin-top:.6rem" />
+        <button class="primary" style="margin-top:.75rem" data-action="addJob">Schedule</button>
+        <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin-top:.75rem">Runs automatically while RCON is connected. Shop/economy comes later in this panel.</p>
+      </div>
+    </div>`;
+}
+
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[c]));
+}
+
+function bindView() {
+  document.querySelectorAll("[data-action]").forEach((el) => {
+    el.onclick = async () => {
+      const a = el.dataset.action;
+      try {
+        if (a === "broadcast") {
+          await api("/broadcast", { method: "POST", body: { message: document.getElementById("broadcastMsg").value } });
+          toast("Broadcast sent");
+        }
+        if (a === "kick") {
+          await api(`/players/${encodeURIComponent(el.dataset.ign)}/kick`, { method: "POST", body: { reason: "Kicked by admin panel" } });
+          toast(`Kicked ${el.dataset.ign}`); refreshOverview().then(render);
+        }
+        if (a === "ban") {
+          if (!confirm(`Ban ${el.dataset.ign}?`)) return;
+          await api(`/players/${encodeURIComponent(el.dataset.ign)}/ban`, { method: "POST", body: { reason: "Banned by admin panel" } });
+          toast(`Banned ${el.dataset.ign}`); refreshOverview().then(render);
+        }
+        if (a === "rcon" || a === "preset") {
+          const cmd = a === "preset" ? el.dataset.cmd : document.getElementById("rconCmd").value;
+          state.consoleLog.push({ type: "in", text: `> ${cmd}` });
+          try {
+            const r = await api("/rcon", { method: "POST", body: { command: cmd } });
+            state.consoleLog.push({ type: "out", text: r.result || "(empty)" });
+          } catch (e) {
+            state.consoleLog.push({ type: "err", text: e.message });
+          }
+          render();
+          document.getElementById("rconCmd")?.focus();
+        }
+        if (a === "pushStats") { await api("/stats/push", { method: "POST", body: {} }); toast("Leaderboard pushed"); }
+        if (a === "resetStats") {
+          if (!confirm("Reset all tracked kill/death stats?")) return;
+          await api("/stats/reset", { method: "POST", body: {} }); toast("Stats reset"); render();
+        }
+        if (a === "lookup") {
+          const name = document.getElementById("lookupName").value;
+          const r = await api(`/stats/${encodeURIComponent(name)}`);
+          document.getElementById("lookupOut").textContent = JSON.stringify(r.player, null, 2);
+        }
+        if (a === "addWarp") {
+          const body = {
+            name: document.getElementById("warpName").value,
+            fromPlayer: document.getElementById("warpFrom").value || undefined,
+            x: document.getElementById("warpX").value || undefined,
+            y: document.getElementById("warpY").value || undefined,
+            z: document.getElementById("warpZ").value || undefined,
+          };
+          await api("/warps", { method: "POST", body }); toast("Warp saved"); render();
+        }
+        if (a === "delWarp") { await api(`/warps/${encodeURIComponent(el.dataset.name)}`, { method: "DELETE" }); toast("Warp deleted"); render(); }
+        if (a === "forceTp") {
+          const ign = document.getElementById("tpIgn").value;
+          const body = {
+            toPlayer: document.getElementById("tpTo").value || undefined,
+            x: document.getElementById("tpX").value || undefined,
+            y: document.getElementById("tpY").value || undefined,
+            z: document.getElementById("tpZ").value || undefined,
+          };
+          await api(`/players/${encodeURIComponent(ign)}/teleport`, { method: "POST", body }); toast("Teleport sent");
+        }
+        if (a === "forceLink") {
+          await api("/links", { method: "POST", body: { discordId: document.getElementById("linkDiscord").value, ign: document.getElementById("linkIgn").value } });
+          toast("Linked"); render();
+        }
+        if (a === "unlink") { await api(`/links/${encodeURIComponent(el.dataset.id)}`, { method: "DELETE" }); toast("Unlinked"); render(); }
+        if (a === "addMsg") {
+          await api("/automessages", { method: "POST", body: { text: document.getElementById("msgText").value, intervalMinutes: Number(document.getElementById("msgMins").value) } });
+          toast("Message added"); render();
+        }
+        if (a === "toggleMsg") { await api(`/automessages/${el.dataset.id}/toggle`, { method: "POST", body: { enabled: el.dataset.on === "1" } }); render(); }
+        if (a === "delMsg") { await api(`/automessages/${el.dataset.id}`, { method: "DELETE" }); render(); }
+        if (a === "addJob") {
+          await api("/schedule", { method: "POST", body: {
+            name: document.getElementById("jobName").value,
+            command: document.getElementById("jobCmd").value,
+            intervalMinutes: Number(document.getElementById("jobMins").value),
+          }});
+          toast("Job scheduled"); render();
+        }
+        if (a === "runJob") { const r = await api(`/schedule/${el.dataset.id}/run`, { method: "POST", body: {} }); toast(r.result || "Ran"); render(); }
+        if (a === "toggleJob") { await api(`/schedule/${el.dataset.id}/toggle`, { method: "POST", body: { enabled: el.dataset.on === "1" } }); render(); }
+        if (a === "delJob") { await api(`/schedule/${el.dataset.id}`, { method: "DELETE" }); render(); }
+      } catch (e) {
+        toast(e.message, true);
+      }
+    };
+  });
+
+  const rconInput = document.getElementById("rconCmd");
+  if (rconInput) {
+    rconInput.onkeydown = (e) => {
+      if (e.key === "Enter") document.querySelector('[data-action="rcon"]')?.click();
+    };
+  }
+}
+
+document.getElementById("loginBtn").onclick = async () => {
+  try {
+    await api("/login", { method: "POST", body: { password: document.getElementById("password").value } });
+    document.getElementById("loginError").textContent = "";
+    await boot();
+  } catch (e) {
+    document.getElementById("loginError").textContent = e.message;
+  }
+};
+document.getElementById("password").onkeydown = (e) => {
+  if (e.key === "Enter") document.getElementById("loginBtn").click();
+};
+document.getElementById("logoutBtn").onclick = async () => {
+  await api("/logout", { method: "POST", body: {} });
+  location.reload();
+};
+document.querySelectorAll(".nav [data-tab]").forEach((b) => b.onclick = () => setTab(b.dataset.tab));
+
+boot().catch((e) => {
+  document.getElementById("login").classList.remove("hidden");
+  document.getElementById("loginError").textContent = e.message;
+});
+</script>
+</body>
+</html>
