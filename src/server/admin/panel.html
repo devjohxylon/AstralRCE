@@ -48,16 +48,211 @@ input, select, textarea {
 input:focus, textarea:focus, select:focus { outline: 1px solid #555; border-color: #555; }
 .hidden { display: none !important; }
 
+/* ── Login: cinematic HUD (jcedrik-inspired) ── */
 #login {
-  min-height: 100vh; display: grid; place-items: center; padding: 2rem;
+  position: relative; min-height: 100vh; min-height: 100svh;
+  display: grid; place-items: center; padding: 2rem 1.25rem 2rem 3.5rem;
+  overflow: hidden; isolation: isolate;
 }
+#login.is-entered .ink-char { animation: inkChar .55s cubic-bezier(.22,1,.36,1) both; }
+#login.is-entered .login-card,
+#login.is-entered .login-kicker,
+#login.is-entered .login-sub,
+#login.is-entered .login-meta { opacity: 1; transform: none; }
+#login.is-entered .login-hint { opacity: 1; transform: translateX(-50%); }
+
+.login-bg {
+  position: absolute; inset: 0; z-index: 0; overflow: hidden; background: #050505; pointer-events: none;
+}
+.login-bg::before {
+  content: ""; position: absolute; inset: 0; z-index: 1;
+  background:
+    repeating-linear-gradient(0deg, rgba(255,255,255,.03) 0 1px, transparent 1px 56px),
+    repeating-linear-gradient(90deg, rgba(255,255,255,.03) 0 1px, transparent 1px 56px);
+}
+.login-bg::after {
+  content: ""; position: absolute; inset: 0; z-index: 2;
+  background: radial-gradient(70% 60% at 50% 45%, transparent 0%, rgba(0,0,0,.35) 55%, rgba(0,0,0,.82) 100%);
+}
+.login-grad {
+  position: absolute; width: 200%; height: 200%; top: -50%; left: -50%; opacity: .32; z-index: 0;
+}
+.login-grad.g1 {
+  background: radial-gradient(at 28% 22%, rgba(180,180,180,.55) 0%, transparent 48%);
+  animation: loginMove1 16s ease-in-out infinite;
+}
+.login-grad.g2 {
+  background: radial-gradient(at 72% 68%, rgba(90,90,90,.7) 0%, transparent 50%);
+  animation: loginMove2 22s ease-in-out infinite;
+}
+.login-grad.g3 {
+  background: radial-gradient(at 50% 40%, rgba(255,255,255,.12) 0%, transparent 42%);
+  animation: loginMove3 18s ease-in-out infinite;
+}
+@keyframes loginMove1 {
+  0%, 100% { transform: translate(0,0) rotate(0deg); }
+  50% { transform: translate(4%, -3%) rotate(8deg); }
+}
+@keyframes loginMove2 {
+  0%, 100% { transform: translate(0,0) rotate(0deg); }
+  50% { transform: translate(-5%, 4%) rotate(-6deg); }
+}
+@keyframes loginMove3 {
+  0%, 100% { transform: translate(0,0) scale(1); }
+  50% { transform: translate(2%, 3%) scale(1.08); }
+}
+#loginPaint {
+  position: absolute; inset: 0; width: 100%; height: 100%; z-index: 3; pointer-events: none;
+}
+.login-grain {
+  position: absolute; inset: 0; z-index: 8; pointer-events: none; opacity: .06;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 180px 180px;
+}
+.login-rail {
+  position: absolute; left: 0; top: 0; bottom: 0; width: 42px; z-index: 6;
+  border-right: 1px solid rgba(255,255,255,.08); overflow: hidden;
+  mask-image: linear-gradient(transparent, #000 12%, #000 88%, transparent);
+}
+.login-rail-track {
+  display: flex; flex-direction: column; gap: 2.5rem; padding: 1.5rem 0;
+  animation: railScroll 28s linear infinite; white-space: nowrap;
+}
+.login-rail-track span {
+  writing-mode: vertical-rl; transform: rotate(180deg);
+  font-family: var(--mono); font-size: .65rem; letter-spacing: .28em;
+  color: rgba(210,210,210,.45); text-transform: uppercase;
+}
+@keyframes railScroll {
+  from { transform: translateY(0); }
+  to { transform: translateY(-50%); }
+}
+.login-meta {
+  position: absolute; top: 1.25rem; right: 1.25rem; z-index: 7;
+  font-family: var(--mono); font-size: .65rem; letter-spacing: .14em;
+  color: rgba(200,200,200,.55); text-align: right; line-height: 1.6;
+  opacity: 0; transform: translateY(-8px); transition: .7s .35s cubic-bezier(.22,1,.36,1);
+}
+.login-hint {
+  position: absolute; bottom: 1.4rem; left: 50%; transform: translateX(-50%) translateY(8px);
+  z-index: 7; font-family: var(--mono); font-size: .62rem; letter-spacing: .32em;
+  text-transform: uppercase; color: rgba(180,180,180,.4);
+  opacity: 0; transition: .7s .55s cubic-bezier(.22,1,.36,1);
+  pointer-events: none;
+}
+.login-hint em {
+  display: inline-block; width: 7px; height: 7px; margin-right: .55rem;
+  border-radius: 50%; border: 1px solid rgba(220,220,220,.7);
+  box-shadow: 0 0 10px rgba(255,255,255,.35);
+  animation: hintPulse 1.8s ease-in-out infinite; vertical-align: middle;
+}
+@keyframes hintPulse {
+  0%, 100% { transform: translateX(-10px); opacity: .45; }
+  50% { transform: translateX(10px); opacity: 1; }
+}
+.login-stage {
+  position: relative; z-index: 5; width: min(520px, 100%);
+  display: grid; gap: 1.75rem; justify-items: stretch;
+}
+.login-kicker {
+  margin: 0; font-family: var(--mono); font-size: .68rem; letter-spacing: .35em;
+  text-transform: uppercase; color: rgba(200,200,200,.55);
+  opacity: 0; transform: translateY(12px); transition: .7s .1s cubic-bezier(.22,1,.36,1);
+}
+.login-title {
+  margin: .35rem 0 0; font-size: clamp(3.2rem, 12vw, 5.6rem); font-weight: 800;
+  letter-spacing: -.06em; line-height: .9; color: #f2f2f2;
+}
+.login-title .ink-char {
+  display: inline-block; opacity: 0; transform: translateY(28px) skewY(4deg);
+}
+@keyframes inkChar {
+  to { opacity: 1; transform: none; }
+}
+.login-sub {
+  margin: .85rem 0 0; font-family: var(--mono); font-size: clamp(.78rem, 1.6vw, .95rem);
+  letter-spacing: .28em; text-transform: uppercase; color: rgba(210,210,210,.72);
+  min-height: 1.2em;
+  opacity: 0; transform: translateY(10px); transition: .7s .25s cubic-bezier(.22,1,.36,1);
+}
+.login-sub .caret {
+  display: inline-block; width: .55ch; height: 1em; margin-left: 2px;
+  background: rgba(230,230,230,.75); vertical-align: text-bottom;
+  animation: caretBlink 1s steps(1) infinite;
+}
+@keyframes caretBlink { 50% { opacity: 0; } }
+
 .login-card {
-  width: min(420px, 100%); background: var(--bg2); border: 1px solid var(--line);
-  padding: 2rem; border-radius: 12px; box-shadow: 0 30px 80px rgba(0,0,0,.65);
+  position: relative; width: 100%;
+  background: rgba(12,12,12,.72); border: 1px solid rgba(255,255,255,.12);
+  padding: 1.5rem 1.35rem 1.35rem; backdrop-filter: blur(14px);
+  box-shadow: 0 40px 100px rgba(0,0,0,.65), inset 0 1px 0 rgba(255,255,255,.04);
+  opacity: 0; transform: translateY(18px); transition: .75s .4s cubic-bezier(.22,1,.36,1);
 }
-.login-card h1 { margin: 0 0 .25rem; font-size: 1.8rem; letter-spacing: -.03em; }
-.login-card p { margin: 0 0 1.5rem; color: var(--muted); font-family: var(--mono); font-size: .8rem; }
+.login-card .hud-c {
+  position: absolute; width: 14px; height: 14px; border-color: rgba(230,230,230,.55); border-style: solid;
+}
+.login-card .hud-c.tl { top: -1px; left: -1px; border-width: 2px 0 0 2px; }
+.login-card .hud-c.tr { top: -1px; right: -1px; border-width: 2px 2px 0 0; }
+.login-card .hud-c.bl { bottom: -1px; left: -1px; border-width: 0 0 2px 2px; }
+.login-card .hud-c.br { bottom: -1px; right: -1px; border-width: 0 2px 2px 0; }
+.login-card .tag {
+  font-family: var(--mono); font-size: .62rem; letter-spacing: .22em; text-transform: uppercase;
+  color: rgba(180,180,180,.55); margin: 0 0 1rem;
+}
 .login-card .row { display: grid; gap: .75rem; }
+.login-card input {
+  background: rgba(0,0,0,.55); border-color: rgba(255,255,255,.14);
+  letter-spacing: .08em;
+}
+.login-card input:focus {
+  outline: none; border-color: rgba(255,255,255,.4);
+  box-shadow: 0 0 0 1px rgba(255,255,255,.15);
+}
+.login-card button.primary {
+  background: #efefef; color: #0a0a0a; border-color: #efefef;
+  letter-spacing: .18em; text-transform: uppercase; font-size: .78rem;
+  padding: .75rem 1rem; transition: .2s ease;
+}
+.login-card button.primary:hover {
+  background: #fff; transform: translateY(-1px);
+  box-shadow: 0 12px 40px rgba(255,255,255,.12);
+}
+.login-card button.primary:active { transform: translateY(0); }
+
+.login-cursor-dot, .login-cursor-frame {
+  position: fixed; pointer-events: none; z-index: 50; opacity: 0; transition: opacity .2s;
+}
+.login-cursor-dot {
+  width: 5px; height: 5px; margin: -2.5px 0 0 -2.5px; border-radius: 50%;
+  background: #eee; box-shadow: 0 0 10px rgba(255,255,255,.7);
+}
+.login-cursor-frame {
+  width: 28px; height: 28px; margin: -14px 0 0 -14px;
+}
+.login-cursor-frame i {
+  position: absolute; width: 7px; height: 7px; border-color: rgba(230,230,230,.85); border-style: solid;
+}
+.login-cursor-frame i:nth-child(1) { top: 0; left: 0; border-width: 1.5px 0 0 1.5px; }
+.login-cursor-frame i:nth-child(2) { top: 0; right: 0; border-width: 1.5px 1.5px 0 0; }
+.login-cursor-frame i:nth-child(3) { bottom: 0; left: 0; border-width: 0 0 1.5px 1.5px; }
+.login-cursor-frame i:nth-child(4) { bottom: 0; right: 0; border-width: 0 1.5px 1.5px 0; }
+body.login-hud #login ~ *,
+body.login-hud #login { cursor: none; }
+body.login-hud #login input,
+body.login-hud #login button { cursor: none; }
+@media (pointer: coarse), (max-width: 800px) {
+  body.login-hud #login, body.login-hud #login input, body.login-hud #login button { cursor: auto; }
+  .login-cursor-dot, .login-cursor-frame { display: none !important; }
+  #login { padding-left: 1.25rem; }
+  .login-rail { display: none; }
+  .login-hint { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .login-grad, .login-rail-track, .login-hint em, .login-sub .caret { animation: none !important; }
+  .login-title .ink-char { opacity: 1; transform: none; animation: none !important; }
+  #login .login-card, #login .login-kicker, #login .login-sub, #login .login-meta { opacity: 1; transform: none; }
+}
 
 #app { display: grid; grid-template-columns: 220px 1fr; min-height: 100vh; }
 @media (max-width: 900px) {
@@ -131,14 +326,49 @@ input:focus, textarea:focus, select:focus { outline: 1px solid #555; border-colo
 </head>
 <body>
 <div id="login" class="hidden">
-  <div class="login-card">
-    <h1>Astral <span style="color:var(--accent2)">Control</span></h1>
-    <p>Server ops · stats · RCON · automation</p>
-    <div class="row">
-      <input id="password" type="password" placeholder="Admin password" autocomplete="current-password" />
-      <button class="primary" id="loginBtn">Enter panel</button>
-      <div id="loginError" class="muted" style="font-family:var(--mono);font-size:.75rem"></div>
+  <div class="login-bg" aria-hidden="true">
+    <div class="login-grad g1"></div>
+    <div class="login-grad g2"></div>
+    <div class="login-grad g3"></div>
+    <canvas id="loginPaint"></canvas>
+  </div>
+  <div class="login-grain" aria-hidden="true"></div>
+  <aside class="login-rail" aria-hidden="true">
+    <div class="login-rail-track">
+      <span>2026 — ASTRAL VANILLA+</span>
+      <span>RCON · CONTROL · OPS</span>
+      <span>ASTRAL — SERVER COMMAND</span>
+      <span>2026 — ASTRAL VANILLA+</span>
+      <span>RCON · CONTROL · OPS</span>
+      <span>ASTRAL — SERVER COMMAND</span>
     </div>
+  </aside>
+  <div class="login-meta">
+    ASTRALRCE.COM<br />
+    ADMIN · SECURE GATE<br />
+    <span id="loginClock">—</span>
+  </div>
+  <div class="login-stage">
+    <div>
+      <p class="login-kicker">authorized access only</p>
+      <h1 class="login-title" id="loginTitle" aria-label="Astral"></h1>
+      <p class="login-sub" id="loginTyping" aria-live="polite"></p>
+    </div>
+    <div class="login-card">
+      <span class="hud-c tl"></span><span class="hud-c tr"></span>
+      <span class="hud-c bl"></span><span class="hud-c br"></span>
+      <p class="tag">AUTH://PANEL</p>
+      <div class="row">
+        <input id="password" type="password" placeholder="ACCESS KEY" autocomplete="current-password" />
+        <button class="primary" id="loginBtn">Enter control</button>
+        <div id="loginError" class="muted" style="font-family:var(--mono);font-size:.75rem;min-height:1em"></div>
+      </div>
+    </div>
+  </div>
+  <p class="login-hint"><em></em>slide to paint</p>
+  <div class="login-cursor-dot" id="loginCursorDot" aria-hidden="true"></div>
+  <div class="login-cursor-frame" id="loginCursorFrame" aria-hidden="true">
+    <i></i><i></i><i></i><i></i>
   </div>
 </div>
 
@@ -167,7 +397,7 @@ input:focus, textarea:focus, select:focus { outline: 1px solid #555; border-colo
 <div id="toast" class="toast hidden"></div>
 
 <script>
-const state = { tab: "overview", overview: null, consoleLog: [] };
+const state = { tab: "overview", overview: null, consoleLog: [], loginFx: null };
 
 async function api(path, opts = {}) {
   const res = await fetch(`/admin/api${path}`, {
@@ -197,14 +427,152 @@ function fmtUptime(s) {
   return d ? `${d}d ${h % 24}h` : `${h}h ${Math.floor((s % 3600) / 60)}m`;
 }
 
+function stopLoginScene() {
+  document.body.classList.remove("login-hud");
+  if (state.loginFx?.raf) cancelAnimationFrame(state.loginFx.raf);
+  if (state.loginFx?.cleanups) state.loginFx.cleanups.forEach((fn) => fn());
+  state.loginFx = null;
+}
+
+function initLoginScene() {
+  const root = document.getElementById("login");
+  if (!root || root.classList.contains("hidden") || state.loginFx) return;
+
+  document.body.classList.add("login-hud");
+  const cleanups = [];
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const finePointer = window.matchMedia("(pointer: fine)").matches;
+
+  // Kinetic title
+  const title = document.getElementById("loginTitle");
+  const word = "ASTRAL";
+  title.innerHTML = [...word].map((ch, i) =>
+    `<span class="ink-char" style="animation-delay:${80 + i * 55}ms">${ch}</span>`
+  ).join("");
+
+  // Clock
+  const clock = document.getElementById("loginClock");
+  const tickClock = () => {
+    const d = new Date();
+    clock.textContent = d.toISOString().replace("T", " · ").slice(0, 22) + "Z";
+  };
+  tickClock();
+  const clockId = setInterval(tickClock, 1000);
+  cleanups.push(() => clearInterval(clockId));
+
+  // Typing line
+  const typingEl = document.getElementById("loginTyping");
+  const phrase = "CONTROL · RCON · OPS";
+  let ti = 0;
+  const type = () => {
+    if (ti <= phrase.length) {
+      typingEl.innerHTML = phrase.slice(0, ti) + '<span class="caret"></span>';
+      ti += 1;
+      const t = setTimeout(type, reduceMotion ? 0 : 38);
+      cleanups.push(() => clearTimeout(t));
+    } else {
+      typingEl.textContent = phrase;
+    }
+  };
+  if (reduceMotion) typingEl.textContent = phrase;
+  else setTimeout(type, 420);
+
+  requestAnimationFrame(() => root.classList.add("is-entered"));
+
+  // Paint trail canvas
+  const canvas = document.getElementById("loginPaint");
+  const ctx = canvas.getContext("2d");
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  let w = 0, h = 0, last = null, painting = false;
+
+  const resize = () => {
+    w = window.innerWidth;
+    h = window.innerHeight;
+    canvas.width = Math.floor(w * dpr);
+    canvas.height = Math.floor(h * dpr);
+    canvas.style.width = w + "px";
+    canvas.style.height = h + "px";
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  };
+  resize();
+  window.addEventListener("resize", resize);
+  cleanups.push(() => window.removeEventListener("resize", resize));
+
+  const fade = () => {
+    ctx.fillStyle = "rgba(5,5,5,0.045)";
+    ctx.fillRect(0, 0, w, h);
+    state.loginFx.raf = requestAnimationFrame(fade);
+  };
+
+  const stroke = (x, y) => {
+    if (!last) { last = { x, y }; return; }
+    const dx = x - last.x, dy = y - last.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist < 1.5) return;
+    ctx.strokeStyle = "rgba(235,235,235,0.55)";
+    ctx.lineWidth = Math.min(18, 3 + dist * 0.08);
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.shadowColor = "rgba(255,255,255,0.35)";
+    ctx.shadowBlur = 12;
+    ctx.beginPath();
+    ctx.moveTo(last.x, last.y);
+    ctx.lineTo(x, y);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    last = { x, y };
+  };
+
+  const onMove = (e) => {
+    const x = e.clientX, y = e.clientY;
+    if (finePointer) {
+      const dot = document.getElementById("loginCursorDot");
+      const frame = document.getElementById("loginCursorFrame");
+      dot.style.opacity = "1";
+      frame.style.opacity = "1";
+      dot.style.transform = `translate3d(${x}px,${y}px,0)`;
+      frame.style.transform = `translate3d(${x}px,${y}px,0)`;
+    }
+    if (painting || e.buttons === 1) stroke(x, y);
+    else if (!painting) {
+      // ambient trail while moving
+      stroke(x, y);
+    }
+  };
+  const onDown = (e) => { painting = true; last = { x: e.clientX, y: e.clientY }; };
+  const onUp = () => { painting = false; last = null; };
+  const onLeave = () => {
+    last = null;
+    document.getElementById("loginCursorDot").style.opacity = "0";
+    document.getElementById("loginCursorFrame").style.opacity = "0";
+  };
+
+  window.addEventListener("pointermove", onMove);
+  window.addEventListener("pointerdown", onDown);
+  window.addEventListener("pointerup", onUp);
+  root.addEventListener("pointerleave", onLeave);
+  cleanups.push(() => {
+    window.removeEventListener("pointermove", onMove);
+    window.removeEventListener("pointerdown", onDown);
+    window.removeEventListener("pointerup", onUp);
+    root.removeEventListener("pointerleave", onLeave);
+  });
+
+  state.loginFx = { raf: 0, cleanups };
+  if (!reduceMotion) fade();
+}
+
 async function boot() {
   const session = await api("/session");
   document.getElementById("login").classList.toggle("hidden", session.authed);
   document.getElementById("app").classList.toggle("hidden", !session.authed);
   if (session.authed) {
+    stopLoginScene();
     await refreshOverview();
     render();
     setInterval(() => { if (state.tab === "overview" || state.tab === "players") refreshOverview().then(render).catch(() => {}); }, 15000);
+  } else {
+    initLoginScene();
   }
 }
 
@@ -605,7 +973,9 @@ document.querySelectorAll(".nav [data-tab]").forEach((b) => b.onclick = () => se
 
 boot().catch((e) => {
   document.getElementById("login").classList.remove("hidden");
+  document.getElementById("app").classList.add("hidden");
   document.getElementById("loginError").textContent = e.message;
+  initLoginScene();
 });
 </script>
 </body>
