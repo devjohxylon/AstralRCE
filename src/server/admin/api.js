@@ -85,6 +85,9 @@ function clearAuthCookie(res) {
 }
 
 export function attachAdminPanel(app, client) {
+  // Bare domain → panel (avoids Express "Cannot GET /")
+  app.get("/", (_req, res) => res.redirect(302, "/admin"));
+
   app.get("/admin", (_req, res) => {
     res.type("html").send(PANEL_HTML);
   });

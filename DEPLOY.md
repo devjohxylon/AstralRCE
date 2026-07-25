@@ -17,14 +17,16 @@ Your PC must stay on for the bot to work locally. For **24/7**, host it on Railw
 
 `localhost:8080` in Railway logs is **inside the container** — your browser cannot open it.
 
-1. Railway → your service → **Settings** → **Networking** → **Custom Domain**
-2. Add: `admin.astralrce.com`
-3. Railway shows a CNAME target (something like `xxx.up.railway.app`)
-4. In your DNS for `astralrce.com` (wherever you bought the domain — Cloudflare, Namecheap, etc.):
-   - Type: **CNAME**
-   - Name/host: `admin`
-   - Value: the Railway CNAME target
-5. Wait for DNS (often a few minutes)
+Custom domains live inside a **service**, not the project. From the project canvas, click the
+bot service box first, then **Settings** → scroll to **Public Networking**.
+
+1. Service → **Settings** → **Public Networking** → **+ Custom Domain**
+2. Enter `admin.astralrce.com`, port `8080` if it asks
+3. Railway gives you **two** records: a `CNAME` and a `TXT`
+4. In your DNS for `astralrce.com` (Cloudflare, Namecheap, wherever it's registered), add **both**
+   exactly as shown. Missing the `TXT` means the domain resolves but returns 404 — Railway uses it
+   to verify ownership before routing traffic. On Cloudflare set the CNAME to **DNS only** (grey cloud).
+5. Wait for the green check in Railway (usually minutes)
 6. Railway Variables → add:
    ```
    ADMIN_PANEL_URL=https://admin.astralrce.com
@@ -33,6 +35,18 @@ Your PC must stay on for the bot to work locally. For **24/7**, host it on Railw
 7. Open: **https://admin.astralrce.com/admin**
 
 Keep `astralrce.com` / `www` on Vercel for the site; only the `admin` subdomain points at Railway.
+
+Prefer the CLI? From the project folder:
+
+```powershell
+railway link
+railway domain admin.astralrce.com --port 8080
+```
+
+It prints the same CNAME + TXT records to add.
+
+To confirm the app is reachable before DNS is done, use **Generate Domain** in the same
+Public Networking section and open `https://<generated>.up.railway.app/admin`.
 
 ### Critical variables for RCON
 

@@ -9,17 +9,17 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" />
 <style>
 :root {
-  --bg: #0c0e10;
-  --bg2: #13171b;
-  --bg3: #1a2026;
-  --line: #2a333c;
-  --text: #e8ecef;
-  --muted: #8b98a5;
-  --accent: #e85d04;
-  --accent2: #faa307;
-  --ok: #2a9d8f;
-  --bad: #e63946;
-  --warn: #f4a261;
+  --bg: #0a0a0a;
+  --bg2: #141414;
+  --bg3: #1c1c1c;
+  --line: #2e2e2e;
+  --text: #e6e6e6;
+  --muted: #8a8a8a;
+  --accent: #a3a3a3;
+  --accent2: #d4d4d4;
+  --ok: #6bce9a;
+  --bad: #e57373;
+  --warn: #c9a86a;
   --font: "Syne", system-ui, sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, monospace;
 }
@@ -27,8 +27,8 @@
 html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--text); font-family: var(--font); }
 body {
   background:
-    radial-gradient(1200px 600px at 10% -10%, rgba(232,93,4,.12), transparent 55%),
-    radial-gradient(900px 500px at 100% 0%, rgba(42,157,143,.08), transparent 50%),
+    radial-gradient(1000px 500px at 0% 0%, rgba(255,255,255,.03), transparent 55%),
+    radial-gradient(800px 400px at 100% 100%, rgba(255,255,255,.02), transparent 50%),
     var(--bg);
 }
 button, input, select, textarea { font: inherit; }
@@ -36,15 +36,16 @@ button {
   cursor: pointer; border: 1px solid var(--line); background: var(--bg3); color: var(--text);
   padding: .55rem .9rem; border-radius: 6px; transition: .15s ease;
 }
-button:hover { border-color: var(--accent); color: #fff; }
-button.primary { background: var(--accent); border-color: var(--accent); color: #110800; font-weight: 700; }
-button.danger { border-color: var(--bad); color: #ffb4b8; }
+button:hover { border-color: #555; color: #fff; background: #242424; }
+button.primary { background: #2a2a2a; border-color: #555; color: #fff; font-weight: 700; }
+button.primary:hover { background: #333; border-color: #777; }
+button.danger { border-color: #5c3030; color: #ffb4b8; background: #1a1010; }
 button.ghost { background: transparent; }
 input, select, textarea {
-  width: 100%; background: var(--bg); border: 1px solid var(--line); color: var(--text);
+  width: 100%; background: #0f0f0f; border: 1px solid var(--line); color: var(--text);
   padding: .6rem .75rem; border-radius: 6px; font-family: var(--mono); font-size: .85rem;
 }
-input:focus, textarea:focus, select:focus { outline: 1px solid var(--accent); border-color: var(--accent); }
+input:focus, textarea:focus, select:focus { outline: 1px solid #555; border-color: #555; }
 .hidden { display: none !important; }
 
 #login {
@@ -52,7 +53,7 @@ input:focus, textarea:focus, select:focus { outline: 1px solid var(--accent); bo
 }
 .login-card {
   width: min(420px, 100%); background: var(--bg2); border: 1px solid var(--line);
-  padding: 2rem; border-radius: 12px; box-shadow: 0 30px 80px rgba(0,0,0,.45);
+  padding: 2rem; border-radius: 12px; box-shadow: 0 30px 80px rgba(0,0,0,.65);
 }
 .login-card h1 { margin: 0 0 .25rem; font-size: 1.8rem; letter-spacing: -.03em; }
 .login-card p { margin: 0 0 1.5rem; color: var(--muted); font-family: var(--mono); font-size: .8rem; }
@@ -66,16 +67,17 @@ input:focus, textarea:focus, select:focus { outline: 1px solid var(--accent); bo
 }
 
 .nav {
-  background: rgba(19,23,27,.92); border-right: 1px solid var(--line);
-  padding: 1.25rem 1rem; backdrop-filter: blur(10px);
+  background: #111; border-right: 1px solid var(--line);
+  padding: 1.25rem 1rem;
 }
 .brand { font-size: 1.15rem; font-weight: 800; letter-spacing: -.03em; margin-bottom: 1.25rem; }
-.brand span { color: var(--accent); }
+.brand span { color: var(--accent2); }
 .nav button {
   width: 100%; text-align: left; margin-bottom: .35rem; background: transparent;
-  border-color: transparent; font-weight: 600;
+  border-color: transparent; font-weight: 600; color: var(--muted);
 }
-.nav button.active { background: var(--bg3); border-color: var(--line); color: var(--accent2); }
+.nav button:hover { color: var(--text); background: #1a1a1a; }
+.nav button.active { background: #1f1f1f; border-color: var(--line); color: #fff; }
 .nav-foot { margin-top: 1.5rem; font-family: var(--mono); font-size: .72rem; color: var(--muted); }
 
 .main { padding: 1.25rem 1.5rem 3rem; }
@@ -87,17 +89,17 @@ input:focus, textarea:focus, select:focus { outline: 1px solid var(--accent); bo
 .pills { display: flex; gap: .5rem; flex-wrap: wrap; }
 .pill {
   font-family: var(--mono); font-size: .72rem; padding: .35rem .6rem; border-radius: 999px;
-  border: 1px solid var(--line); background: var(--bg2);
+  border: 1px solid var(--line); background: var(--bg2); color: var(--muted);
 }
-.pill.ok { color: var(--ok); border-color: rgba(42,157,143,.4); }
-.pill.bad { color: var(--bad); border-color: rgba(230,57,70,.4); }
+.pill.ok { color: var(--ok); border-color: #2a4a38; }
+.pill.bad { color: var(--bad); border-color: #4a2a2a; }
 
 .grid { display: grid; gap: 1rem; }
 .grid.stats { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
 .card {
   background: var(--bg2); border: 1px solid var(--line); border-radius: 10px; padding: 1rem 1.1rem;
 }
-.card h3 { margin: 0 0 .75rem; font-size: .95rem; letter-spacing: -.01em; }
+.card h3 { margin: 0 0 .75rem; font-size: .95rem; letter-spacing: -.01em; color: #cfcfcf; }
 .metric { font-family: var(--mono); font-size: 1.6rem; font-weight: 600; }
 .metric small { display: block; color: var(--muted); font-size: .72rem; font-weight: 400; margin-top: .2rem; }
 
@@ -108,11 +110,11 @@ input:focus, textarea:focus, select:focus { outline: 1px solid var(--accent); bo
 .actions button { padding: .35rem .55rem; font-size: .75rem; }
 
 .console {
-  background: #070809; border: 1px solid var(--line); border-radius: 10px; min-height: 280px;
+  background: #050505; border: 1px solid var(--line); border-radius: 10px; min-height: 280px;
   padding: 1rem; font-family: var(--mono); font-size: .8rem; overflow: auto; white-space: pre-wrap;
 }
-.console .in { color: var(--accent2); }
-.console .out { color: #b7c4ce; }
+.console .in { color: #d4d4d4; }
+.console .out { color: #9a9a9a; }
 .console .err { color: #ff8a93; }
 
 .form-row { display: grid; gap: .6rem; grid-template-columns: 1fr auto; margin-top: .75rem; }
@@ -130,7 +132,7 @@ input:focus, textarea:focus, select:focus { outline: 1px solid var(--accent); bo
 <body>
 <div id="login" class="hidden">
   <div class="login-card">
-    <h1>Astral <span style="color:var(--accent)">Control</span></h1>
+    <h1>Astral <span style="color:var(--accent2)">Control</span></h1>
     <p>Server ops · stats · RCON · automation</p>
     <div class="row">
       <input id="password" type="password" placeholder="Admin password" autocomplete="current-password" />
