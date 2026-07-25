@@ -59,7 +59,6 @@ input:focus, textarea:focus, select:focus { outline: 1px solid #555; border-colo
 #login.is-entered .login-kicker,
 #login.is-entered .login-sub,
 #login.is-entered .login-meta { opacity: 1; transform: none; }
-#login.is-entered .login-hint { opacity: 1; transform: translateX(-50%); }
 
 .login-bg {
   position: absolute; inset: 0; z-index: 0; overflow: hidden; background: #050505; pointer-events: none;
@@ -101,7 +100,7 @@ input:focus, textarea:focus, select:focus { outline: 1px solid #555; border-colo
   0%, 100% { transform: translate(0,0) scale(1); }
   50% { transform: translate(2%, 3%) scale(1.08); }
 }
-#loginPaint {
+#loginStars {
   position: absolute; inset: 0; width: 100%; height: 100%; z-index: 3; pointer-events: none;
 }
 .login-grain {
@@ -132,23 +131,6 @@ input:focus, textarea:focus, select:focus { outline: 1px solid #555; border-colo
   font-family: var(--mono); font-size: .65rem; letter-spacing: .14em;
   color: rgba(200,200,200,.55); text-align: right; line-height: 1.6;
   opacity: 0; transform: translateY(-8px); transition: .7s .35s cubic-bezier(.22,1,.36,1);
-}
-.login-hint {
-  position: absolute; bottom: 1.4rem; left: 50%; transform: translateX(-50%) translateY(8px);
-  z-index: 7; font-family: var(--mono); font-size: .62rem; letter-spacing: .32em;
-  text-transform: uppercase; color: rgba(180,180,180,.4);
-  opacity: 0; transition: .7s .55s cubic-bezier(.22,1,.36,1);
-  pointer-events: none;
-}
-.login-hint em {
-  display: inline-block; width: 7px; height: 7px; margin-right: .55rem;
-  border-radius: 50%; border: 1px solid rgba(220,220,220,.7);
-  box-shadow: 0 0 10px rgba(255,255,255,.35);
-  animation: hintPulse 1.8s ease-in-out infinite; vertical-align: middle;
-}
-@keyframes hintPulse {
-  0%, 100% { transform: translateX(-10px); opacity: .45; }
-  50% { transform: translateX(10px); opacity: 1; }
 }
 .login-stage {
   position: relative; z-index: 5; width: min(520px, 100%);
@@ -220,48 +202,15 @@ input:focus, textarea:focus, select:focus { outline: 1px solid #555; border-colo
 }
 .login-card button.primary:active { transform: translateY(0); }
 
-.login-cursor-dot, .login-cursor-frame {
-  position: fixed; top: 0; left: 0; pointer-events: none; z-index: 50;
-  opacity: 0; will-change: transform;
-}
-.login-cursor-dot {
-  width: 5px; height: 5px; border-radius: 50%;
-  background: #eee; box-shadow: 0 0 10px rgba(255,255,255,.7);
-  transform: translate3d(-100px, -100px, 0);
-}
-.login-cursor-frame {
-  width: 28px; height: 28px;
-  transform: translate3d(-100px, -100px, 0);
-}
-.login-cursor-frame i {
-  position: absolute; width: 7px; height: 7px; border-color: rgba(230,230,230,.85); border-style: solid;
-}
-.login-cursor-frame i:nth-child(1) { top: 0; left: 0; border-width: 1.5px 0 0 1.5px; }
-.login-cursor-frame i:nth-child(2) { top: 0; right: 0; border-width: 1.5px 1.5px 0 0; }
-.login-cursor-frame i:nth-child(3) { bottom: 0; left: 0; border-width: 0 0 1.5px 1.5px; }
-.login-cursor-frame i:nth-child(4) { bottom: 0; right: 0; border-width: 0 1.5px 1.5px 0; }
-body.login-hud { cursor: none; }
-body.login-hud input,
-body.login-hud button,
-body.login-hud .login-card {
-  cursor: auto;
-}
-body.login-hud input { cursor: text; }
-body.login-hud button { cursor: pointer; }
-body.login-hud.login-over-ui { cursor: auto; }
-body.login-hud.login-over-ui .login-cursor-dot,
-body.login-hud.login-over-ui .login-cursor-frame { opacity: 0 !important; }
 @media (pointer: coarse), (max-width: 800px) {
-  body.login-hud { cursor: auto; }
-  .login-cursor-dot, .login-cursor-frame { display: none !important; }
   #login { padding-left: 1.25rem; }
   .login-rail { display: none; }
-  .login-hint { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .login-grad, .login-rail-track, .login-hint em, .login-sub .caret { animation: none !important; }
+  .login-grad, .login-rail-track, .login-sub .caret { animation: none !important; }
   .login-title .ink-char { opacity: 1; transform: none; animation: none !important; }
   #login .login-card, #login .login-kicker, #login .login-sub, #login .login-meta { opacity: 1; transform: none; }
+  #loginStars { display: none; }
 }
 
 #app { display: grid; grid-template-columns: 220px 1fr; min-height: 100vh; }
@@ -340,7 +289,7 @@ body.login-hud.login-over-ui .login-cursor-frame { opacity: 0 !important; }
     <div class="login-grad g1"></div>
     <div class="login-grad g2"></div>
     <div class="login-grad g3"></div>
-    <canvas id="loginPaint"></canvas>
+    <canvas id="loginStars"></canvas>
   </div>
   <div class="login-grain" aria-hidden="true"></div>
   <aside class="login-rail" aria-hidden="true">
@@ -374,11 +323,6 @@ body.login-hud.login-over-ui .login-cursor-frame { opacity: 0 !important; }
         <div id="loginError" class="muted" style="font-family:var(--mono);font-size:.75rem;min-height:1em"></div>
       </div>
     </div>
-  </div>
-  <p class="login-hint"><em></em>slide to paint</p>
-  <div class="login-cursor-dot" id="loginCursorDot" aria-hidden="true"></div>
-  <div class="login-cursor-frame" id="loginCursorFrame" aria-hidden="true">
-    <i></i><i></i><i></i><i></i>
   </div>
 </div>
 
@@ -438,9 +382,7 @@ function fmtUptime(s) {
 }
 
 function stopLoginScene() {
-  document.body.classList.remove("login-hud", "login-over-ui");
   if (state.loginFx?.raf) cancelAnimationFrame(state.loginFx.raf);
-  if (state.loginFx?.cursorRaf) cancelAnimationFrame(state.loginFx.cursorRaf);
   if (state.loginFx?.cleanups) state.loginFx.cleanups.forEach((fn) => fn());
   state.loginFx = null;
 }
@@ -449,10 +391,8 @@ function initLoginScene() {
   const root = document.getElementById("login");
   if (!root || root.classList.contains("hidden") || state.loginFx) return;
 
-  document.body.classList.add("login-hud");
   const cleanups = [];
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const finePointer = window.matchMedia("(pointer: fine)").matches && window.innerWidth > 800;
 
   // Kinetic title
   const title = document.getElementById("loginTitle");
@@ -491,11 +431,24 @@ function initLoginScene() {
 
   requestAnimationFrame(() => root.classList.add("is-entered"));
 
-  // Paint trail — only on empty background, never over the form
-  const canvas = document.getElementById("loginPaint");
-  const ctx = canvas.getContext("2d", { alpha: true });
+  // Ambient starfield — slow drifting particles, no mouse interaction
+  const canvas = document.getElementById("loginStars");
+  const ctx = canvas.getContext("2d");
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  let w = 0, h = 0, last = null, overUi = false;
+  let w = 0, h = 0, stars = [];
+
+  const makeStars = () => {
+    const count = Math.min(140, Math.floor((w * h) / 14000));
+    stars = Array.from({ length: count }, () => ({
+      x: Math.random() * w,
+      y: Math.random() * h,
+      r: Math.random() * 1.4 + 0.3,
+      vx: (Math.random() - 0.5) * 0.12,
+      vy: -(Math.random() * 0.18 + 0.04),
+      tw: Math.random() * Math.PI * 2,
+      tws: Math.random() * 0.015 + 0.004,
+    }));
+  };
 
   const resize = () => {
     w = window.innerWidth;
@@ -505,131 +458,32 @@ function initLoginScene() {
     canvas.style.width = w + "px";
     canvas.style.height = h + "px";
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    makeStars();
   };
   resize();
   window.addEventListener("resize", resize);
   cleanups.push(() => window.removeEventListener("resize", resize));
 
-  const isOverUi = (x, y) => {
-    const el = document.elementFromPoint(x, y);
-    if (!el) return false;
-    return !!(el.closest(".login-card") || el.closest("input") || el.closest("button"));
-  };
-
-  const stroke = (x, y) => {
-    if (overUi) {
-      last = null;
-      return;
+  const tick = () => {
+    ctx.clearRect(0, 0, w, h);
+    for (const s of stars) {
+      s.x += s.vx;
+      s.y += s.vy;
+      s.tw += s.tws;
+      if (s.y < -4) { s.y = h + 4; s.x = Math.random() * w; }
+      if (s.x < -4) s.x = w + 4;
+      if (s.x > w + 4) s.x = -4;
+      const alpha = 0.25 + Math.abs(Math.sin(s.tw)) * 0.5;
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(230,230,230,${alpha})`;
+      ctx.fill();
     }
-    if (!last) {
-      last = { x, y };
-      return;
-    }
-    const dx = x - last.x;
-    const dy = y - last.y;
-    const dist = Math.hypot(dx, dy);
-    if (dist < 2) return;
-    // Jump guard — pointer left the form / window and came back
-    if (dist > 120) {
-      last = { x, y };
-      return;
-    }
-    ctx.strokeStyle = "rgba(235,235,235,0.42)";
-    ctx.lineWidth = Math.min(14, 2.5 + dist * 0.06);
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.beginPath();
-    ctx.moveTo(last.x, last.y);
-    ctx.lineTo(x, y);
-    ctx.stroke();
-    last = { x, y };
+    state.loginFx.raf = requestAnimationFrame(tick);
   };
 
-  // Smooth HUD cursor via rAF lerp
-  const dot = document.getElementById("loginCursorDot");
-  const frame = document.getElementById("loginCursorFrame");
-  let mx = -100, my = -100, cx = -100, cy = -100, cursorVisible = false;
-  let cursorRaf = 0;
-
-  const tickCursor = () => {
-    if (!finePointer) return;
-    cx += (mx - cx) * 0.28;
-    cy += (my - cy) * 0.28;
-    const show = cursorVisible && !overUi;
-    const op = show ? "1" : "0";
-    dot.style.opacity = op;
-    frame.style.opacity = op;
-    if (show) {
-      dot.style.transform = `translate3d(${cx - 2.5}px,${cy - 2.5}px,0)`;
-      frame.style.transform = `translate3d(${cx - 14}px,${cy - 14}px,0)`;
-    }
-    cursorRaf = requestAnimationFrame(tickCursor);
-  };
-
-  const onMove = (e) => {
-    // Ignore multi-touch / pen noise
-    if (e.pointerType === "touch") return;
-    const x = e.clientX;
-    const y = e.clientY;
-    mx = x;
-    my = y;
-    cursorVisible = true;
-
-    const nextOver = isOverUi(x, y);
-    if (nextOver !== overUi) {
-      overUi = nextOver;
-      document.body.classList.toggle("login-over-ui", overUi);
-      if (overUi) last = null;
-    }
-
-    if (!reduceMotion && !overUi) stroke(x, y);
-  };
-
-  const onLeaveWindow = () => {
-    cursorVisible = false;
-    last = null;
-    document.body.classList.remove("login-over-ui");
-    overUi = false;
-  };
-
-  // Hide "slide to paint" once they've painted a bit
-  let paintHits = 0;
-  const hint = root.querySelector(".login-hint");
-  const onPaintProgress = () => {
-    paintHits += 1;
-    if (paintHits > 40 && hint) hint.style.opacity = "0";
-  };
-
-  const onMoveWithHint = (e) => {
-    onMove(e);
-    if (!overUi) onPaintProgress();
-  };
-
-  window.addEventListener("pointermove", onMoveWithHint, { passive: true });
-  document.addEventListener("mouseleave", onLeaveWindow);
-  cleanups.push(() => {
-    window.removeEventListener("pointermove", onMoveWithHint);
-    document.removeEventListener("mouseleave", onLeaveWindow);
-  });
-
-  // Soft fade loop (only when there's something to fade)
-  let fadeRaf = 0;
-  const fade = () => {
-    ctx.fillStyle = "rgba(5,5,5,0.035)";
-    ctx.fillRect(0, 0, w, h);
-    fadeRaf = requestAnimationFrame(fade);
-    if (state.loginFx) state.loginFx.raf = fadeRaf;
-  };
-
-  state.loginFx = { raf: 0, cursorRaf: 0, cleanups };
-  if (!reduceMotion) {
-    fadeRaf = requestAnimationFrame(fade);
-    state.loginFx.raf = fadeRaf;
-  }
-  if (finePointer && !reduceMotion) {
-    cursorRaf = requestAnimationFrame(tickCursor);
-    state.loginFx.cursorRaf = cursorRaf;
-  }
+  state.loginFx = { raf: 0, cleanups };
+  if (!reduceMotion) state.loginFx.raf = requestAnimationFrame(tick);
 }
 
 async function boot() {
