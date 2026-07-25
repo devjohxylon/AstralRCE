@@ -36,7 +36,10 @@ function leaderboardChanged(messageId, fingerprint) {
 }
 
 export async function sendToWebsite(payload, url = config.website.ingestUrl) {
+  if (config.website.skipSync) return { skipped: true, reason: "website_sync_disabled" };
+
   const targetUrl = url || config.website.ingestUrl;
+  if (!targetUrl) return { skipped: true, reason: "no_ingest_url" };
 
   let response;
   try {
@@ -44,7 +47,7 @@ export async function sendToWebsite(payload, url = config.website.ingestUrl) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${config.website.apiSecret}`,
+        Authorization: `Bearer ${config.website.apiSecret ?? ""}`,
       },
       body: JSON.stringify(payload),
     });

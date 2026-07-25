@@ -58,8 +58,17 @@ function parseWordList(name) {
     .filter(Boolean);
 }
 
-const ingestUrl = required("WEBSITE_INGEST_URL");
+const ingestUrl = optional("WEBSITE_INGEST_URL") || null;
 const leaderboardUrlOverride = optional("WEBSITE_LEADERBOARD_URL");
+const websiteApiSecret = optional("WEBSITE_API_SECRET") || null;
+const skipWebsiteSync =
+  parseBool("SKIP_WEBSITE_SYNC") || !ingestUrl;
+
+if (!ingestUrl) {
+  console.warn(
+    "WEBSITE_INGEST_URL not set — website sync disabled. Bot will still run Discord + RCON.",
+  );
+}
 
 const outboundChannels = {
   announcement: announcements,
@@ -77,6 +86,7 @@ const watchChannels = new Set(
 
 function resolveLeaderboardIngestUrl(ingestUrl, leaderboardUrl) {
   if (!leaderboardUrl) return ingestUrl;
+  if (!ingestUrl) return leaderboardUrl.includes("/api/") ? leaderboardUrl : null;
   if (leaderboardUrl.includes("/api/")) return leaderboardUrl;
   console.warn(
     `WEBSITE_LEADERBOARD_URL must be an API path (e.g. .../api/discord/ingest), not a public page. Using WEBSITE_INGEST_URL instead.`,
@@ -207,16 +217,19 @@ export const config = {
   website: {
     ingestUrl,
     leaderboardUrl: resolveLeaderboardIngestUrl(ingestUrl, leaderboardUrlOverride),
-    apiSecret: required("WEBSITE_API_SECRET"),
-    skipSync: parseBool("SKIP_WEBSITE_SYNC"),
+    apiSecret: websiteApiSecret,
+    skipSync: skipWebsiteSync,
   },
   webhook: {
-    secret: required("BOT_WEBHOOK_SECRET"),
+    secret: optional("BOT_WEBHOOK_SECRET", "change-me-webhook-secret"),
     // Railway/Render set PORT; local dev uses BOT_WEBHOOK_PORT
     port: Number(process.env.PORT || optional("BOT_WEBHOOK_PORT", "3847")),
   },
   adminPanel: {
-    password: optional("ADMIN_PANEL_PASSWORD") || required("BOT_WEBHOOK_SECRET"),
+    password:
+      optional("ADMIN_PANEL_PASSWORD") ||
+      optional("BOT_WEBHOOK_SECRET") ||
+      "change-me",
   },
   adminUserIds: new Set(parseIdList("ADMIN_USER_IDS")),
 };
