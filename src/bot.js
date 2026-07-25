@@ -110,9 +110,12 @@ export async function startBot() {
 
   await client.login(config.discord.token);
 
-  app.listen(config.webhook.port, () => {
+  app.listen(config.webhook.port, "0.0.0.0", () => {
     console.log(`Webhook server listening on port ${config.webhook.port}`);
-    console.log(`Admin panel: http://localhost:${config.webhook.port}/admin`);
+    const panelUrl =
+      config.adminPanel.publicUrl?.replace(/\/$/, "") ||
+      `http://localhost:${config.webhook.port}`;
+    console.log(`Admin panel: ${panelUrl}/admin`);
   });
 
   return client;

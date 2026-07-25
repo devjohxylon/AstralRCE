@@ -230,6 +230,8 @@ export const config = {
       optional("ADMIN_PANEL_PASSWORD") ||
       optional("BOT_WEBHOOK_SECRET") ||
       "change-me",
+    // Public URL for logs / bookmarks, e.g. https://admin.astralrce.com
+    publicUrl: optional("ADMIN_PANEL_URL") || null,
   },
   adminUserIds: new Set(parseIdList("ADMIN_USER_IDS")),
 };
