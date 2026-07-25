@@ -142,8 +142,9 @@ input:focus, textarea:focus, select:focus { outline: 1px solid #555; border-colo
   opacity: 0; transform: translateY(12px); transition: .7s .1s cubic-bezier(.22,1,.36,1);
 }
 .login-title {
-  margin: .35rem 0 0; font-size: clamp(3.2rem, 12vw, 5.6rem); font-weight: 800;
-  letter-spacing: -.06em; line-height: .9; color: #f2f2f2;
+  margin: .35rem 0 0; font-size: clamp(2.4rem, 9vw, 5.2rem); font-weight: 800;
+  letter-spacing: -.04em; line-height: .9; color: #f2f2f2;
+  white-space: nowrap;
 }
 .login-title .ink-char {
   display: inline-block; opacity: 0; transform: translateY(28px) skewY(4deg);
@@ -329,14 +330,16 @@ input:focus, textarea:focus, select:focus { outline: 1px solid #555; border-colo
 <div id="app" class="hidden">
   <aside class="nav">
     <div class="brand">ASTRAL <span>CTRL</span></div>
-    <button data-tab="overview" class="active">Overview</button>
-    <button data-tab="players">Players</button>
-    <button data-tab="console">RCON Console</button>
-    <button data-tab="stats">Stats</button>
-    <button data-tab="warps">Warps / TP</button>
-    <button data-tab="links">Links</button>
-    <button data-tab="automsg">Auto Messages</button>
-    <button data-tab="schedule">Auto Commands</button>
+    <button data-tab="overview" class="active" data-perm="overview">Overview</button>
+    <button data-tab="players" data-perm="players">Players</button>
+    <button data-tab="console" data-perm="rcon">RCON Console</button>
+    <button data-tab="stats" data-perm="stats">Stats</button>
+    <button data-tab="warps" data-perm="warps">Warps / TP</button>
+    <button data-tab="links" data-perm="links">Links</button>
+    <button data-tab="automsg" data-perm="automessages">Auto Messages</button>
+    <button data-tab="schedule" data-perm="schedule">Auto Commands</button>
+    <button data-tab="keys" data-perm="keys">Access Keys</button>
+    <button data-tab="logs" data-perm="logs">Audit Logs</button>
     <div class="nav-foot" id="navMeta">—</div>
     <button class="ghost" id="logoutBtn" style="margin-top:.75rem">Log out</button>
   </aside>
@@ -351,7 +354,33 @@ input:focus, textarea:focus, select:focus { outline: 1px solid #555; border-colo
 <div id="toast" class="toast hidden"></div>
 
 <script>
-const state = { tab: "overview", overview: null, consoleLog: [], loginFx: null };
+const state = {
+  tab: "overview",
+  overview: null,
+  consoleLog: [],
+  loginFx: null,
+  session: null,
+  lastCreatedKey: null,
+};
+
+function can(perm) {
+  if (!state.session) return false;
+  if (state.session.role === "owner") return true;
+  return Boolean(state.session.permissions?.[perm]);
+}
+
+function applyNavPermissions() {
+  document.querySelectorAll(".nav [data-tab][data-perm]").forEach((btn) => {
+    const allowed = can(btn.dataset.perm);
+    btn.classList.toggle("hidden", !allowed);
+  });
+  const visible = [...document.querySelectorAll(".nav [data-tab][data-perm]")]
+    .filter((b) => !b.classList.contains("hidden"))
+    .map((b) => b.dataset.tab);
+  if (!visible.includes(state.tab)) {
+    state.tab = visible[0] || "overview";
+  }
+}
 
 async function api(path, opts = {}) {
   const res = await fetch(`/admin/api${path}`, {
@@ -492,15 +521,26 @@ async function boot() {
   document.getElementById("app").classList.toggle("hidden", !session.authed);
   if (session.authed) {
     stopLoginScene();
-    await refreshOverview();
-    render();
-    setInterval(() => { if (state.tab === "overview" || state.tab === "players") refreshOverview().then(render).catch(() => {}); }, 15000);
+    state.session = session;
+    applyNavPermissions();
+    document.getElementById("navMeta").textContent =
+      `${session.label || "Panel"} · ${session.role === "owner" ? "OWNER" : "STAFF"}`;
+    if (can("overview")) await refreshOverview().catch(() => {});
+    setTab(state.tab);
+    setInterval(() => {
+      if (!can("overview") && !can("players")) return;
+      if (state.tab === "overview" || state.tab === "players") {
+        refreshOverview().then(render).catch(() => {});
+      }
+    }, 15000);
   } else {
+    state.session = null;
     initLoginScene();
   }
 }
 
 async function refreshOverview() {
+  if (!can("overview")) return;
   state.overview = await api("/overview");
   const o = state.overview;
   const pills = document.getElementById("statusPills");
@@ -508,16 +548,21 @@ async function refreshOverview() {
     <span class="pill ${o.rcon.connected ? "ok" : "bad"}">RCON ${o.rcon.connected ? "ONLINE" : "OFFLINE"}</span>
     <span class="pill ${o.bot.ready ? "ok" : "bad"}">DISCORD ${o.bot.ready ? "READY" : "DOWN"}</span>
     <span class="pill">${o.onlinePlayers.length} ONLINE</span>
+    <span class="pill">${state.session?.role === "owner" ? "OWNER" : "STAFF"}</span>
   `;
-  document.getElementById("navMeta").textContent = o.bot.user || "Astral Bot";
 }
 
 function setTab(tab) {
+  if (!can(document.querySelector(`.nav [data-tab="${tab}"]`)?.dataset.perm || tab)) {
+    const first = document.querySelector(".nav [data-tab][data-perm]:not(.hidden)");
+    tab = first?.dataset.tab || "overview";
+  }
   state.tab = tab;
   document.querySelectorAll(".nav [data-tab]").forEach((b) => b.classList.toggle("active", b.dataset.tab === tab));
   const titles = {
     overview: "Overview", players: "Players", console: "RCON Console", stats: "Stats",
     warps: "Warps / Teleports", links: "Account Links", automsg: "Auto Messages", schedule: "Auto Commands",
+    keys: "Access Keys", logs: "Audit Logs",
   };
   document.getElementById("pageTitle").textContent = titles[tab] || tab;
   render();
@@ -534,6 +579,8 @@ async function render() {
     if (state.tab === "links") view.innerHTML = await renderLinks();
     if (state.tab === "automsg") view.innerHTML = await renderAutoMsg();
     if (state.tab === "schedule") view.innerHTML = await renderSchedule();
+    if (state.tab === "keys") view.innerHTML = await renderKeys();
+    if (state.tab === "logs") view.innerHTML = await renderLogs();
     bindView();
   } catch (e) {
     view.innerHTML = `<div class="card"><p class="muted">${e.message}</p></div>`;
@@ -565,10 +612,11 @@ function renderOverview() {
       </div>
       <div class="card">
         <h3>Quick broadcast</h3>
+        ${can("broadcast") ? `
         <div class="form-row">
           <input id="broadcastMsg" placeholder="Message to say in-game" />
           <button class="primary" data-action="broadcast">Send</button>
-        </div>
+        </div>` : `<p class="muted" style="font-family:var(--mono);font-size:.75rem">No broadcast permission</p>`}
         <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:.75rem 0 0">Bot uptime ${fmtUptime(o.bot?.uptimeSeconds)}</p>
       </div>
     </div>
@@ -584,8 +632,8 @@ async function renderPlayers() {
       <td>${p.ping ?? "—"}</td>
       <td>${p.link ? `<span class="pill ok">linked</span>` : `<span class="pill">unlinked</span>`}</td>
       <td class="actions">
-        <button data-action="kick" data-ign="${esc(p.ign)}">Kick</button>
-        <button class="danger" data-action="ban" data-ign="${esc(p.ign)}">Ban</button>
+        ${can("kick") ? `<button data-action="kick" data-ign="${esc(p.ign)}">Kick</button>` : ""}
+        ${can("ban") ? `<button class="danger" data-action="ban" data-ign="${esc(p.ign)}">Ban</button>` : ""}
       </td>
     </tr>`).join("") || `<tr><td colspan="5" class="muted">Nobody online</td></tr>`;
   return `
@@ -634,7 +682,7 @@ async function renderStats() {
         <h3>Actions</h3>
         <div class="actions">
           <button class="primary" data-action="pushStats">Push to website</button>
-          <button class="danger" data-action="resetStats">Reset wipe stats</button>
+          ${can("statsReset") ? `<button class="danger" data-action="resetStats">Reset wipe stats</button>` : ""}
         </div>
         <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin-top:.75rem">Wipe: ${esc(data.summary?.wipe || "—")} · ${data.summary?.trackedPlayers || 0} tracked</p>
         <h3 style="margin-top:1.25rem">Lookup</h3>
@@ -776,6 +824,71 @@ async function renderSchedule() {
     </div>`;
 }
 
+async function renderKeys() {
+  const data = await api("/keys");
+  const permKeys = Object.keys(data.defaults || {});
+  const created = state.lastCreatedKey
+    ? `<div class="card" style="margin-bottom:1rem;border-color:#555">
+        <h3>New key created — copy now</h3>
+        <p class="muted" style="font-family:var(--mono);font-size:.75rem;margin:0 0 .5rem">Shown once. Give this to staff.</p>
+        <code style="display:block;word-break:break-all;font-family:var(--mono);font-size:.85rem;padding:.75rem;background:#0a0a0a;border:1px solid var(--line)">${esc(state.lastCreatedKey.secret)}</code>
+        <p style="margin:.6rem 0 0;font-family:var(--mono);font-size:.75rem">Label: <strong>${esc(state.lastCreatedKey.key.label)}</strong></p>
+      </div>`
+    : "";
+
+  const rows = data.keys.map((k) => `
+    <tr>
+      <td><strong>${esc(k.label)}</strong><div class="muted">${esc(k.id)}</div></td>
+      <td>${k.enabled ? `<span class="pill ok">ON</span>` : `<span class="pill bad">OFF</span>`}</td>
+      <td class="muted" style="font-size:.7rem">${Object.entries(k.permissions).filter(([,v])=>v).map(([p])=>p).join(", ") || "none"}</td>
+      <td>${k.lastUsedAt ? new Date(k.lastUsedAt).toLocaleString() : "never"}</td>
+      <td class="actions">
+        <button data-action="toggleKey" data-id="${esc(k.id)}" data-on="${k.enabled ? "0" : "1"}">${k.enabled ? "Disable" : "Enable"}</button>
+        <button class="danger" data-action="revokeKey" data-id="${esc(k.id)}">Revoke</button>
+      </td>
+    </tr>`).join("") || `<tr><td colspan="5" class="muted">No staff keys yet</td></tr>`;
+
+  const checks = permKeys.map((p) => `
+    <label style="display:flex;gap:.45rem;align-items:center;font-family:var(--mono);font-size:.72rem;color:var(--muted)">
+      <input type="checkbox" data-perm-check="${esc(p)}" ${data.defaults[p] ? "checked" : ""} />
+      ${esc(p)}
+    </label>`).join("");
+
+  return `
+    ${created}
+    <div class="split">
+      <div class="card">
+        <h3>Staff access keys</h3>
+        <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:0 0 .75rem">Staff keys can never manage keys or view audit logs — even if toggled.</p>
+        <table class="table"><thead><tr><th>Label</th><th></th><th>Perms</th><th>Last used</th><th></th></tr></thead><tbody>${rows}</tbody></table>
+      </div>
+      <div class="card">
+        <h3>Create staff key</h3>
+        <input id="keyLabel" placeholder="Label e.g. Mod — Jay" />
+        <div class="form-grid" style="margin-top:.75rem">${checks}</div>
+        <button class="primary" style="margin-top:.9rem;width:100%" data-action="createKey">Generate key</button>
+        <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin-top:.75rem">Your owner password (${esc("ADMIN_PANEL_PASSWORD")}) always has full access.</p>
+      </div>
+    </div>`;
+}
+
+async function renderLogs() {
+  const data = await api("/logs?limit=150");
+  const rows = data.entries.map((e) => `
+    <tr>
+      <td class="muted">${new Date(e.at).toLocaleString()}</td>
+      <td><strong>${esc(e.by)}</strong> <span class="muted">${esc(e.role)}</span></td>
+      <td>${esc(e.action)}</td>
+      <td class="muted" style="font-size:.7rem">${esc(JSON.stringify(e.detail || {}))}</td>
+    </tr>`).join("") || `<tr><td colspan="4" class="muted">No activity yet</td></tr>`;
+  return `
+    <div class="card">
+      <h3>Panel audit log</h3>
+      <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:0 0 .75rem">Owner only — staff keys cannot see this.</p>
+      <table class="table"><thead><tr><th>When</th><th>Who</th><th>Action</th><th>Detail</th></tr></thead><tbody>${rows}</tbody></table>
+    </div>`;
+}
+
 function esc(s) {
   return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[c]));
 }
@@ -863,6 +976,30 @@ function bindView() {
         if (a === "runJob") { const r = await api(`/schedule/${el.dataset.id}/run`, { method: "POST", body: {} }); toast(r.result || "Ran"); render(); }
         if (a === "toggleJob") { await api(`/schedule/${el.dataset.id}/toggle`, { method: "POST", body: { enabled: el.dataset.on === "1" } }); render(); }
         if (a === "delJob") { await api(`/schedule/${el.dataset.id}`, { method: "DELETE" }); render(); }
+        if (a === "createKey") {
+          const permissions = {};
+          document.querySelectorAll("[data-perm-check]").forEach((box) => {
+            permissions[box.dataset.permCheck] = box.checked;
+          });
+          const r = await api("/keys", {
+            method: "POST",
+            body: { label: document.getElementById("keyLabel").value, permissions },
+          });
+          state.lastCreatedKey = r;
+          toast("Staff key created — copy it now");
+          render();
+        }
+        if (a === "toggleKey") {
+          await api(`/keys/${el.dataset.id}`, { method: "PATCH", body: { enabled: el.dataset.on === "1" } });
+          toast(el.dataset.on === "1" ? "Key enabled" : "Key disabled");
+          render();
+        }
+        if (a === "revokeKey") {
+          if (!confirm("Permanently revoke this access key?")) return;
+          await api(`/keys/${el.dataset.id}`, { method: "DELETE" });
+          toast("Key revoked");
+          render();
+        }
       } catch (e) {
         toast(e.message, true);
       }

@@ -121,3 +121,19 @@ export async function getBlockedWords() {
     return [];
   }
 }
+
+export async function getAccessKeys() {
+  return readJson("access-keys.json", { keys: [] });
+}
+
+export async function saveAccessKeys(data) {
+  await writeJson("access-keys.json", data);
+}
+
+export async function getPanelLogs() {
+  return readJson("panel-logs.json", { entries: [] });
+}
+
+export async function savePanelLogs(data) {
+  await writeJson("panel-logs.json", data);
+}
