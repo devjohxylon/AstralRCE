@@ -24,6 +24,7 @@ import {
   removeAutoMessage,
   toggleAutoMessage,
 } from "../modules/rcon/automessages.js";
+import { syncVipForDiscord } from "../modules/rcon/vip-sync.js";
 
 async function reply(interaction, content, ephemeral = true) {
   if (interaction.deferred || interaction.replied) {
@@ -43,6 +44,7 @@ export async function handleLinkCommand(interaction) {
     if (result.already) {
       return interaction.editReply(`Already linked as **${result.ign}**.`);
     }
+    await syncVipForDiscord(interaction.user.id, interaction.member).catch(() => {});
     return interaction.editReply(
       `Linked as **${result.ign}**. You can use \`/home\`, \`/warp\`, and \`/tpr\` now.`,
     );
@@ -70,6 +72,8 @@ export async function handleLinkCommand(interaction) {
     const user = interaction.options.getUser("user", true);
     const ign = interaction.options.getString("player", true);
     const result = await forceLink(user.id, ign);
+    const member = await interaction.guild.members.fetch(user.id).catch(() => null);
+    if (member) await syncVipForDiscord(user.id, member, { force: true }).catch(() => {});
     return reply(interaction, `Force-linked <@${user.id}> → **${result.ign}**.`);
   }
 }

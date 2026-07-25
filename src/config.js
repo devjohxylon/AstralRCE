@@ -50,6 +50,7 @@ const gameEvents = parseChannelId("CHANNEL_GAME_EVENTS");
 const adminLog = parseChannelId("CHANNEL_ADMIN_LOG");
 const popStatusChannel = parseChannelId("CHANNEL_POP_STATUS");
 const tpLog = parseChannelId("CHANNEL_TP_LOG");
+const wipeStatus = parseChannelId("CHANNEL_WIPE_STATUS");
 
 function parseWordList(name) {
   return optional(name)
@@ -143,6 +144,7 @@ export const config = {
     adminLog,
     popStatus: popStatusChannel,
     tpLog,
+    wipeStatus,
     outbound: outboundChannels,
     watch: watchChannels,
   },
@@ -232,6 +234,15 @@ export const config = {
       "change-me",
     // Public URL for logs / bookmarks, e.g. https://admin.astralrce.com
     publicUrl: optional("ADMIN_PANEL_URL") || null,
+  },
+  vip: {
+    kitId: optional("VIP_KIT_ID", "vip") || "vip",
+    grantCommand: optional("VIP_RCON_GRANT") || null,
+    revokeCommand: optional("VIP_RCON_REVOKE") || null,
+  },
+  wipe: {
+    // Fallback if settings.json has no wipeAt; ISO string e.g. 2026-08-01T18:00:00Z
+    at: optional("WIPE_AT") || null,
   },
   adminUserIds: new Set(parseIdList("ADMIN_USER_IDS")),
 };

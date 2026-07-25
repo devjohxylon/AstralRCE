@@ -59,12 +59,28 @@ WEBSITE_API_SECRET=
 BOT_WEBHOOK_SECRET=
 ADMIN_PANEL_PASSWORD=
 RCON_HOST=
-RCON_PORT=
+RCON_PORT=25800
 RCON_PASSWORD=
 RCON_SERVER_NAME=astral
+CHANNEL_KILLFEED=
+CHANNEL_JOIN_LEAVE=
+CHANNEL_POP_STATUS=
+CHANNEL_WIPE_STATUS=
+ROLE_VIP=
+VIP_KIT_ID=vip
 ```
 
-Plus your channel/role IDs. Railway sets `PORT` automatically — leave `BOT_WEBHOOK_PORT` unset in production.
+Plus your other channel/role IDs. Railway sets `PORT` automatically — leave `BOT_WEBHOOK_PORT` unset in production.
+
+### Persistent data (kits, stats, access keys)
+
+Mount a Railway **volume** on `/app/.data` (or whatever path your Dockerfile uses for `.data`). Without it, kits, wipe time, stats, and staff keys reset on every redeploy.
+
+### Website live boards
+
+1. Copy files from `integration/nextjs/` into your Vercel site (ingest route, `/api/server/status`, `/api/server/wipe`, `LiveServerBoard`).
+2. Match `WEBSITE_API_SECRET` on Railway and Vercel.
+3. Set `WEBSITE_INGEST_URL` to `https://YOUR-SITE/api/discord/ingest`.
 
 ## After deploy checklist
 
@@ -72,7 +88,9 @@ Plus your channel/role IDs. Railway sets `PORT` automatically — leave `BOT_WEB
 - [ ] Logs show `RCON connected` (if testing cloud RCON)
 - [ ] `/astral-status` works
 - [ ] Admin panel loads at `https://YOUR-RAILWAY-URL/admin`
+- [ ] Create kit `vip` in panel Kits tab (if using VIP sync)
 - [ ] `WEBSITE_API_SECRET` matches Vercel
+- [ ] Volume mounted on `.data`
 
 ## Slash command updates
 

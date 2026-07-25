@@ -338,6 +338,7 @@ input:focus, textarea:focus, select:focus { outline: 1px solid #555; border-colo
     <button data-tab="links" data-perm="links">Links</button>
     <button data-tab="automsg" data-perm="automessages">Auto Messages</button>
     <button data-tab="schedule" data-perm="schedule">Auto Commands</button>
+    <button data-tab="kits" data-perm="kits">Kits</button>
     <button data-tab="keys" data-perm="keys">Access Keys</button>
     <button data-tab="logs" data-perm="logs">Audit Logs</button>
     <div class="nav-foot" id="navMeta">—</div>
@@ -562,7 +563,7 @@ function setTab(tab) {
   const titles = {
     overview: "Overview", players: "Players", console: "RCON Console", stats: "Stats",
     warps: "Warps / Teleports", links: "Account Links", automsg: "Auto Messages", schedule: "Auto Commands",
-    keys: "Access Keys", logs: "Audit Logs",
+    kits: "Kits", keys: "Access Keys", logs: "Audit Logs",
   };
   document.getElementById("pageTitle").textContent = titles[tab] || tab;
   render();
@@ -579,6 +580,7 @@ async function render() {
     if (state.tab === "links") view.innerHTML = await renderLinks();
     if (state.tab === "automsg") view.innerHTML = await renderAutoMsg();
     if (state.tab === "schedule") view.innerHTML = await renderSchedule();
+    if (state.tab === "kits") view.innerHTML = await renderKits();
     if (state.tab === "keys") view.innerHTML = await renderKeys();
     if (state.tab === "logs") view.innerHTML = await renderLogs();
     bindView();
@@ -588,8 +590,12 @@ async function render() {
 }
 
 function renderOverview() {
-  const o = state.overview || { server: null, onlinePlayers: [], stats: {}, bot: {} };
+  const o = state.overview || { server: null, onlinePlayers: [], stats: {}, bot: {}, wipe: {} };
   const s = o.server || {};
+  const wipeAt = o.wipe?.wipeAt;
+  const wipeLabel = wipeAt
+    ? new Date(wipeAt).toLocaleString()
+    : "Not set";
   return `
     <div class="grid stats">
       <div class="card"><div class="metric">${s.players ?? "—"}<small>Players / ${s.maxPlayers ?? "?"}</small></div></div>
@@ -608,6 +614,7 @@ function renderOverview() {
           <tr><th>Game time</th><td>${esc(s.gameTime || "—")}</td></tr>
           <tr><th>Entities</th><td>${s.entities ?? "—"}</td></tr>
           <tr><th>Wipe label</th><td>${esc(o.stats?.wipe || "—")}</td></tr>
+          <tr><th>Next wipe</th><td>${esc(wipeLabel)}</td></tr>
         </table>
       </div>
       <div class="card">
@@ -617,6 +624,13 @@ function renderOverview() {
           <input id="broadcastMsg" placeholder="Message to say in-game" />
           <button class="primary" data-action="broadcast">Send</button>
         </div>` : `<p class="muted" style="font-family:var(--mono);font-size:.75rem">No broadcast permission</p>`}
+        <h3 style="margin-top:1.25rem">Wipe countdown</h3>
+        <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:0 0 .6rem">Updates Discord voice channel + website board</p>
+        <div class="form-row">
+          <input id="wipeAtInput" type="datetime-local" value="${esc(o.wipe?.localInput || "")}" />
+          <button class="primary" data-action="saveWipe">Save</button>
+          <button data-action="clearWipe">Clear</button>
+        </div>
         <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:.75rem 0 0">Bot uptime ${fmtUptime(o.bot?.uptimeSeconds)}</p>
       </div>
     </div>
@@ -824,6 +838,43 @@ async function renderSchedule() {
     </div>`;
 }
 
+async function renderKits() {
+  const data = await api("/kits");
+  const rows = data.kits.map((k) => `
+    <tr>
+      <td><strong>${esc(k.label)}</strong><div class="muted"><code>${esc(k.id)}</code></div></td>
+      <td>${(k.items || []).map((i) => `${esc(i.item)}×${i.amount}`).join(", ") || "—"}</td>
+      <td>${k.cooldownMinutes || 0}m</td>
+      <td class="actions">
+        <button data-action="editKit" data-id="${esc(k.id)}">Edit</button>
+        <button data-action="giveKit" data-id="${esc(k.id)}">Give</button>
+        <button class="danger" data-action="delKit" data-id="${esc(k.id)}">Delete</button>
+      </td>
+    </tr>`).join("") || `<tr><td colspan="4" class="muted">No kits yet — create <code>vip</code> for ROLE_VIP sync</td></tr>`;
+  return `
+    <div class="split">
+      <div class="card">
+        <h3>Kit bundles</h3>
+        <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:0 0 .75rem">Granted via <code>inventory.giveto</code>. VIP sync uses kit id from <code>VIP_KIT_ID</code> (default <code>vip</code>).</p>
+        <table class="table"><thead><tr><th>Kit</th><th>Items</th><th>CD</th><th></th></tr></thead><tbody>${rows}</tbody></table>
+      </div>
+      <div class="card">
+        <h3>Create / update kit</h3>
+        <input id="kitId" placeholder="id e.g. vip" />
+        <input id="kitLabel" placeholder="Label e.g. VIP Starter" style="margin-top:.6rem" />
+        <input id="kitCooldown" type="number" min="0" value="0" placeholder="Cooldown minutes" style="margin-top:.6rem" />
+        <textarea id="kitItems" rows="6" style="margin-top:.6rem" placeholder="One per line: shortname amount&#10;wood 1000&#10;stones 1000&#10;metal.fragments 500"></textarea>
+        <button class="primary" style="margin-top:.75rem" data-action="saveKit">Save kit</button>
+        <h3 style="margin-top:1.5rem">Give kit to player</h3>
+        <div class="form-row">
+          <input id="kitGiveIgn" placeholder="Online player IGN" />
+          <input id="kitGiveId" placeholder="Kit id" />
+          <button data-action="giveKitForm">Give</button>
+        </div>
+      </div>
+    </div>`;
+}
+
 async function renderKeys() {
   const data = await api("/keys");
   const permKeys = Object.keys(data.defaults || {});
@@ -901,6 +952,68 @@ function bindView() {
         if (a === "broadcast") {
           await api("/broadcast", { method: "POST", body: { message: document.getElementById("broadcastMsg").value } });
           toast("Broadcast sent");
+        }
+        if (a === "saveWipe") {
+          const local = document.getElementById("wipeAtInput").value;
+          if (!local) { toast("Pick a date/time", true); return; }
+          const wipeAt = new Date(local).toISOString();
+          await api("/wipe", { method: "POST", body: { wipeAt } });
+          toast("Wipe time saved");
+          await refreshOverview();
+          render();
+        }
+        if (a === "clearWipe") {
+          await api("/wipe", { method: "POST", body: { wipeAt: null } });
+          toast("Wipe cleared");
+          await refreshOverview();
+          render();
+        }
+        if (a === "saveKit") {
+          const lines = document.getElementById("kitItems").value.split("\n").map((l) => l.trim()).filter(Boolean);
+          const items = lines.map((line) => {
+            const m = line.match(/^(.+?)\s+(\d+)\s*$/);
+            if (m) return { item: m[1].trim(), amount: Number(m[2]) || 1 };
+            return { item: line, amount: 1 };
+          });
+          await api("/kits", {
+            method: "POST",
+            body: {
+              id: document.getElementById("kitId").value,
+              label: document.getElementById("kitLabel").value,
+              cooldownMinutes: Number(document.getElementById("kitCooldown").value) || 0,
+              items,
+            },
+          });
+          toast("Kit saved");
+          render();
+        }
+        if (a === "editKit") {
+          const kits = await api("/kits");
+          const kit = kits.kits.find((k) => k.id === el.dataset.id);
+          if (!kit) return;
+          document.getElementById("kitId").value = kit.id;
+          document.getElementById("kitLabel").value = kit.label || "";
+          document.getElementById("kitCooldown").value = kit.cooldownMinutes || 0;
+          document.getElementById("kitItems").value = (kit.items || [])
+            .map((i) => `${i.item} ${i.amount}`)
+            .join("\n");
+          document.getElementById("kitGiveId").value = kit.id;
+          toast(`Editing ${kit.id}`);
+        }
+        if (a === "delKit") {
+          if (!confirm(`Delete kit ${el.dataset.id}?`)) return;
+          await api(`/kits/${encodeURIComponent(el.dataset.id)}`, { method: "DELETE" });
+          toast("Kit deleted");
+          render();
+        }
+        if (a === "giveKit" || a === "giveKitForm") {
+          const id = a === "giveKit" ? el.dataset.id : document.getElementById("kitGiveId").value;
+          const ign = a === "giveKit"
+            ? prompt("Online player IGN")
+            : document.getElementById("kitGiveIgn").value;
+          if (!ign || !id) { toast("Need kit id + IGN", true); return; }
+          const r = await api(`/kits/${encodeURIComponent(id)}/give`, { method: "POST", body: { ign } });
+          toast(r.ok ? `Gave ${r.given} item(s) to ${ign}` : (r.error || "Partial fail"), !r.ok);
         }
         if (a === "kick") {
           await api(`/players/${encodeURIComponent(el.dataset.ign)}/kick`, { method: "POST", body: { reason: "Kicked by admin panel" } });

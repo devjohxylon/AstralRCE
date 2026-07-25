@@ -3,7 +3,6 @@ import { config } from "../../config.js";
 import { sendToWebsite } from "../../services/website.js";
 import {
   connectRcon,
-  getManager,
   getOnlinePlayers,
   getServerInfo,
   isRconEnabled,
@@ -32,6 +31,8 @@ import {
   startSession,
 } from "./stats.js";
 import { startScheduler, stopScheduler } from "./scheduler.js";
+import { startWipeScheduler, stopWipeScheduler, syncWipeStatus } from "./wipe.js";
+import { syncVipForDiscord, syncVipOnJoin } from "./vip-sync.js";
 
 const LEADERBOARD_BOARDS = [
   { category: "kills", title: "Top Kills" },
@@ -40,16 +41,29 @@ const LEADERBOARD_BOARDS = [
 ];
 
 let lastStatusName = null;
+let lastStatusRenameAt = 0;
+let discordClient = null;
 
 export async function startRcon(client) {
   if (!isRconEnabled()) {
     console.log("RCON not configured — running in Discord-only mode.");
+    startWipeScheduler(client);
     return null;
   }
 
+  discordClient = client;
   attachFeedClient(client);
   const manager = await connectRcon();
-  if (!manager) return null;
+  if (!manager) {
+    startWipeScheduler(client);
+    return null;
+  }
+
+  manager.on(RCEEvent.Ready, () => {
+    syncServerStatus(client, getServerInfo(), { force: true }).catch(() => {});
+    pushLeaderboardToWebsite().catch(() => {});
+    syncWipeStatus(client, { force: true }).catch(() => {});
+  });
 
   manager.on(RCEEvent.PlayerKill, async (data) => {
     feedKill(data);
@@ -65,6 +79,17 @@ export async function startRcon(client) {
   manager.on(RCEEvent.PlayerJoined, async ({ player }) => {
     feedJoin(player);
     await startSession(player.ign).catch(() => {});
+
+    const linked = await syncVipOnJoin(player.ign).catch(() => null);
+    if (linked?.discordId && client) {
+      const guild = config.discord.guildId
+        ? await client.guilds.fetch(config.discord.guildId).catch(() => null)
+        : client.guilds.cache.first();
+      const member = await guild?.members.fetch(linked.discordId).catch(() => null);
+      if (member) {
+        await syncVipForDiscord(linked.discordId, member).catch(() => {});
+      }
+    }
   });
 
   manager.on(RCEEvent.PlayerLeft, async ({ player }) => {
@@ -107,12 +132,11 @@ export async function startRcon(client) {
   );
 
   startScheduler();
+  startWipeScheduler(client);
   return manager;
 }
 
-// Pushes live player counts to the website and renames the status voice channel.
-// Discord throttles channel renames hard, so this is gated by RCON_STATUS_UPDATE_MS.
-export async function syncServerStatus(client, info = getServerInfo()) {
+export async function syncServerStatus(client, info = getServerInfo(), { force = false } = {}) {
   if (!info) return null;
 
   const payload = {
@@ -131,24 +155,28 @@ export async function syncServerStatus(client, info = getServerInfo()) {
     online: true,
   };
 
-  await sendToWebsite(payload);
-  await updateStatusChannel(client, info);
+  await sendToWebsite(payload).catch(() => {});
+  await updateStatusChannel(client, info, force);
   return payload;
 }
 
-async function updateStatusChannel(client, info) {
+async function updateStatusChannel(client, info, force = false) {
   const channelId = config.channels.popStatus;
-  if (!channelId) return;
+  if (!channelId || !client) return;
 
   const queued = info.Queued ? ` 🕑${info.Queued}` : "";
-  const name = `🌐 ${info.Players ?? 0}/${info.MaxPlayers ?? "?"}${queued}`;
-  if (name === lastStatusName) return;
+  const name = `🌐 ${info.Players ?? 0}/${info.MaxPlayers ?? "?"}${queued}`.slice(0, 90);
+  if (!force && name === lastStatusName) return;
+
+  const now = Date.now();
+  if (!force && now - lastStatusRenameAt < config.rcon.statusUpdateMs) return;
 
   const channel = await client.channels.fetch(channelId).catch(() => null);
   if (!channel) return;
 
   await channel.setName(name).catch(() => {});
   lastStatusName = name;
+  lastStatusRenameAt = now;
 }
 
 export async function buildLeaderboardPayload(limit = 10) {
@@ -195,8 +223,6 @@ export async function pushLeaderboardToWebsite() {
   return payload;
 }
 
-// Relays Discord messages into the game. RCE has no free-text chat, so this
-// shows up as a server broadcast rather than a player message.
 export async function relayDiscordToGame(message) {
   if (!config.rcon.chatBridge) return false;
   if (!config.channels.gameChat) return false;
@@ -215,6 +241,7 @@ export async function relayDiscordToGame(message) {
 
 export async function shutdownRcon() {
   stopScheduler();
+  stopWipeScheduler();
   await flushAllFeeds().catch(() => {});
   await flushStats({ force: true }).catch(() => {});
 }

@@ -78,7 +78,7 @@ export async function connectRcon() {
 
   if (!added) {
     console.error(
-      "Could not reach the Rust server. Double-check RCON_HOST / RCON_PORT / RCON_PASSWORD in your GPORTAL panel.",
+      "Could not reach the Rust server. Double-check RCON_HOST / RCON_PORT / RCON_PASSWORD in your Nitrado panel.",
     );
   }
 

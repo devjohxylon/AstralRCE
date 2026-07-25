@@ -22,12 +22,14 @@ export const STAFF_PERMISSIONS = {
   links: true,
   automessages: true,
   schedule: false,
+  kits: false,
 };
 
 export const OWNER_PERMISSIONS = {
   ...Object.fromEntries(Object.keys(STAFF_PERMISSIONS).map((k) => [k, true])),
   keys: true,
   logs: true,
+  kits: true,
 };
 
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;

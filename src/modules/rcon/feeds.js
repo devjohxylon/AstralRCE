@@ -69,21 +69,72 @@ function clean(name) {
   return String(name ?? "Unknown").replace(/[`*_~|]/g, "");
 }
 
-export function feedKill({ killer, victim }) {
+const killStreaks = new Map(); // ign -> count
+const STREAK_MILESTONES = new Set([3, 5, 10, 15, 20]);
+
+export function feedKill(data) {
   const channelId = config.channels.killfeed;
   if (!channelId) return;
+
+  const killer = data?.killer ?? data;
+  const victim = data?.victim;
+  const weapon =
+    data?.weapon ||
+    data?.Weapon ||
+    killer?.weapon ||
+    data?.item ||
+    null;
+  const bodyPart = data?.bodyPart || data?.BodyPart || data?.hitBone || null;
+  const headshot =
+    Boolean(data?.headshot) ||
+    /head/i.test(String(bodyPart ?? ""));
 
   const pvp = killer?.type === "Player" && victim?.type === "Player";
   const suicide = pvp && killer.name === victim.name;
 
   if (suicide) {
+    killStreaks.delete(String(victim.name).toLowerCase());
     queueFeedLine(channelId, `💀 **${clean(victim.name)}** died`);
-  } else if (pvp) {
-    queueFeedLine(channelId, `🔫 **${clean(killer.name)}** killed **${clean(victim.name)}**`);
-  } else if (victim?.type === "Player") {
-    queueFeedLine(channelId, `☠️ **${clean(victim.name)}** was killed by *${clean(killer?.name)}*`);
+    return;
+  }
+
+  if (pvp) {
+    const killerKey = String(killer.name).toLowerCase();
+    const victimKey = String(victim.name).toLowerCase();
+    const streak = (killStreaks.get(killerKey) || 0) + 1;
+    killStreaks.set(killerKey, streak);
+    killStreaks.delete(victimKey);
+
+    const extras = [];
+    if (weapon) extras.push(clean(weapon));
+    if (headshot) extras.push("HS");
+    const suffix = extras.length ? ` *(${extras.join(" · ")})*` : "";
+
+    queueFeedLine(
+      channelId,
+      `🔫 **${clean(killer.name)}** killed **${clean(victim.name)}**${suffix}`,
+    );
+
+    if (STREAK_MILESTONES.has(streak)) {
+      queueFeedLine(
+        channelId,
+        `🔥 **${clean(killer.name)}** is on a **${streak}** kill streak`,
+      );
+    }
+    return;
+  }
+
+  if (victim?.type === "Player") {
+    killStreaks.delete(String(victim.name).toLowerCase());
+    queueFeedLine(
+      channelId,
+      `☠️ **${clean(victim.name)}** was killed by *${clean(killer?.name)}*`,
+    );
   } else if (killer?.type === "Player") {
-    queueFeedLine(channelId, `🐻 **${clean(killer.name)}** killed *${clean(victim?.name)}*`);
+    queueFeedLine(
+      channelId,
+      `🐻 **${clean(killer.name)}** killed *${clean(victim?.name)}*`,
+    );
   }
 }
 

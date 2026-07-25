@@ -37,6 +37,13 @@ import {
 } from "../../modules/rcon/scheduler.js";
 import { pushLeaderboardToWebsite } from "../../modules/rcon/index.js";
 import {
+  deleteKit,
+  giveKit,
+  listKits,
+  upsertKit,
+} from "../../modules/rcon/kits.js";
+import { getWipeAt, setWipeAt, syncWipeStatus } from "../../modules/rcon/wipe.js";
+import {
   STAFF_PERMISSIONS,
   appendPanelLog,
   authenticateAccessKey,
@@ -152,6 +159,7 @@ export function attachAdminPanel(app, client) {
     const bot = await getBotStatus(client);
     const stats = await statsSummary();
     const players = getOnlinePlayers();
+    const wipeAt = await getWipeAt();
 
     res.json({
       ok: true,
@@ -183,6 +191,12 @@ export function attachAdminPanel(app, client) {
         ready: client.isReady(),
       },
       stats,
+      wipe: {
+        wipeAt,
+        localInput: wipeAt
+          ? new Date(wipeAt).toISOString().slice(0, 16)
+          : "",
+      },
     });
   });
 
@@ -424,6 +438,54 @@ export function attachAdminPanel(app, client) {
     const result = await removeScheduledCommand(req.params.id);
     if (!result.ok) return res.status(404).json(result);
     await audit(req, "schedule_delete", { id: req.params.id });
+    res.json(result);
+  });
+
+  // ——— Kits ———
+  app.get("/admin/api/kits", requireAuth, requirePerm("kits"), async (_req, res) => {
+    res.json({ ok: true, kits: await listKits() });
+  });
+
+  app.post("/admin/api/kits", requireAuth, requirePerm("kits"), async (req, res) => {
+    const { id, label, items, cooldownMinutes } = req.body ?? {};
+    const result = await upsertKit({ id, label, items, cooldownMinutes });
+    if (!result.ok) return res.status(400).json(result);
+    await audit(req, "kit_upsert", { id: result.kit.id });
+    res.json(result);
+  });
+
+  app.delete("/admin/api/kits/:id", requireAuth, requirePerm("kits"), async (req, res) => {
+    const result = await deleteKit(req.params.id);
+    if (!result.ok) return res.status(404).json(result);
+    await audit(req, "kit_delete", { id: req.params.id });
+    res.json(result);
+  });
+
+  app.post("/admin/api/kits/:id/give", requireAuth, requirePerm("kits"), async (req, res) => {
+    try {
+      const ign = String(req.body?.ign ?? "").trim();
+      if (!ign) return res.status(400).json({ ok: false, error: "Missing player IGN" });
+      const result = await giveKit(ign, req.params.id);
+      await audit(req, "kit_give", { id: req.params.id, ign, given: result.given });
+      if (!result.ok) return res.status(400).json(result);
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  // ——— Wipe countdown ———
+  app.get("/admin/api/wipe", requireAuth, requirePerm("overview"), async (_req, res) => {
+    const wipeAt = await getWipeAt();
+    res.json({ ok: true, wipeAt });
+  });
+
+  app.post("/admin/api/wipe", requireAuth, requirePerm("overview"), async (req, res) => {
+    const raw = req.body?.wipeAt;
+    const result = await setWipeAt(raw === "" || raw == null ? null : String(raw));
+    if (!result.ok) return res.status(400).json(result);
+    await syncWipeStatus(client, { force: true }).catch(() => {});
+    await audit(req, "wipe_set", { wipeAt: result.wipeAt });
     res.json(result);
   });
 

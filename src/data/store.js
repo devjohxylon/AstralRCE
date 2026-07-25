@@ -137,3 +137,11 @@ export async function getPanelLogs() {
 export async function savePanelLogs(data) {
   await writeJson("panel-logs.json", data);
 }
+
+export async function getKits() {
+  return readJson("kits.json", { kits: {} });
+}
+
+export async function saveKits(data) {
+  await writeJson("kits.json", data);
+}

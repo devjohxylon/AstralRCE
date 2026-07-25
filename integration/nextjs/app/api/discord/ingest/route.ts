@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 
 const SECRET = process.env.WEBSITE_API_SECRET;
 
-type LeaderboardPayload = {
+type IngestPayload = {
   type: string;
   format?: string;
   parsed?: boolean;
@@ -12,7 +12,18 @@ type LeaderboardPayload = {
   leaderboards?: unknown[];
   messageId?: string;
   timestamp?: string;
+  createdAt?: string;
+  [key: string]: unknown;
 };
+
+async function putJson(pathname: string, data: unknown) {
+  await put(pathname, JSON.stringify(data, null, 2), {
+    access: "public",
+    addRandomSuffix: false,
+    allowOverwrite: true,
+    contentType: "application/json",
+  });
+}
 
 export async function POST(request: Request) {
   if (!SECRET) {
@@ -24,50 +35,69 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  let body: LeaderboardPayload;
+  let body: IngestPayload;
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  if (body.type === "leaderboard") {
-    const imageUrl = body.primaryImageUrl ?? body.images?.[0]?.url;
+  const type = body.type ?? "unknown";
 
-    if (!imageUrl) {
-      return NextResponse.json({ error: "No leaderboard image in payload" }, { status: 400 });
+  if (type === "leaderboard") {
+    const imageUrl = body.primaryImageUrl ?? body.images?.[0]?.url ?? null;
+    const isText = body.format === "text" || body.parsed === true;
+    const hasBoards = Array.isArray(body.leaderboards) && body.leaderboards.length > 0;
+
+    if (!imageUrl && !hasBoards && !isText) {
+      return NextResponse.json({ error: "No leaderboard image or entries in payload" }, { status: 400 });
     }
 
-    const imageRes = await fetch(imageUrl);
-    if (!imageRes.ok) {
-      return NextResponse.json({ error: "Could not download Discord image" }, { status: 502 });
+    let blobUrl: string | null = null;
+    if (imageUrl) {
+      const imageRes = await fetch(imageUrl);
+      if (!imageRes.ok) {
+        return NextResponse.json({ error: "Could not download Discord image" }, { status: 502 });
+      }
+      const extension = imageUrl.includes(".png") ? "png" : "jpg";
+      const blob = await put(`leaderboard/latest.${extension}`, imageRes.body, {
+        access: "public",
+        addRandomSuffix: false,
+        allowOverwrite: true,
+      });
+      blobUrl = blob.url;
     }
-
-    const extension = imageUrl.includes(".png") ? "png" : "jpg";
-    const blob = await put(`leaderboard/latest.${extension}`, imageRes.body, {
-      access: "public",
-      addRandomSuffix: false,
-      allowOverwrite: true,
-    });
 
     const meta = {
-      imageUrl: blob.url,
+      imageUrl: blobUrl,
       discordMessageId: body.messageId ?? null,
-      format: body.format ?? "image",
-      updatedAt: body.timestamp ?? new Date().toISOString(),
-      leaderboards: body.parsed ? body.leaderboards : [],
+      format: body.format ?? (blobUrl ? "image" : "text"),
+      source: body.source ?? null,
+      updatedAt: body.createdAt ?? body.timestamp ?? new Date().toISOString(),
+      leaderboards: hasBoards ? body.leaderboards : [],
     };
 
-    await put("leaderboard/meta.json", JSON.stringify(meta, null, 2), {
-      access: "public",
-      addRandomSuffix: false,
-      allowOverwrite: true,
-      contentType: "application/json",
-    });
-
+    await putJson("leaderboard/meta.json", meta);
     return NextResponse.json({ ok: true, ...meta });
   }
 
-  // Other relay types (kaos_activity, announcement, etc.) — extend as needed
-  return NextResponse.json({ ok: true, ignored: body.type ?? "unknown" });
+  if (type === "server_status") {
+    const status = {
+      ...body,
+      updatedAt: new Date().toISOString(),
+    };
+    await putJson("server/status.json", status);
+    return NextResponse.json({ ok: true, type });
+  }
+
+  if (type === "wipe_status") {
+    const wipe = {
+      ...body,
+      updatedAt: body.updatedAt ?? new Date().toISOString(),
+    };
+    await putJson("server/wipe.json", wipe);
+    return NextResponse.json({ ok: true, type });
+  }
+
+  return NextResponse.json({ ok: true, ignored: type });
 }

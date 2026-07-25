@@ -9,6 +9,7 @@ import { handleMemberJoin } from "./modules/welcome/handlers.js";
 import { checkExpiredGiveaways } from "./modules/giveaways/manager.js";
 import { relayDiscordToGame, shutdownRcon, startRcon } from "./modules/rcon/index.js";
 import { isRconEnabled } from "./modules/rcon/client.js";
+import { handleVipRoleChange } from "./modules/rcon/vip-sync.js";
 
 export function createBotClient() {
   const client = new Client({
@@ -59,6 +60,19 @@ export function createBotClient() {
       }
     } catch (error) {
       console.error("Member join handler failed:", error.message);
+    }
+  });
+
+  client.on("guildMemberUpdate", async (oldMember, newMember) => {
+    try {
+      const vipId = config.roles.vip;
+      if (!vipId) return;
+      const had = oldMember.roles.cache.has(vipId);
+      const has = newMember.roles.cache.has(vipId);
+      if (had === has) return;
+      await handleVipRoleChange(newMember, has);
+    } catch (error) {
+      console.error("VIP role sync failed:", error.message);
     }
   });
 
