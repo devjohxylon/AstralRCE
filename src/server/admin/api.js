@@ -181,6 +181,20 @@ export function attachAdminPanel(app, client) {
     const players = getOnlinePlayers();
     const wipeAt = await getWipeAt();
 
+    // Try to get map seed and size from various sources
+    let mapSeed = info?.Seed ?? info?.seed ?? null;
+    let mapSize = info?.WorldSize ?? info?.worldSize ?? info?.MapSize ?? 4000;
+
+    // If no seed, try to parse from map name or use env variable
+    if (!mapSeed && info?.Map) {
+      const seedMatch = info.Map.match(/seed[:\s]+(\d+)/i);
+      if (seedMatch) mapSeed = parseInt(seedMatch[1]);
+    }
+    
+    // Allow manual override via environment
+    mapSeed = mapSeed ?? process.env.RUST_MAP_SEED ?? null;
+    mapSize = mapSize ?? process.env.RUST_MAP_SIZE ?? 4000;
+
     res.json({
       ok: true,
       rcon,
@@ -192,8 +206,8 @@ export function attachAdminPanel(app, client) {
             queued: info.Queued,
             joining: info.Joining,
             map: info.Map,
-            mapSeed: info.Seed ?? null,
-            mapSize: info.WorldSize ?? 4000,
+            mapSeed: mapSeed ? parseInt(mapSeed) : null,
+            mapSize: parseInt(mapSize),
             gameTime: info.GameTime,
             uptime: info.Uptime,
             fps: info.Framerate,
