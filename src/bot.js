@@ -138,7 +138,7 @@ export function createBotClient() {
 
 export async function startBot() {
   const client = createBotClient();
-  const app = createWebhookServer(client);
+  const app = await createWebhookServer(client);
 
   // Keep the bot alive on stray Discord API errors (expired interactions, etc.)
   client.on("error", (error) => {

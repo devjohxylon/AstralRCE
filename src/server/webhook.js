@@ -24,7 +24,7 @@ function authorize(req, res, next) {
   return next();
 }
 
-export function createWebhookServer(client) {
+export async function createWebhookServer(client) {
   const app = express();
   app.use(express.json({ limit: "1mb" }));
 
@@ -32,7 +32,7 @@ export function createWebhookServer(client) {
     res.type("image/png").sendFile(LOGO_PATH);
   });
 
-  attachAdminPanel(app, client);
+  await attachAdminPanel(app, client);
 
   app.get("/health", (_req, res) => {
     res.json({ ok: true, discordReady: client.isReady() });

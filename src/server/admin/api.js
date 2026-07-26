@@ -111,7 +111,7 @@ async function audit(req, action, detail = {}) {
   }
 }
 
-export function attachAdminPanel(app, client) {
+export async function attachAdminPanel(app, client) {
   app.get("/", (_req, res) => res.redirect(302, "/admin"));
 
   app.get("/admin", (_req, res) => {
