@@ -461,42 +461,69 @@ button { transition: all .15s ease; }
 .chan-row label small { display: block; color: var(--faint); font-weight: 400; font-family: var(--mono); font-size: .64rem; margin-top: .2rem; }
 .chan-row select, .chan-row input { margin: 0; }
 .cmd-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
-.kit-builder { display: grid; gap: .75rem; }
+.kit-builder { display: grid; gap: 1.5rem; }
 .kit-picked {
-  display: flex; flex-direction: column; gap: .4rem;
-  max-height: 220px; overflow: auto; padding: .15rem;
-  border: 1px solid var(--line); background: rgba(0,0,0,.25);
+  display: flex; flex-direction: column; gap: .5rem;
+  max-height: 320px; overflow: auto; padding: .5rem;
+  border: 1px solid rgba(255,255,255,.08); background: rgba(0,0,0,.3);
+  border-radius: 6px;
 }
 .kit-picked-row {
-  display: grid; grid-template-columns: 1fr 88px auto; gap: .4rem; align-items: center;
-  padding: .4rem .5rem; border-bottom: 1px solid var(--line);
+  display: flex; gap: .75rem; align-items: center;
+  padding: .65rem .75rem; border-radius: 6px;
+  background: rgba(255,255,255,.02);
+  border: 1px solid rgba(255,255,255,.04);
+  transition: all .15s ease;
 }
-.kit-picked-row:last-child { border-bottom: none; }
-.kit-picked-row strong { font-size: .78rem; display: block; }
-.kit-picked-row code { font-size: .62rem; color: var(--faint); }
-.kit-picked-row input[type="number"] { margin: 0; padding: .35rem .45rem; }
-.kit-search-row { display: grid; grid-template-columns: 1fr auto; gap: .45rem; }
-.kit-cats { display: flex; flex-wrap: wrap; gap: .3rem; }
+.kit-picked-row:hover {
+  background: rgba(255,255,255,.04);
+  border-color: rgba(255,255,255,.08);
+}
+.kit-picked-row strong { font-size: .8rem; display: block; }
+.kit-picked-row code { font-size: .65rem; color: rgba(215,221,230,.5); }
+.kit-picked-row input[type="number"] { 
+  margin: 0; padding: .4rem .5rem; width: 70px; text-align: center;
+  border-radius: 4px;
+}
+.kit-search-row { display: grid; grid-template-columns: 1fr auto; gap: .6rem; }
+.kit-cats { display: flex; flex-wrap: wrap; gap: .4rem; }
 .kit-cats button {
-  padding: .22rem .5rem; font-size: .62rem; letter-spacing: .06em; text-transform: uppercase;
+  padding: .35rem .7rem; font-size: .65rem; letter-spacing: .08em; text-transform: uppercase;
+  border-radius: 6px;
 }
 .kit-cats button.active {
-  color: var(--bg); background: var(--chrome); border-color: var(--chrome);
+  color: #fff; background: rgba(96,165,250,.2); border-color: rgba(96,165,250,.4);
 }
 .kit-catalog {
-  max-height: 280px; overflow: auto; border: 1px solid var(--line);
-  background: rgba(0,0,0,.28);
+  max-height: 400px; overflow: auto; border: 1px solid rgba(255,255,255,.08);
+  background: rgba(0,0,0,.3); border-radius: 6px;
 }
 .kit-item {
-  display: grid; grid-template-columns: 1fr auto; gap: .5rem; align-items: center;
-  width: 100%; text-align: left; padding: .45rem .6rem; margin: 0;
-  border: none; border-bottom: 1px solid var(--line); border-radius: 0;
+  display: flex; gap: .75rem; align-items: center;
+  width: 100%; text-align: left; padding: .7rem .85rem; margin: 0;
+  border: none; border-bottom: 1px solid rgba(255,255,255,.04); border-radius: 0;
   background: transparent; color: var(--text); cursor: pointer;
   font-family: var(--sans); box-shadow: none;
+  transition: all .15s ease;
 }
-.kit-item:hover { background: rgba(215,221,230,.05); color: var(--text); box-shadow: none; }
-.kit-item .meta { font-family: var(--mono); font-size: .62rem; color: var(--faint); }
-.kit-item .add { font-family: var(--mono); font-size: .65rem; color: var(--chrome); }
+.kit-item:first-child { border-radius: 6px 6px 0 0; }
+.kit-item:last-child { border-radius: 0 0 6px 6px; border-bottom: none; }
+.kit-item:hover { 
+  background: rgba(96,165,250,.08); 
+  color: var(--text); 
+  box-shadow: none;
+}
+.kit-item .meta { 
+  font-family: var(--mono); font-size: .65rem; color: rgba(215,221,230,.4);
+  margin-top: .15rem;
+}
+.kit-item .add { 
+  font-family: var(--mono); font-size: .85rem; font-weight: 700; 
+  color: #60a5fa; width: 28px; height: 28px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%; background: rgba(96,165,250,.1);
+  flex-shrink: 0;
+}
 @media (max-width: 900px) {
   .chan-row { grid-template-columns: 1fr; }
 }
@@ -1769,16 +1796,22 @@ function drawMap() {
 function kitDraftRowsHtml() {
   const items = state.kitDraft.items || [];
   if (!items.length) {
-    return `<div class="empty" style="padding:.85rem">No items yet<span class="empty-hint">Search and click to add items</span></div>`;
+    return `<div class="empty" style="padding:2rem 1rem">No items selected<span class="empty-hint">Click items below to add them</span></div>`;
   }
   return items.map((row, idx) => `
     <div class="kit-picked-row">
-      <div>
-        <strong>${esc(row.name || row.item)}</strong>
-        <code>${esc(row.item)}</code>
+      <img src="https://rustlabs.com/img/items180/${esc(row.item)}.png" 
+           onerror="this.style.display='none'" 
+           style="width:36px;height:36px;object-fit:contain;border-radius:4px;background:rgba(0,0,0,.3);padding:2px" 
+           alt="${esc(row.name || row.item)}" />
+      <div style="flex:1;min-width:0">
+        <strong style="display:block;font-size:.8rem">${esc(row.name || row.item)}</strong>
+        <code style="font-size:.65rem;color:rgba(215,221,230,.5)">${esc(row.item)}</code>
       </div>
-      <input type="number" min="1" max="100000" value="${Number(row.amount) || 1}" data-kit-amount="${idx}" />
-      <button class="danger" data-action="kitRemoveItem" data-idx="${idx}">Remove</button>
+      <input type="number" min="1" max="100000" value="${Number(row.amount) || 1}" 
+             data-kit-amount="${idx}" 
+             style="width:70px;text-align:center" />
+      <button class="danger" data-action="kitRemoveItem" data-idx="${idx}" style="padding:.35rem .6rem">×</button>
     </div>`).join("");
 }
 
@@ -1792,19 +1825,23 @@ function kitCatalogHtml(catalog) {
       i.id.includes(q) || i.name.toLowerCase().includes(q) || i.category.toLowerCase().includes(q),
     );
   }
-  const shown = rows.slice(0, 120);
+  const shown = rows.slice(0, 80);
   if (!shown.length) {
-    return `<div class="empty" style="padding:.85rem">No items match<span class="empty-hint">Try a different search term</span></div>`;
+    return `<div class="empty" style="padding:2rem 1rem">No matches<span class="empty-hint">Try different keywords</span></div>`;
   }
   return shown.map((i) => `
     <button type="button" class="kit-item" data-action="kitAddItem" data-id="${esc(i.id)}" data-name="${esc(i.name)}">
-      <span>
-        <strong style="font-size:.78rem">${esc(i.name)}</strong>
-        <div class="meta">${esc(i.id)} · ${esc(i.category)}</div>
-      </span>
-      <span class="add">+ ADD</span>
+      <img src="https://rustlabs.com/img/items180/${esc(i.id)}.png" 
+           onerror="this.style.display='none'" 
+           style="width:40px;height:40px;object-fit:contain;border-radius:6px;background:rgba(0,0,0,.4);padding:4px" 
+           alt="${esc(i.name)}" />
+      <div style="flex:1;min-width:0;text-align:left">
+        <strong style="display:block;font-size:.78rem">${esc(i.name)}</strong>
+        <div class="meta">${esc(i.category)}</div>
+      </div>
+      <span class="add">+</span>
     </button>`).join("") + (rows.length > shown.length
-      ? `<div class="muted" style="padding:.55rem .7rem;font-family:var(--mono);font-size:.65rem">Showing ${shown.length} of ${rows.length} — refine search</div>`
+      ? `<div class="muted" style="padding:.7rem;text-align:center;font-family:var(--mono);font-size:.68rem;border-top:1px solid rgba(255,255,255,.04)">+${rows.length - shown.length} more — refine search</div>`
       : "");
 }
 
@@ -1950,31 +1987,41 @@ async function renderKits() {
         </div>
       </div>
       <div class="card">
-        <h3>Build panel kit</h3>
-        <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:0 0 .75rem">
-          Search the catalog (${catalog.total || 0} items), click to add, set amounts, save.
+        <h3>Kit Builder</h3>
+        <p class="muted" style="font-family:var(--mono);font-size:.74rem;margin:0 0 1.5rem">
+          Build custom item kits with images. Search ${catalog.total || 0} items, click to add.
         </p>
         <div class="kit-builder">
-          <input id="kitId" placeholder="id e.g. vip" value="${esc(d.id)}" />
-          <input id="kitLabel" placeholder="Label e.g. VIP Starter" value="${esc(d.label)}" />
-          <input id="kitCooldown" type="number" min="0" value="${Number(d.cooldownMinutes) || 0}" placeholder="Cooldown minutes" />
+          <div class="form-grid" style="grid-template-columns: 1fr 1fr 140px">
+            <input id="kitId" placeholder="Kit ID (e.g. vip)" value="${esc(d.id)}" />
+            <input id="kitLabel" placeholder="Display Name" value="${esc(d.label)}" />
+            <input id="kitCooldown" type="number" min="0" value="${Number(d.cooldownMinutes) || 0}" placeholder="Cooldown (min)" />
+          </div>
+          
           <div>
-            <div class="muted" style="font-family:var(--mono);font-size:.65rem;margin-bottom:.35rem">SELECTED (${d.items.length})</div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem">
+              <div class="muted" style="font-family:var(--mono);font-size:.68rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase">Selected Items (${d.items.length})</div>
+              ${d.items.length > 0 ? '<button data-action="kitClearDraft" style="padding:.3rem .6rem;font-size:.7rem">Clear All</button>' : ''}
+            </div>
             <div class="kit-picked" id="kitPicked">${kitDraftRowsHtml()}</div>
           </div>
+          
           <div>
+            <div class="muted" style="font-family:var(--mono);font-size:.68rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;margin-bottom:.6rem">Add Items</div>
             <div class="kit-search-row">
-              <input id="kitSearch" placeholder="Search items e.g. wood, ak, med" value="${esc(d.query)}" />
-              <button data-action="kitClearDraft">Clear</button>
+              <input id="kitSearch" placeholder="🔍 Search items (e.g. wood, ak, medkit)" value="${esc(d.query)}" />
             </div>
-            <div class="kit-cats" style="margin-top:.45rem">${cats}</div>
-            <div class="kit-catalog" id="kitCatalog" style="margin-top:.55rem">${kitCatalogHtml(catalog)}</div>
+            <div class="kit-cats" style="margin-top:.6rem">${cats}</div>
+            <div class="kit-catalog" id="kitCatalog" style="margin-top:.6rem">${kitCatalogHtml(catalog)}</div>
           </div>
-          <div class="form-row" style="grid-template-columns:1fr auto">
-            <input id="kitCustomItem" placeholder="Custom shortname (optional)" />
-            <button data-action="kitAddCustom">Add</button>
+          
+          <div style="border-top:1px solid rgba(255,255,255,.06);padding-top:1.5rem;display:grid;gap:.75rem">
+            <div class="form-row" style="grid-template-columns:1fr auto;gap:.6rem">
+              <input id="kitCustomItem" placeholder="Or add custom item by shortname" />
+              <button data-action="kitAddCustom">Add Custom</button>
+            </div>
+            <button class="primary" data-action="saveKit" style="width:100%;padding:.75rem">💾 Save Kit</button>
           </div>
-          <button class="primary" data-action="saveKit" style="width:100%">Save kit</button>
         </div>
       </div>
     </div>`;
