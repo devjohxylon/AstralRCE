@@ -485,6 +485,42 @@ input:focus, textarea:focus, select:focus {
 .chan-row label small { display: block; color: var(--faint); font-weight: 400; font-family: var(--mono); font-size: .62rem; margin-top: .15rem; }
 .chan-row select, .chan-row input { margin: 0; }
 .cmd-actions { display: flex; flex-wrap: wrap; gap: .4rem; }
+.kit-builder { display: grid; gap: .75rem; }
+.kit-picked {
+  display: flex; flex-direction: column; gap: .4rem;
+  max-height: 220px; overflow: auto; padding: .15rem;
+  border: 1px solid var(--line); background: rgba(0,0,0,.25);
+}
+.kit-picked-row {
+  display: grid; grid-template-columns: 1fr 88px auto; gap: .4rem; align-items: center;
+  padding: .4rem .5rem; border-bottom: 1px solid var(--line);
+}
+.kit-picked-row:last-child { border-bottom: none; }
+.kit-picked-row strong { font-size: .78rem; display: block; }
+.kit-picked-row code { font-size: .62rem; color: var(--faint); }
+.kit-picked-row input[type="number"] { margin: 0; padding: .35rem .45rem; }
+.kit-search-row { display: grid; grid-template-columns: 1fr auto; gap: .45rem; }
+.kit-cats { display: flex; flex-wrap: wrap; gap: .3rem; }
+.kit-cats button {
+  padding: .22rem .5rem; font-size: .62rem; letter-spacing: .06em; text-transform: uppercase;
+}
+.kit-cats button.active {
+  color: var(--bg); background: var(--chrome); border-color: var(--chrome);
+}
+.kit-catalog {
+  max-height: 280px; overflow: auto; border: 1px solid var(--line);
+  background: rgba(0,0,0,.28);
+}
+.kit-item {
+  display: grid; grid-template-columns: 1fr auto; gap: .5rem; align-items: center;
+  width: 100%; text-align: left; padding: .45rem .6rem; margin: 0;
+  border: none; border-bottom: 1px solid var(--line); border-radius: 0;
+  background: transparent; color: var(--text); cursor: pointer;
+  font-family: var(--sans); box-shadow: none;
+}
+.kit-item:hover { background: rgba(215,221,230,.05); color: var(--text); box-shadow: none; }
+.kit-item .meta { font-family: var(--mono); font-size: .62rem; color: var(--faint); }
+.kit-item .add { font-family: var(--mono); font-size: .65rem; color: var(--chrome); }
 @media (max-width: 900px) {
   .chan-row { grid-template-columns: 1fr; }
 }
@@ -646,6 +682,15 @@ const state = {
   loginFx: null,
   session: null,
   lastCreatedKey: null,
+  kitDraft: {
+    id: "",
+    label: "",
+    cooldownMinutes: 0,
+    items: [], // { item, amount, name? }
+    category: "All",
+    query: "",
+  },
+  itemCatalog: null,
 };
 
 function can(perm) {
@@ -1318,8 +1363,168 @@ async function renderServerCommands() {
     </div>`;
 }
 
+async function ensureItemCatalog() {
+  if (state.itemCatalog) return state.itemCatalog;
+  const data = await api("/items");
+  state.itemCatalog = data;
+  return data;
+}
+
+function syncKitDraftFromForm() {
+  const idEl = document.getElementById("kitId");
+  const labelEl = document.getElementById("kitLabel");
+  const cdEl = document.getElementById("kitCooldown");
+  if (idEl) state.kitDraft.id = idEl.value;
+  if (labelEl) state.kitDraft.label = labelEl.value;
+  if (cdEl) state.kitDraft.cooldownMinutes = Number(cdEl.value) || 0;
+  document.querySelectorAll("[data-kit-amount]").forEach((input) => {
+    const idx = Number(input.dataset.kitAmount);
+    if (state.kitDraft.items[idx]) {
+      state.kitDraft.items[idx].amount = Math.max(1, Number(input.value) || 1);
+    }
+  });
+}
+
+function refreshKitBuilderDom() {
+  const picked = document.getElementById("kitPicked");
+  const catalogEl = document.getElementById("kitCatalog");
+  if (picked) picked.innerHTML = kitDraftRowsHtml();
+  if (catalogEl && state.itemCatalog) catalogEl.innerHTML = kitCatalogHtml(state.itemCatalog);
+  document.querySelectorAll('[data-action="kitCategory"]').forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.cat === state.kitDraft.category);
+  });
+  bindKitBuilderEvents();
+}
+
+function kitDraftRowsHtml() {
+  const items = state.kitDraft.items || [];
+  if (!items.length) {
+    return `<div class="empty" style="padding:.85rem">No items yet — search and click to add</div>`;
+  }
+  return items.map((row, idx) => `
+    <div class="kit-picked-row">
+      <div>
+        <strong>${esc(row.name || row.item)}</strong>
+        <code>${esc(row.item)}</code>
+      </div>
+      <input type="number" min="1" max="100000" value="${Number(row.amount) || 1}" data-kit-amount="${idx}" />
+      <button class="danger" data-action="kitRemoveItem" data-idx="${idx}">Remove</button>
+    </div>`).join("");
+}
+
+function kitCatalogHtml(catalog) {
+  const q = (state.kitDraft.query || "").trim().toLowerCase();
+  const cat = state.kitDraft.category || "All";
+  let rows = catalog.items || [];
+  if (cat && cat !== "All") rows = rows.filter((i) => i.category === cat);
+  if (q) {
+    rows = rows.filter((i) =>
+      i.id.includes(q) || i.name.toLowerCase().includes(q) || i.category.toLowerCase().includes(q),
+    );
+  }
+  const shown = rows.slice(0, 120);
+  if (!shown.length) {
+    return `<div class="empty" style="padding:.85rem">No items match</div>`;
+  }
+  return shown.map((i) => `
+    <button type="button" class="kit-item" data-action="kitAddItem" data-id="${esc(i.id)}" data-name="${esc(i.name)}">
+      <span>
+        <strong style="font-size:.78rem">${esc(i.name)}</strong>
+        <div class="meta">${esc(i.id)} · ${esc(i.category)}</div>
+      </span>
+      <span class="add">+ ADD</span>
+    </button>`).join("") + (rows.length > shown.length
+      ? `<div class="muted" style="padding:.55rem .7rem;font-family:var(--mono);font-size:.65rem">Showing ${shown.length} of ${rows.length} — refine search</div>`
+      : "");
+}
+
+function bindKitBuilderEvents() {
+  const search = document.getElementById("kitSearch");
+  if (search) {
+    search.oninput = () => {
+      state.kitDraft.query = search.value;
+      const catalogEl = document.getElementById("kitCatalog");
+      if (catalogEl && state.itemCatalog) catalogEl.innerHTML = kitCatalogHtml(state.itemCatalog);
+      bindKitBuilderEvents();
+    };
+  }
+  document.querySelectorAll("[data-kit-amount]").forEach((input) => {
+    input.onchange = () => syncKitDraftFromForm();
+  });
+
+  // Re-bind after catalog/picked DOM refreshes (bindView only runs once per full render)
+  document.querySelectorAll('[data-action="kitAddItem"], [data-action="kitRemoveItem"], [data-action="kitCategory"], [data-action="kitAddCustom"], [data-action="kitClearDraft"], [data-action="saveKit"]').forEach((el) => {
+    el.onclick = async () => {
+      const a = el.dataset.action;
+      try {
+        if (a === "kitAddItem") {
+          syncKitDraftFromForm();
+          const id = el.dataset.id;
+          const name = el.dataset.name || id;
+          const existing = state.kitDraft.items.find((i) => i.item === id);
+          if (existing) existing.amount += 1;
+          else state.kitDraft.items.push({ item: id, amount: 1, name });
+          refreshKitBuilderDom();
+          return;
+        }
+        if (a === "kitAddCustom") {
+          syncKitDraftFromForm();
+          const raw = document.getElementById("kitCustomItem")?.value?.trim().toLowerCase();
+          if (!raw || !/^[a-z0-9._-]+$/.test(raw)) { toast("Invalid shortname", true); return; }
+          const existing = state.kitDraft.items.find((i) => i.item === raw);
+          if (existing) existing.amount += 1;
+          else state.kitDraft.items.push({ item: raw, amount: 1, name: raw });
+          document.getElementById("kitCustomItem").value = "";
+          refreshKitBuilderDom();
+          return;
+        }
+        if (a === "kitRemoveItem") {
+          syncKitDraftFromForm();
+          state.kitDraft.items.splice(Number(el.dataset.idx), 1);
+          refreshKitBuilderDom();
+          return;
+        }
+        if (a === "kitCategory") {
+          syncKitDraftFromForm();
+          state.kitDraft.category = el.dataset.cat || "All";
+          refreshKitBuilderDom();
+          return;
+        }
+        if (a === "kitClearDraft") {
+          state.kitDraft = { id: "", label: "", cooldownMinutes: 0, items: [], category: "All", query: "" };
+          render();
+          return;
+        }
+        if (a === "saveKit") {
+          syncKitDraftFromForm();
+          const items = state.kitDraft.items.map((i) => ({
+            item: i.item,
+            amount: Math.max(1, Number(i.amount) || 1),
+          }));
+          if (!items.length) { toast("Add at least one item", true); return; }
+          await api("/kits", {
+            method: "POST",
+            body: {
+              id: state.kitDraft.id || document.getElementById("kitId").value,
+              label: state.kitDraft.label || document.getElementById("kitLabel").value,
+              cooldownMinutes: state.kitDraft.cooldownMinutes,
+              items,
+            },
+          });
+          toast("Kit saved");
+          state.kitDraft = { id: "", label: "", cooldownMinutes: 0, items: [], category: "All", query: "" };
+          render();
+        }
+      } catch (e) {
+        toast(e.message, true);
+      }
+    };
+  });
+}
+
 async function renderKits() {
   const data = await api("/kits?refresh=1");
+  const catalog = await ensureItemCatalog();
   const panelRows = (data.kits || []).map((k) => `
     <tr>
       <td><strong>${esc(k.label)}</strong><div class="muted"><code>${esc(k.id)}</code> · panel</div></td>
@@ -1335,11 +1540,17 @@ async function renderKits() {
   const serverRows = (data.serverKits || []).map((k) => `
     <tr>
       <td><strong>${esc(k.label)}</strong><div class="muted"><code>${esc(k.id)}</code> · server</div></td>
-      <td>${(k.items || []).slice(0, 8).map((i) => `${esc(i.item)}×${i.amount}`).join(", ") || "<span class=\"muted\">—</span>"}${(k.items || []).length > 8 ? "…" : ""}</td>
+      <td>${(k.items || []).slice(0, 8).map((i) => `${esc(i.item)}×${i.amount}`).join(", ") || '<span class="muted">—</span>'}${(k.items || []).length > 8 ? "…" : ""}</td>
       <td class="actions">
         <button class="primary" data-action="giveKit" data-id="${esc(k.id)}" data-source="server">Give</button>
       </td>
     </tr>`).join("") || `<tr><td colspan="3"><div class="empty">${data.serverError ? esc(data.serverError) : "No in-game kits returned from RCON (kit list). Make sure KitManager is installed and RCON is online."}</div></td></tr>`;
+
+  const cats = (catalog.categories || ["All"]).map((c) =>
+    `<button type="button" data-action="kitCategory" data-cat="${esc(c)}" class="${state.kitDraft.category === c ? "active" : ""}">${esc(c)}</button>`
+  ).join("");
+
+  const d = state.kitDraft;
 
   return `
     <div class="card" style="margin-bottom:.9rem">
@@ -1358,26 +1569,43 @@ async function renderKits() {
       <div class="card">
         <h3>Panel kit bundles</h3>
         <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:0 0 .75rem">
-          Custom bundles granted item-by-item with <code>inventory.giveto</code>. Optional — use these if you don’t want KitManager kits.
+          Custom bundles granted item-by-item with <code>inventory.giveto</code>.
         </p>
         <table class="table"><thead><tr><th>Kit</th><th>Items</th><th>CD</th><th></th></tr></thead><tbody>${panelRows}</tbody></table>
-      </div>
-      <div class="card">
-        <h3>Create / update panel kit</h3>
-        <input id="kitId" placeholder="id e.g. vip" />
-        <input id="kitLabel" placeholder="Label e.g. VIP Starter" style="margin-top:.6rem" />
-        <input id="kitCooldown" type="number" min="0" value="0" placeholder="Cooldown minutes" style="margin-top:.6rem" />
-        <textarea id="kitItems" rows="6" style="margin-top:.6rem" placeholder="One per line: shortname amount&#10;wood 1000&#10;stones 1000&#10;metal.fragments 500"></textarea>
-        <button class="primary" style="margin-top:.75rem" data-action="saveKit">Save kit</button>
-        <h3 style="margin-top:1.5rem">Give any kit</h3>
+        <h3 style="margin-top:1.35rem">Give any kit</h3>
         <div class="form-row">
           <input id="kitGiveIgn" placeholder="Online player IGN" />
           <input id="kitGiveId" placeholder="Kit name / id" />
           <button data-action="giveKitForm">Give</button>
         </div>
-        <p class="muted" style="font-family:var(--mono);font-size:.68rem;margin:.55rem 0 0">
-          Tries panel kit first, then in-game <code>kit "id" "player"</code>.
+      </div>
+      <div class="card">
+        <h3>Build panel kit</h3>
+        <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:0 0 .75rem">
+          Search the catalog (${catalog.total || 0} items), click to add, set amounts, save.
         </p>
+        <div class="kit-builder">
+          <input id="kitId" placeholder="id e.g. vip" value="${esc(d.id)}" />
+          <input id="kitLabel" placeholder="Label e.g. VIP Starter" value="${esc(d.label)}" />
+          <input id="kitCooldown" type="number" min="0" value="${Number(d.cooldownMinutes) || 0}" placeholder="Cooldown minutes" />
+          <div>
+            <div class="muted" style="font-family:var(--mono);font-size:.65rem;margin-bottom:.35rem">SELECTED (${d.items.length})</div>
+            <div class="kit-picked" id="kitPicked">${kitDraftRowsHtml()}</div>
+          </div>
+          <div>
+            <div class="kit-search-row">
+              <input id="kitSearch" placeholder="Search items e.g. wood, ak, med" value="${esc(d.query)}" />
+              <button data-action="kitClearDraft">Clear</button>
+            </div>
+            <div class="kit-cats" style="margin-top:.45rem">${cats}</div>
+            <div class="kit-catalog" id="kitCatalog" style="margin-top:.55rem">${kitCatalogHtml(catalog)}</div>
+          </div>
+          <div class="form-row" style="grid-template-columns:1fr auto">
+            <input id="kitCustomItem" placeholder="Custom shortname (optional)" />
+            <button data-action="kitAddCustom">Add</button>
+          </div>
+          <button class="primary" data-action="saveKit" style="width:100%">Save kit</button>
+        </div>
       </div>
     </div>`;
 }
@@ -1530,39 +1758,86 @@ function bindView() {
           await refreshOverview();
           render();
         }
+        if (a === "kitAddItem") {
+          syncKitDraftFromForm();
+          const id = el.dataset.id;
+          const name = el.dataset.name || id;
+          const existing = state.kitDraft.items.find((i) => i.item === id);
+          if (existing) existing.amount += 1;
+          else state.kitDraft.items.push({ item: id, amount: 1, name });
+          refreshKitBuilderDom();
+          return;
+        }
+        if (a === "kitAddCustom") {
+          syncKitDraftFromForm();
+          const raw = document.getElementById("kitCustomItem")?.value?.trim().toLowerCase();
+          if (!raw || !/^[a-z0-9._-]+$/.test(raw)) { toast("Invalid shortname", true); return; }
+          const existing = state.kitDraft.items.find((i) => i.item === raw);
+          if (existing) existing.amount += 1;
+          else state.kitDraft.items.push({ item: raw, amount: 1, name: raw });
+          document.getElementById("kitCustomItem").value = "";
+          refreshKitBuilderDom();
+          return;
+        }
+        if (a === "kitRemoveItem") {
+          syncKitDraftFromForm();
+          state.kitDraft.items.splice(Number(el.dataset.idx), 1);
+          refreshKitBuilderDom();
+          return;
+        }
+        if (a === "kitCategory") {
+          syncKitDraftFromForm();
+          state.kitDraft.category = el.dataset.cat || "All";
+          refreshKitBuilderDom();
+          return;
+        }
+        if (a === "kitClearDraft") {
+          state.kitDraft = { id: "", label: "", cooldownMinutes: 0, items: [], category: "All", query: "" };
+          render();
+          return;
+        }
         if (a === "saveKit") {
-          const lines = document.getElementById("kitItems").value.split("\n").map((l) => l.trim()).filter(Boolean);
-          const items = lines.map((line) => {
-            const m = line.match(/^(.+?)\s+(\d+)\s*$/);
-            if (m) return { item: m[1].trim(), amount: Number(m[2]) || 1 };
-            return { item: line, amount: 1 };
-          });
+          syncKitDraftFromForm();
+          const items = state.kitDraft.items.map((i) => ({
+            item: i.item,
+            amount: Math.max(1, Number(i.amount) || 1),
+          }));
+          if (!items.length) { toast("Add at least one item", true); return; }
           await api("/kits", {
             method: "POST",
             body: {
-              id: document.getElementById("kitId").value,
-              label: document.getElementById("kitLabel").value,
-              cooldownMinutes: Number(document.getElementById("kitCooldown").value) || 0,
+              id: state.kitDraft.id || document.getElementById("kitId").value,
+              label: state.kitDraft.label || document.getElementById("kitLabel").value,
+              cooldownMinutes: state.kitDraft.cooldownMinutes,
               items,
             },
           });
           toast("Kit saved");
+          state.kitDraft = { id: "", label: "", cooldownMinutes: 0, items: [], category: "All", query: "" };
           render();
         }
         if (a === "editKit") {
-          const kits = await api("/kits");
+          const kits = await api("/kits?refresh=0");
           const kit = kits.kits.find((k) => k.id === el.dataset.id);
           if (!kit) return;
-          document.getElementById("kitId").value = kit.id;
-          document.getElementById("kitLabel").value = kit.label || "";
-          document.getElementById("kitCooldown").value = kit.cooldownMinutes || 0;
-          document.getElementById("kitItems").value = (kit.items || [])
-            .map((i) => `${i.item} ${i.amount}`)
-            .join("\n");
-          document.getElementById("kitGiveId").value = kit.id;
+          const catalog = await ensureItemCatalog();
+          const nameOf = (id) => catalog.items.find((i) => i.id === id)?.name || id;
+          state.kitDraft = {
+            id: kit.id,
+            label: kit.label || "",
+            cooldownMinutes: kit.cooldownMinutes || 0,
+            items: (kit.items || []).map((i) => ({
+              item: i.item,
+              amount: i.amount,
+              name: nameOf(i.item),
+            })),
+            category: "All",
+            query: "",
+          };
           toast(`Editing ${kit.id}`);
+          render();
         }
-        if (a === "delKit") {
+                if (a === "delKit") {
           if (!confirm(`Delete kit ${el.dataset.id}?`)) return;
           await api(`/kits/${encodeURIComponent(el.dataset.id)}`, { method: "DELETE" });
           toast("Kit deleted");
@@ -1693,6 +1968,7 @@ function bindView() {
       sel.value = match ? match.value : "";
     };
   });
+  bindKitBuilderEvents();
 }
 
 document.getElementById("loginBtn").onclick = async () => {

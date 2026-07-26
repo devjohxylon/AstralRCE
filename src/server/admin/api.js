@@ -36,6 +36,7 @@ import {
   updateScheduledCommand,
 } from "../../modules/rcon/scheduler.js";
 import { pushLeaderboardToWebsite } from "../../modules/rcon/index.js";
+import { listRustItems } from "../../data/rust-items.js";
 import {
   deleteKit,
   giveKit,
@@ -449,6 +450,12 @@ export function attachAdminPanel(app, client) {
   });
 
   // ——— Kits ———
+  app.get("/admin/api/items", requireAuth, requirePerm("kits"), (req, res) => {
+    const q = String(req.query.q ?? "");
+    const category = String(req.query.category ?? "");
+    res.json({ ok: true, ...listRustItems({ q, category }) });
+  });
+
   app.get("/admin/api/kits", requireAuth, requirePerm("kits"), async (req, res) => {
     const refresh = String(req.query.refresh ?? "1") !== "0";
     const panel = await listKits();
