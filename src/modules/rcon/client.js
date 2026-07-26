@@ -158,6 +158,56 @@ export async function broadcast(message) {
   return sendGameCommand(`say ${message}`);
 }
 
+let cachedMapMetadata = null;
+
+export async function getMapMetadata() {
+  if (cachedMapMetadata) return cachedMapMetadata;
+
+  if (!manager || !socketIsOpen()) {
+    return {
+      seed: process.env.RUST_MAP_SEED ? parseInt(process.env.RUST_MAP_SEED) : null,
+      size: process.env.RUST_MAP_SIZE ? parseInt(process.env.RUST_MAP_SIZE) : 4000,
+    };
+  }
+
+  try {
+    const seedResponse = await sendGameCommand("global.seed").catch(() => 
+      sendGameCommand("seed").catch(() => null)
+    );
+    
+    const sizeResponse = await sendGameCommand("global.worldsize").catch(() => 
+      sendGameCommand("worldsize").catch(() => null)
+    );
+
+    const seed = seedResponse ? parseInt(seedResponse.trim()) : null;
+    const size = sizeResponse ? parseInt(sizeResponse.trim()) : 4000;
+
+    const envSeed = process.env.RUST_MAP_SEED ? parseInt(process.env.RUST_MAP_SEED) : null;
+    const envSize = process.env.RUST_MAP_SIZE ? parseInt(process.env.RUST_MAP_SIZE) : null;
+
+    cachedMapMetadata = {
+      seed: seed || envSeed,
+      size: size || envSize || 4000,
+    };
+
+    if (cachedMapMetadata.seed) {
+      console.log(`Map metadata cached: Seed ${cachedMapMetadata.seed}, Size ${cachedMapMetadata.size}m`);
+    }
+
+    return cachedMapMetadata;
+  } catch (error) {
+    console.error("Failed to fetch map metadata:", error.message);
+    return {
+      seed: process.env.RUST_MAP_SEED ? parseInt(process.env.RUST_MAP_SEED) : null,
+      size: process.env.RUST_MAP_SIZE ? parseInt(process.env.RUST_MAP_SIZE) : 4000,
+    };
+  }
+}
+
+export function clearMapMetadataCache() {
+  cachedMapMetadata = null;
+}
+
 export function destroyRcon() {
   if (watchdog) {
     clearInterval(watchdog);
@@ -166,4 +216,5 @@ export function destroyRcon() {
   manager?.destroy();
   manager = null;
   connectedAt = null;
+  cachedMapMetadata = null;
 }

@@ -7,6 +7,8 @@ import {
   getRconStatus,
   getServerInfo,
   sendGameCommand,
+  getMapMetadata,
+  clearMapMetadataCache,
 } from "../../modules/rcon/client.js";
 import {
   forceLink,
@@ -181,26 +183,7 @@ export async function attachAdminPanel(app, client) {
     const players = getOnlinePlayers();
     const wipeAt = await getWipeAt();
 
-    // Debug: Log what fields we're getting from RCON
-    if (info && !info._logged) {
-      console.log("RCON Server Info fields:", Object.keys(info));
-      console.log("Full server info:", JSON.stringify(info, null, 2));
-      info._logged = true;
-    }
-
-    // Try to get map seed and size from various sources
-    let mapSeed = info?.Seed ?? info?.seed ?? null;
-    let mapSize = info?.WorldSize ?? info?.worldSize ?? info?.MapSize ?? 4000;
-
-    // If no seed, try to parse from map name or use env variable
-    if (!mapSeed && info?.Map) {
-      const seedMatch = info.Map.match(/seed[:\s]+(\d+)/i);
-      if (seedMatch) mapSeed = parseInt(seedMatch[1]);
-    }
-    
-    // Allow manual override via environment
-    mapSeed = mapSeed ?? process.env.RUST_MAP_SEED ?? null;
-    mapSize = mapSize ?? process.env.RUST_MAP_SIZE ?? 4000;
+    const mapMetadata = await getMapMetadata();
 
     res.json({
       ok: true,
@@ -213,8 +196,8 @@ export async function attachAdminPanel(app, client) {
             queued: info.Queued,
             joining: info.Joining,
             map: info.Map,
-            mapSeed: mapSeed ? parseInt(mapSeed) : null,
-            mapSize: parseInt(mapSize),
+            mapSeed: mapMetadata.seed,
+            mapSize: mapMetadata.size,
             gameTime: info.GameTime,
             uptime: info.Uptime,
             fps: info.Framerate,
@@ -262,6 +245,17 @@ export async function attachAdminPanel(app, client) {
       const result = await sendGameCommand(command);
       await audit(req, "rcon", { command });
       res.json({ ok: true, result: result ?? "" });
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  app.post("/admin/api/map/refresh", requireAuth, requirePerm("overview"), async (req, res) => {
+    try {
+      clearMapMetadataCache();
+      const mapMetadata = await getMapMetadata();
+      await audit(req, "map_refresh", { seed: mapMetadata.seed, size: mapMetadata.size });
+      res.json({ ok: true, ...mapMetadata });
     } catch (error) {
       res.status(500).json({ ok: false, error: error.message });
     }

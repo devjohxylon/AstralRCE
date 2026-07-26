@@ -2296,7 +2296,10 @@ async function renderMap() {
   return `
     <div class="split">
       <div class="card">
-        <h3>Live player positions</h3>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem">
+          <h3 style="margin:0">Live player positions</h3>
+          <button data-action="refreshMap" style="padding:.3rem .6rem;font-size:.72rem">Refresh Map</button>
+        </div>
         <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:0 0 .75rem">
           ${mapSeed ? `Map: ${esc(mapName)} · Seed: ${mapSeed} · Size: ${mapSize}m` : 'Waiting for server data...'}
         </p>
@@ -2333,6 +2336,22 @@ function bindView() {
     el.onclick = async () => {
       const a = el.dataset.action;
       try {
+        if (a === "refreshMap") {
+          const btn = el;
+          btn.disabled = true;
+          btn.textContent = "Refreshing...";
+          const r = await api("/map/refresh", { method: "POST", body: {} });
+          if (r.ok) {
+            toast(`Map refreshed: Seed ${r.seed}, Size ${r.size}m`);
+            await fetchOverview();
+            render();
+          } else {
+            toast(`Failed to refresh map: ${r.error}`);
+          }
+          btn.disabled = false;
+          btn.textContent = "Refresh Map";
+          return;
+        }
         if (a === "viewPlayer") {
           const ign = el.dataset.ign;
           state.selectedPlayer = ign;
