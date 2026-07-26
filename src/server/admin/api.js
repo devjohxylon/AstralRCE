@@ -15,6 +15,9 @@ import {
   ensureMapPreview,
   hasCachedMapImage,
   readCachedMapImage,
+  saveUploadedMapImage,
+  clearMapImage,
+  getMapImageMeta,
 } from "../../modules/rcon/map-preview.js";
 import {
   forceLink,
@@ -261,55 +264,97 @@ export async function attachAdminPanel(app, client) {
     const mapMetadata = await getMapMetadata();
     const seed = mapMetadata.seed;
     const size = mapMetadata.size;
-    const imageReady = seed ? await hasCachedMapImage(seed, size) : false;
+    const imageReady = await hasCachedMapImage(seed, size);
+    const meta = imageReady ? await getMapImageMeta() : null;
     let preview = null;
-    if (seed && !imageReady) {
-      // Kick off fetch in background so first paint isn't blocked for long gens
+    if (imageReady) {
+      preview = {
+        ok: true,
+        status: meta?.source === "upload" ? "uploaded" : "cached",
+        imageReady: true,
+        source: meta?.source || "cache",
+      };
+    } else {
+      // Only try URL / optional RustMaps — never invent a wrong PC map by default
       preview = await ensureMapPreview(seed, size).catch((e) => ({
         ok: false,
         status: "error",
         imageReady: false,
         message: e.message,
       }));
-    } else if (imageReady) {
-      preview = {
-        ok: true,
-        status: "cached",
-        imageReady: true,
-        proxyPath: `/admin/api/map/image?seed=${seed}&size=${size}`,
-      };
     }
     res.json({
       ok: true,
       seed,
       size,
       imageUrl: preview?.imageReady
-        ? `/admin/api/map/image?seed=${seed}&size=${size}`
+        ? `/admin/api/map/image?seed=${seed || 0}&size=${size || 0}`
         : null,
       imageReady: Boolean(preview?.imageReady),
-      imageStatus: preview?.status || (seed ? "pending" : "no_seed"),
+      imageStatus: preview?.status || (seed ? "needs_upload" : "no_seed"),
       imageMessage: preview?.message || null,
-      rustmapsUrl: seed ? `https://rustmaps.com/map/${seed}_${size}` : null,
+      imageSource: preview?.source || meta?.source || null,
       players: getPlayersWithPositions(),
     });
   });
 
   app.get("/admin/api/map/image", requireAuth, requirePerm("overview"), async (req, res) => {
     try {
-      const seed = Number(req.query.seed);
+      const seed = Number(req.query.seed) || null;
       const size = Number(req.query.size) || 4000;
-      let buf = await readCachedMapImage(seed, size);
+      const buf = await readCachedMapImage(seed, size);
       if (!buf) {
-        const preview = await ensureMapPreview(seed, size);
-        if (!preview.imageReady) {
-          return res.status(404).json({ ok: false, error: preview.message || "No map image" });
-        }
-        buf = await readCachedMapImage(seed, size);
+        return res.status(404).json({ ok: false, error: "No map image uploaded yet" });
       }
-      if (!buf) return res.status(404).json({ ok: false, error: "No map image" });
-      res.setHeader("Content-Type", "image/jpeg");
-      res.setHeader("Cache-Control", "private, max-age=3600");
+      const isPng = buf[0] === 0x89 && buf[1] === 0x50;
+      res.setHeader("Content-Type", isPng ? "image/png" : "image/jpeg");
+      res.setHeader("Cache-Control", "private, max-age=60");
       res.send(buf);
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  app.post("/admin/api/map/image", requireAuth, requirePerm("overview"), async (req, res) => {
+    try {
+      const mapMetadata = await getMapMetadata();
+      const dataUrl = String(req.body?.image || req.body?.dataUrl || "");
+      const match = dataUrl.match(/^data:image\/(jpeg|jpg|png|webp);base64,(.+)$/i);
+      if (!match) {
+        return res.status(400).json({
+          ok: false,
+          error: "Send { image: 'data:image/png;base64,...' } from an in-game map screenshot",
+        });
+      }
+      const buf = Buffer.from(match[2], "base64");
+      const preview = await saveUploadedMapImage(buf, {
+        seed: mapMetadata.seed,
+        size: mapMetadata.size,
+        filename: req.body?.filename || null,
+      });
+      await audit(req, "map_image_upload", {
+        seed: mapMetadata.seed,
+        size: mapMetadata.size,
+        bytes: buf.length,
+      });
+      res.json({
+        ok: true,
+        ...preview,
+        seed: mapMetadata.seed,
+        size: mapMetadata.size,
+        imageUrl: `/admin/api/map/image?seed=${mapMetadata.seed || 0}&size=${mapMetadata.size || 0}`,
+      });
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  app.delete("/admin/api/map/image", requireAuth, requirePerm("overview"), async (req, res) => {
+    try {
+      const mapMetadata = await getMapMetadata();
+      await clearMapImage(mapMetadata.seed, mapMetadata.size);
+      await audit(req, "map_image_clear", { seed: mapMetadata.seed, size: mapMetadata.size });
+      res.json({ ok: true });
     } catch (error) {
       res.status(500).json({ ok: false, error: error.message });
     }
@@ -319,9 +364,14 @@ export async function attachAdminPanel(app, client) {
     try {
       clearMapMetadataCache();
       const mapMetadata = await getMapMetadata();
-      const preview = mapMetadata.seed
-        ? await ensureMapPreview(mapMetadata.seed, mapMetadata.size, { force: true })
-        : { imageReady: false, status: "no_seed" };
+      // Refresh seed/size only — do not overwrite an uploaded console map with PC RustMaps
+      const preview = (await hasCachedMapImage(mapMetadata.seed, mapMetadata.size))
+        ? {
+            imageReady: true,
+            status: "cached",
+            source: (await getMapImageMeta())?.source || "cache",
+          }
+        : await ensureMapPreview(mapMetadata.seed, mapMetadata.size, { force: false });
       await audit(req, "map_refresh", {
         seed: mapMetadata.seed,
         size: mapMetadata.size,
@@ -333,11 +383,9 @@ export async function attachAdminPanel(app, client) {
         imageReady: Boolean(preview.imageReady),
         imageStatus: preview.status,
         imageMessage: preview.message || null,
+        imageSource: preview.source || null,
         imageUrl: preview.imageReady
-          ? `/admin/api/map/image?seed=${mapMetadata.seed}&size=${mapMetadata.size}`
-          : null,
-        rustmapsUrl: mapMetadata.seed
-          ? `https://rustmaps.com/map/${mapMetadata.seed}_${mapMetadata.size}`
+          ? `/admin/api/map/image?seed=${mapMetadata.seed || 0}&size=${mapMetadata.size || 0}`
           : null,
       });
     } catch (error) {

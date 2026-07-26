@@ -26,7 +26,7 @@ function authorize(req, res, next) {
 
 export async function createWebhookServer(client) {
   const app = express();
-  app.use(express.json({ limit: "1mb" }));
+  app.use(express.json({ limit: "10mb" }));
 
   app.get(["/logo.png", "/favicon.ico"], (_req, res) => {
     res.type("image/png").sendFile(LOGO_PATH);

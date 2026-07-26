@@ -2502,7 +2502,7 @@ async function renderMap() {
   let imageReady = false;
   let imageStatus = null;
   let imageMessage = null;
-  let rustmapsUrl = null;
+  let imageSource = null;
   let mapImageUrl = null;
 
   try {
@@ -2516,7 +2516,7 @@ async function renderMap() {
       imageReady = Boolean(live.imageReady);
       imageStatus = live.imageStatus;
       imageMessage = live.imageMessage;
-      rustmapsUrl = live.rustmapsUrl;
+      imageSource = live.imageSource;
       mapImageUrl = live.imageUrl || null;
     }
   } catch {
@@ -2529,27 +2529,29 @@ async function renderMap() {
   const mapSize = server?.mapSize || 4000;
   const mapName = server?.map || "Unknown";
   const withCoords = players.filter((p) => p.coords).length;
-  if (!rustmapsUrl && mapSeed) rustmapsUrl = `https://rustmaps.com/map/${mapSeed}_${mapSize}`;
 
   const statusHint = imageReady
-    ? "Showing RustMaps preview (cached)."
-    : imageStatus === "generating"
-      ? "RustMaps is generating this seed — hit Refresh Map in a bit."
-      : imageStatus === "needs_key"
-        ? `For an exact map image, set <code>RUSTMAPS_API_KEY</code> in Railway (free key at <a href="https://rustmaps.com/dashboard" target="_blank" rel="noopener">rustmaps.com/dashboard</a>). Showing a seed-based preview for now.`
-        : `Showing a seed-based terrain preview. ${rustmapsUrl ? `<a href="${esc(rustmapsUrl)}" target="_blank" rel="noopener">Open on RustMaps</a>` : ""}`;
+    ? `Showing your uploaded map${imageSource ? ` (${esc(imageSource)})` : ""}. Player dots use world coords.`
+    : `Console maps aren't on RustMaps — upload a screenshot of your <strong>in-game map</strong> (flat map with Airfield, etc.) so positions line up.`;
 
   return `
     <div class="split">
       <div class="card">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;margin-bottom:.75rem;flex-wrap:wrap">
           <h3 style="margin:0">Live player positions</h3>
-          <button data-action="refreshMap" style="padding:.3rem .6rem;font-size:.72rem">Refresh Map</button>
+          <div style="display:flex;gap:.4rem;flex-wrap:wrap">
+            <label class="button" style="padding:.3rem .6rem;font-size:.72rem;cursor:pointer;margin:0">
+              Upload map
+              <input id="mapUploadInput" type="file" accept="image/png,image/jpeg,image/webp" style="display:none" />
+            </label>
+            ${imageReady ? `<button data-action="clearMapImage" style="padding:.3rem .6rem;font-size:.72rem">Clear image</button>` : ""}
+            <button data-action="refreshMap" style="padding:.3rem .6rem;font-size:.72rem">Refresh seed</button>
+          </div>
         </div>
         <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:0 0 .75rem">
           ${mapSeed
             ? `Map: ${esc(mapName)} · Seed: ${mapSeed} · Size: ${mapSize}m · Tracked: ${withCoords}/${players.length}`
-            : "Waiting for seed/size — set RUST_MAP_SEED / RUST_MAP_SIZE or click Refresh Map"}
+            : "Waiting for seed/size — click Refresh seed once RCON is up"}
         </p>
         <div style="position:relative;max-width:500px;margin:0 auto;aspect-ratio:1;background:#0a0a0a;border:1px solid var(--line)">
           ${mapImageUrl
@@ -2580,6 +2582,36 @@ function bindView() {
   // Draw map if on map tab
   if (state.tab === "map") {
     drawMap();
+    const upload = document.getElementById("mapUploadInput");
+    if (upload) {
+      upload.onchange = async () => {
+        const file = upload.files?.[0];
+        if (!file) return;
+        if (file.size > 7 * 1024 * 1024) {
+          toast("Image too large (max ~7MB)");
+          return;
+        }
+        toast("Uploading map…");
+        const reader = new FileReader();
+        reader.onload = async () => {
+          try {
+            const r = await api("/map/image", {
+              method: "POST",
+              body: { image: reader.result, filename: file.name },
+            });
+            if (r.ok) {
+              toast("Map image saved");
+              render();
+            } else {
+              toast(r.error || "Upload failed");
+            }
+          } catch (e) {
+            toast(e.message || "Upload failed");
+          }
+        };
+        reader.readAsDataURL(file);
+      };
+    }
   }
 
   document.querySelectorAll("[data-action]").forEach((el) => {
@@ -2592,21 +2624,21 @@ function bindView() {
           btn.textContent = "Refreshing...";
           const r = await api("/map/refresh", { method: "POST", body: {} });
           if (r.ok) {
-            const imgNote = r.imageReady
-              ? " · map image ready"
-              : r.imageStatus === "generating"
-                ? " · generating on RustMaps…"
-                : r.imageStatus === "needs_key"
-                  ? " · add RUSTMAPS_API_KEY for exact preview"
-                  : "";
-            toast(`Map refreshed: Seed ${r.seed}, Size ${r.size}m${imgNote}`);
+            toast(`Seed refreshed: ${r.seed} · ${r.size}m${r.imageReady ? " · map image ready" : " · upload a map screenshot"}`);
             await refreshOverview();
             render();
           } else {
             toast(`Failed to refresh map: ${r.error}`);
           }
           btn.disabled = false;
-          btn.textContent = "Refresh Map";
+          btn.textContent = "Refresh seed";
+          return;
+        }
+        if (a === "clearMapImage") {
+          if (!confirm("Remove the uploaded map image?")) return;
+          const r = await api("/map/image", { method: "DELETE", body: {} });
+          toast(r.ok ? "Map image cleared" : (r.error || "Failed"));
+          render();
           return;
         }
         if (a === "viewPlayer") {
