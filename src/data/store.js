@@ -1,7 +1,8 @@
 import { promises as fs } from "fs";
 import path from "path";
 
-const DATA_DIR = path.join(process.cwd(), ".data");
+export const DATA_DIR = process.env.DATA_DIR?.trim()
+  || path.join(process.cwd(), ".data");
 
 async function ensureDir() {
   await fs.mkdir(DATA_DIR, { recursive: true });
@@ -20,6 +21,45 @@ async function readJson(file, fallback) {
 async function writeJson(file, data) {
   await ensureDir();
   await fs.writeFile(path.join(DATA_DIR, file), JSON.stringify(data, null, 2), "utf8");
+}
+
+/**
+ * Log where data lives and warn hard on Railway if there's no volume.
+ * Without a volume, links / kits / stats / keys reset on every deploy.
+ */
+export async function assertDataPersistence() {
+  await ensureDir();
+  const markerPath = path.join(DATA_DIR, ".persist-check");
+  let previous = null;
+  try {
+    previous = await fs.readFile(markerPath, "utf8");
+  } catch {
+    /* first boot */
+  }
+
+  const stamp = new Date().toISOString();
+  await fs.writeFile(markerPath, stamp, "utf8");
+
+  const links = await getLinks();
+  const linkCount = Object.keys(links.byDiscord || {}).length;
+  const onRailway = Boolean(process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_PROJECT_ID);
+  const volumeMount = process.env.RAILWAY_VOLUME_MOUNT_PATH?.trim() || null;
+  const dataOnVolume =
+    volumeMount &&
+    (DATA_DIR === volumeMount || DATA_DIR.startsWith(volumeMount.replace(/\/$/, "") + "/"));
+
+  console.log(`Data directory: ${DATA_DIR} (${linkCount} linked account(s))`);
+
+  if (onRailway && !dataOnVolume) {
+    console.error(
+      "⚠️  PERSISTENCE WARNING: No Railway volume mounted on the data directory.\n" +
+        `   Links, kits, stats, wipe time, and access keys will RESET on every redeploy.\n` +
+        `   Fix: Railway → service → Volumes → Add Volume → mount path: ${DATA_DIR}\n` +
+        `   Or set DATA_DIR to your volume mount path.`,
+    );
+  } else if (previous) {
+    console.log(`Data persistence OK (last boot marker: ${previous.trim()})`);
+  }
 }
 
 export async function getCases() {

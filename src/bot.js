@@ -11,6 +11,7 @@ import { relayDiscordToGame, shutdownRcon, startRcon } from "./modules/rcon/inde
 import { isRconEnabled } from "./modules/rcon/client.js";
 import { handleVipRoleChange } from "./modules/rcon/vip-sync.js";
 import { loadChannelOverrides } from "./modules/admin/channel-settings.js";
+import { assertDataPersistence } from "./data/store.js";
 
 export function createBotClient() {
   const client = new Client({
@@ -26,6 +27,10 @@ export function createBotClient() {
   client.once("ready", async () => {
     console.log(`Logged in as ${client.user.tag}`);
     console.log(`Auto-mod: ${config.automod.enabled ? "ON" : "OFF"}`);
+
+    await assertDataPersistence().catch((e) =>
+      console.error("Data persistence check failed:", e.message),
+    );
 
     await loadChannelOverrides().catch((e) =>
       console.error("Channel overrides failed:", e.message),

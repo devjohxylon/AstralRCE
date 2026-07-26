@@ -72,9 +72,24 @@ VIP_KIT_ID=vip
 
 Plus your other channel/role IDs. Railway sets `PORT` automatically — leave `BOT_WEBHOOK_PORT` unset in production.
 
-### Persistent data (kits, stats, access keys)
+### Persistent data (REQUIRED — links, kits, stats, keys)
 
-Mount a Railway **volume** on `/app/.data` (or whatever path your Dockerfile uses for `.data`). Without it, kits, wipe time, stats, and staff keys reset on every redeploy.
+Every redeploy wipes the container filesystem. **Account links, kits, wipe time,
+staff keys, and stats live in `.data`** — without a volume they disappear (this is
+why `/link` "stops saving").
+
+1. Railway → your bot service → **Volumes** → **Add Volume**
+2. Mount path: `/app/.data` (Nixpacks `cwd` is `/app`)
+3. Redeploy once after attaching
+4. Optional variable: `DATA_DIR=/app/.data`
+
+Confirm in logs:
+```
+Data directory: /app/.data (N linked account(s))
+Data persistence OK ...
+```
+
+If you see `PERSISTENCE WARNING`, the volume is missing or mounted on the wrong path.
 
 ### Website live boards
 
