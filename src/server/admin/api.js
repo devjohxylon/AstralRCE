@@ -181,6 +181,13 @@ export function attachAdminPanel(app, client) {
     const players = getOnlinePlayers();
     const wipeAt = await getWipeAt();
 
+    // Debug: Log what fields we're getting from RCON
+    if (info && !info._logged) {
+      console.log("RCON Server Info fields:", Object.keys(info));
+      console.log("Full server info:", JSON.stringify(info, null, 2));
+      info._logged = true;
+    }
+
     // Try to get map seed and size from various sources
     let mapSeed = info?.Seed ?? info?.seed ?? null;
     let mapSize = info?.WorldSize ?? info?.worldSize ?? info?.MapSize ?? 4000;
