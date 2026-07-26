@@ -2,7 +2,10 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=5" />
+<meta name="theme-color" content="#050506" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <title>Astral Control</title>
 <link rel="icon" type="image/png" href="/logo.png" />
 <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
@@ -37,6 +40,8 @@
   --hud: rgba(215,221,230,.55);
 }
 * { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; -webkit-font-smoothing: antialiased; }
+body { touch-action: pan-y; -webkit-tap-highlight-color: transparent; }
 html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--text); font-family: var(--font); }
 body {
   background:
