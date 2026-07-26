@@ -30,7 +30,7 @@ export function buildLinkPanelEmbed(guild) {
     .setColor(ACCENT)
     .setTitle("🔗 Link Your Account")
     .setDescription(
-      "Connect your in-game name to Discord. This unlocks homes, warps, teleports, and VIP sync.\n\n" +
+      "Connect your in-game name to Discord.\n\n" +
         "1️⃣ Click **Link Account** below\n" +
         "2️⃣ Enter your **exact** in-game username\n" +
         "3️⃣ Confirm — you're done!\n\n" +
