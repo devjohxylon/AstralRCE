@@ -195,12 +195,6 @@ input:focus, textarea:focus, select:focus {
 #app { display: grid; grid-template-columns: 220px 1fr; min-height: 100vh; transition: grid-template-columns .2s ease; }
 #app.sidebar-collapsed { grid-template-columns: 70px 1fr; }
 .mobile-bar { display: none; }
-.sidebar-toggle { 
-  position: absolute; top: .5rem; right: .5rem; width: 32px; height: 32px; 
-  padding: 0; display: none; align-items: center; justify-content: center;
-  border-radius: 6px; background: rgba(255,255,255,.05);
-}
-@media (min-width: 901px) { .sidebar-toggle { display: inline-flex; } }
 .nav-backdrop {
   display: none; position: fixed; inset: 0; z-index: 40;
   background: rgba(0,0,0,.55); backdrop-filter: blur(2px);
@@ -219,10 +213,11 @@ input:focus, textarea:focus, select:focus {
   z-index: 50;
 }
 .brand {
-  display: flex; align-items: center; gap: .55rem; position: relative;
+  display: flex; align-items: center; gap: .6rem; position: relative;
   font-size: .95rem; font-weight: 700; letter-spacing: -.02em;
-  padding: .2rem .35rem .75rem; margin-bottom: .2rem;
+  padding: .75rem .5rem; margin-bottom: .2rem;
   border-bottom: 1px solid var(--line);
+  justify-content: space-between;
 }
 #app.sidebar-collapsed .brand span { display: none; }
 #app.sidebar-collapsed .brand { justify-content: center; }
@@ -230,11 +225,23 @@ input:focus, textarea:focus, select:focus {
   width: 28px; height: 28px; border-radius: 50%; flex: none; object-fit: cover;
   background: #000; border: 1px solid rgba(215,221,230,.28);
 }
-.brand span {
+.brand > span {
   background: linear-gradient(180deg, #fff, #9aa3af);
   -webkit-background-clip: text; background-clip: text; color: transparent;
   font-weight: 600; letter-spacing: .08em; font-size: .65rem;
+  flex: 1;
+  min-width: 0;
 }
+.sidebar-toggle { 
+  width: 28px; height: 28px; 
+  padding: 0; display: none; align-items: center; justify-content: center;
+  border-radius: 6px; background: rgba(255,255,255,.05);
+  flex-shrink: 0;
+  position: relative;
+  top: auto;
+  right: auto;
+}
+@media (min-width: 901px) { .sidebar-toggle { display: inline-flex; } }
 .nav-group { margin-top: .7rem; }
 .nav-group-label {
   font-family: var(--mono); font-size: .55rem; letter-spacing: .18em; text-transform: uppercase;
@@ -1040,25 +1047,16 @@ function refreshStatusPills() {
   const pills = document.getElementById("statusPills");
   if (!pills) return;
   const r = o.rcon || {};
-  pills.innerHTML = `
-    <span class="pill ${!r.enabled ? "warn" : r.connected ? "ok" : "bad"}">RCON ${!r.enabled ? "UNSET" : r.connected ? "ONLINE" : "OFFLINE"}</span>
-    <span class="pill ${o.bot?.ready ? "ok" : "bad"}">DISCORD ${o.bot?.ready ? "READY" : "DOWN"}</span>
-    <span class="pill info">${state.playerPositions.length || o.onlinePlayers?.length || 0} ONLINE</span>
-    <span class="pill info plain">${state.session?.role === "owner" ? "OWNER" : "STAFF"}</span>
-  `;
+  // Pills removed - info now in Connections section
+  pills.innerHTML = "";
 }
 
 async function refreshOverview() {
   if (!can("overview")) return;
   state.overview = await api("/overview");
-  const o = state.overview;
+  // Pills removed - info now in Connections section
   const pills = document.getElementById("statusPills");
-  pills.innerHTML = `
-    <span class="pill ${!o.rcon.enabled ? "warn" : o.rcon.connected ? "ok" : "bad"}">RCON ${!o.rcon.enabled ? "UNSET" : o.rcon.connected ? "ONLINE" : "OFFLINE"}</span>
-    <span class="pill ${o.bot.ready ? "ok" : "bad"}">DISCORD ${o.bot.ready ? "READY" : "DOWN"}</span>
-    <span class="pill info">${o.onlinePlayers.length} ONLINE</span>
-    <span class="pill info plain">${state.session?.role === "owner" ? "OWNER" : "STAFF"}</span>
-  `;
+  pills.innerHTML = "";
 }
 
 function setTab(tab) {
