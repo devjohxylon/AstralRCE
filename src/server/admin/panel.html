@@ -97,151 +97,78 @@ input:focus, textarea:focus, select:focus {
 }
 .hidden { display: none !important; }
 
-/* ── Login: cinematic HUD (jcedrik-inspired) ── */
+/* ── Login: Clean HUD matching admin panel ── */
 #login {
   position: relative; min-height: 100vh; min-height: 100svh;
-  display: grid; place-items: center; padding: 2rem 1.25rem 2rem 3.5rem;
-  overflow: hidden; isolation: isolate;
-}
-#login.is-entered .ink-char { animation: inkChar .55s cubic-bezier(.22,1,.36,1) both; }
-#login.is-entered .login-card,
-#login.is-entered .login-kicker,
-#login.is-entered .login-sub,
-#login.is-entered .login-meta { opacity: 1; transform: none; }
-
-.login-bg {
-  position: absolute; inset: 0; z-index: 0; overflow: hidden; background: #050505; pointer-events: none;
-}
-.login-bg::before {
-  content: ""; position: absolute; inset: 0; z-index: 1;
+  display: grid; place-items: center; padding: 2rem 1.25rem;
   background:
-    repeating-linear-gradient(0deg, rgba(255,255,255,.03) 0 1px, transparent 1px 56px),
-    repeating-linear-gradient(90deg, rgba(255,255,255,.03) 0 1px, transparent 1px 56px);
+    radial-gradient(900px 420px at 12% -8%, rgba(215,221,230,.08), transparent 55%),
+    radial-gradient(700px 380px at 100% 0%, rgba(255,255,255,.03), transparent 45%),
+    linear-gradient(180deg, #07080a 0%, #050506 40%, #040405 100%);
+  background-attachment: fixed;
 }
-.login-bg::after {
-  content: ""; position: absolute; inset: 0; z-index: 2;
-  background: radial-gradient(70% 60% at 50% 45%, transparent 0%, rgba(0,0,0,.35) 55%, rgba(0,0,0,.82) 100%);
+#login::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .45;
+  background-image:
+    linear-gradient(rgba(255,255,255,.015) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.015) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse at 50% 50%, #000 20%, transparent 75%);
 }
-.login-grad {
-  position: absolute; width: 200%; height: 200%; top: -50%; left: -50%; opacity: .32; z-index: 0;
-}
-.login-grad.g1 {
-  background: radial-gradient(at 28% 22%, rgba(180,180,180,.55) 0%, transparent 48%);
-  animation: loginMove1 16s ease-in-out infinite;
-}
-.login-grad.g2 {
-  background: radial-gradient(at 72% 68%, rgba(90,90,90,.7) 0%, transparent 50%);
-  animation: loginMove2 22s ease-in-out infinite;
-}
-.login-grad.g3 {
-  background: radial-gradient(at 50% 40%, rgba(255,255,255,.12) 0%, transparent 42%);
-  animation: loginMove3 18s ease-in-out infinite;
-}
-@keyframes loginMove1 {
-  0%, 100% { transform: translate(0,0) rotate(0deg); }
-  50% { transform: translate(4%, -3%) rotate(8deg); }
-}
-@keyframes loginMove2 {
-  0%, 100% { transform: translate(0,0) rotate(0deg); }
-  50% { transform: translate(-5%, 4%) rotate(-6deg); }
-}
-@keyframes loginMove3 {
-  0%, 100% { transform: translate(0,0) scale(1); }
-  50% { transform: translate(2%, 3%) scale(1.08); }
-}
-#loginStars {
-  position: absolute; inset: 0; width: 100%; height: 100%; z-index: 3; pointer-events: none;
-}
-.login-grain {
-  position: absolute; inset: 0; z-index: 8; pointer-events: none; opacity: .06;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  background-size: 180px 180px;
-}
-.login-rail {
-  position: absolute; left: 0; top: 0; bottom: 0; width: 42px; z-index: 6;
-  border-right: 1px solid rgba(255,255,255,.08); overflow: hidden;
-  mask-image: linear-gradient(transparent, #000 12%, #000 88%, transparent);
-}
-.login-rail-track {
-  display: flex; flex-direction: column; gap: 2.5rem; padding: 1.5rem 0;
-  animation: railScroll 28s linear infinite; white-space: nowrap;
-}
-.login-rail-track span {
-  writing-mode: vertical-rl; transform: rotate(180deg);
-  font-family: var(--mono); font-size: .65rem; letter-spacing: .28em;
-  color: rgba(210,210,210,.45); text-transform: uppercase;
-}
-@keyframes railScroll {
-  from { transform: translateY(0); }
-  to { transform: translateY(-50%); }
-}
-.login-meta {
-  position: absolute; top: 1.25rem; right: 1.25rem; z-index: 7;
-  font-family: var(--mono); font-size: .65rem; letter-spacing: .14em;
-  color: rgba(200,200,200,.55); text-align: right; line-height: 1.6;
-  opacity: 0; transform: translateY(-8px); transition: .7s .35s cubic-bezier(.22,1,.36,1);
-}
+
 .login-stage {
-  position: relative; z-index: 5; width: min(520px, 100%);
-  display: grid; gap: 1.75rem; justify-items: stretch;
+  position: relative; z-index: 1; width: min(440px, 100%);
+  animation: loginFadeIn .5s ease both;
 }
-.login-kicker {
-  margin: 0; font-family: var(--mono); font-size: .68rem; letter-spacing: .35em;
-  text-transform: uppercase; color: rgba(200,200,200,.55);
-  opacity: 0; transform: translateY(12px); transition: .7s .1s cubic-bezier(.22,1,.36,1);
-}
-.login-mark {
-  display: block; width: 76px; height: 76px; border-radius: 50%; margin: 0 0 1.1rem;
-  object-fit: cover; background: #000; border: 1px solid rgba(255,255,255,.12);
-  box-shadow: 0 12px 44px rgba(255,255,255,.1);
-  opacity: 0; transform: translateY(14px) scale(.94);
-  transition: .8s cubic-bezier(.22,1,.36,1);
-}
-#login.is-entered .login-mark { opacity: 1; transform: none; }
-.login-title {
-  margin: .35rem 0 0; font-size: clamp(2.4rem, 9vw, 5.2rem); font-weight: 800;
-  letter-spacing: -.04em; line-height: .9; color: #f2f2f2;
-  white-space: nowrap;
-}
-.login-title .ink-char {
-  display: inline-block; opacity: 0; transform: translateY(28px) skewY(4deg);
-}
-@keyframes inkChar {
+@keyframes loginFadeIn {
+  from { opacity: 0; transform: translateY(20px); }
   to { opacity: 1; transform: none; }
 }
-.login-sub {
-  margin: .85rem 0 0; font-family: var(--mono); font-size: clamp(.78rem, 1.6vw, .95rem);
-  letter-spacing: .28em; text-transform: uppercase; color: rgba(210,210,210,.72);
-  min-height: 1.2em;
-  opacity: 0; transform: translateY(10px); transition: .7s .25s cubic-bezier(.22,1,.36,1);
+
+.login-header {
+  text-align: center; margin-bottom: 2rem;
 }
-.login-sub .caret {
-  display: inline-block; width: .55ch; height: 1em; margin-left: 2px;
-  background: rgba(230,230,230,.75); vertical-align: text-bottom;
-  animation: caretBlink 1s steps(1) infinite;
+.login-mark {
+  display: inline-block; width: 64px; height: 64px; border-radius: 50%;
+  object-fit: cover; background: #000; border: 1px solid rgba(215,221,230,.25);
+  margin-bottom: 1rem; box-shadow: 0 8px 24px rgba(0,0,0,.3);
 }
-@keyframes caretBlink { 50% { opacity: 0; } }
+.login-title {
+  margin: 0; font-size: 1.8rem; font-weight: 700; letter-spacing: -.02em;
+  background: linear-gradient(180deg, #fff, #9aa3af);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.login-subtitle {
+  margin: .5rem 0 0; font-family: var(--mono); font-size: .7rem;
+  letter-spacing: .15em; text-transform: uppercase; color: var(--muted);
+}
 
 .login-card {
   position: relative; width: 100%;
-  background: rgba(12,12,12,.72); border: 1px solid rgba(255,255,255,.12);
-  padding: 1.5rem 1.35rem 1.35rem; backdrop-filter: blur(14px);
-  box-shadow: 0 40px 100px rgba(0,0,0,.65), inset 0 1px 0 rgba(255,255,255,.04);
-  opacity: 0; transform: translateY(18px); transition: .75s .4s cubic-bezier(.22,1,.36,1);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.03), transparent 40%),
+    rgba(12,13,16,.88);
+  border: 1px solid var(--line);
+  padding: 1.75rem 1.5rem;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 12px 40px rgba(0,0,0,.4);
+  border-radius: var(--radius);
 }
-.login-card .hud-c {
-  position: absolute; width: 14px; height: 14px; border-color: rgba(230,230,230,.55); border-style: solid;
+.login-card::before, .login-card::after {
+  content: ""; position: absolute; width: 10px; height: 10px;
+  border-color: var(--hud); border-style: solid; opacity: .7;
 }
-.login-card .hud-c.tl { top: -1px; left: -1px; border-width: 2px 0 0 2px; }
-.login-card .hud-c.tr { top: -1px; right: -1px; border-width: 2px 2px 0 0; }
-.login-card .hud-c.bl { bottom: -1px; left: -1px; border-width: 0 0 2px 2px; }
-.login-card .hud-c.br { bottom: -1px; right: -1px; border-width: 0 2px 2px 0; }
-.login-card .tag {
-  font-family: var(--mono); font-size: .62rem; letter-spacing: .22em; text-transform: uppercase;
-  color: rgba(180,180,180,.55); margin: 0 0 1rem;
+.login-card::before { top: -1px; left: -1px; border-width: 2px 0 0 2px; }
+.login-card::after { bottom: -1px; right: -1px; border-width: 0 2px 2px 0; }
+
+.login-card label {
+  display: block; font-family: var(--mono); font-size: .65rem;
+  letter-spacing: .1em; text-transform: uppercase; color: var(--muted);
+  margin-bottom: .5rem;
 }
-.login-card .row { display: grid; gap: .75rem; }
 .login-card input {
+  width: 100%; margin-bottom: 1.25rem;
+}
   background: rgba(0,0,0,.55); border-color: rgba(255,255,255,.14);
   letter-spacing: .08em;
 }
@@ -250,25 +177,18 @@ input:focus, textarea:focus, select:focus {
   box-shadow: 0 0 0 1px rgba(255,255,255,.15);
 }
 .login-card button.primary {
-  background: #efefef; color: #0a0a0a; border-color: #efefef;
-  letter-spacing: .18em; text-transform: uppercase; font-size: .78rem;
-  padding: .75rem 1rem; transition: .2s ease;
+  width: 100%; margin-top: .5rem;
 }
-.login-card button.primary:hover {
-  background: #fff; transform: translateY(-1px);
-  box-shadow: 0 12px 40px rgba(255,255,255,.12);
+.login-error {
+  margin: .75rem 0 0; padding: .75rem; background: rgba(255,107,115,.08);
+  border: 1px solid rgba(255,107,115,.25); border-radius: var(--radius-sm);
+  color: #ffb0b5; font-family: var(--mono); font-size: .72rem; text-align: center;
 }
-.login-card button.primary:active { transform: translateY(0); }
 
-@media (pointer: coarse), (max-width: 800px) {
-  #login { padding-left: 1.25rem; }
-  .login-rail { display: none; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .login-grad, .login-rail-track, .login-sub .caret { animation: none !important; }
-  .login-title .ink-char { opacity: 1; transform: none; animation: none !important; }
-  #login .login-card, #login .login-kicker, #login .login-sub, #login .login-meta, #login .login-mark { opacity: 1; transform: none; }
-  #loginStars { display: none; }
+@media (max-width: 800px) {
+  #login { padding: 1.5rem 1rem; }
+  .login-stage { width: 100%; }
+  .login-card { padding: 1.5rem 1.25rem; }
 }
 
 #app { display: grid; grid-template-columns: 220px 1fr; min-height: 100vh; transition: grid-template-columns .2s ease; }
@@ -408,6 +328,11 @@ button { transition: all .15s ease; }
 /* ── Cards & grids ── */
 .grid { display: grid; gap: .65rem; }
 .grid.stats { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
+
+@media (max-width: 900px) {
+  .grid { gap: .75rem; }
+  .grid.stats { grid-template-columns: 1fr 1fr; gap: .75rem; }
+}
 .card {
   background:
     linear-gradient(180deg, rgba(255,255,255,.03), transparent 40%),
@@ -689,17 +614,17 @@ button { transition: all .15s ease; }
   .nav-spacer { display: block; }
   .nav-user { display: flex; }
   
-  .main { padding: 1rem 1rem 5.5rem; }
+  .main { padding: 1rem 1rem 5.5rem; max-width: 100%; overflow-x: hidden; }
   .topbar { margin-bottom: .7rem; padding-bottom: .6rem; gap: .45rem; flex-direction: column; align-items: flex-start; }
   .topbar h2 { font-size: 1.15rem; }
   .page-sub { font-size: .68rem; margin-top: .15rem; }
-  .pills { width: 100%; justify-content: center; }
+  .pills { width: 100%; justify-content: flex-start; flex-wrap: wrap; }
   .pills .pill { font-size: .55rem; padding: .25rem .45rem; }
   
-  .card { padding: 1rem; margin-bottom: 1rem; }
+  .card { padding: 1rem; margin-bottom: 1rem; width: 100%; max-width: 100%; box-sizing: border-box; }
   .card::before, .card::after { display: none; }
-  .card.stat { min-height: 72px; padding: .85rem; text-align: center; }
-  .card.stat .metric { text-align: center; }
+  .card.stat { min-height: 72px; padding: .85rem; text-align: left; }
+  .card.stat .metric { text-align: left; }
   .card-head { flex-direction: row; align-items: center; justify-content: space-between; gap: .5rem; width: 100%; }
   .card h3 { font-size: .65rem; text-align: left; width: 100%; }
   
@@ -727,7 +652,7 @@ button { transition: all .15s ease; }
   .table td .pill { flex-shrink: 0; }
   
   /* Touch-friendly buttons and dropdowns */
-  .actions { gap: .4rem; flex-wrap: wrap; justify-content: center; }
+  .actions { gap: .4rem; flex-wrap: wrap; }
   .actions button, button { 
     min-height: 44px; padding: .65rem .9rem; font-size: .82rem;
     touch-action: manipulation; -webkit-tap-highlight-color: transparent;
@@ -741,10 +666,6 @@ button { transition: all .15s ease; }
     transform: translateX(-50%) translateY(0);
   }
   .dropdown-menu button { min-height: 52px; font-size: .88rem; }
-  
-  /* Center content in mobile */
-  .grid.stats { justify-items: center; }
-  .grid.stats .card { width: 100%; max-width: 100%; }
   
   /* Command palette on mobile */
   .command-palette-backdrop { padding-top: 10vh; padding-left: 1rem; padding-right: 1rem; }
@@ -783,44 +704,17 @@ button { transition: all .15s ease; }
 </head>
 <body>
 <div id="login" class="hidden">
-  <div class="login-bg" aria-hidden="true">
-    <div class="login-grad g1"></div>
-    <div class="login-grad g2"></div>
-    <div class="login-grad g3"></div>
-    <canvas id="loginStars"></canvas>
-  </div>
-  <div class="login-grain" aria-hidden="true"></div>
-  <aside class="login-rail" aria-hidden="true">
-    <div class="login-rail-track">
-      <span>2026 — ASTRAL VANILLA+</span>
-      <span>RCON · CONTROL · OPS</span>
-      <span>ASTRAL — SERVER COMMAND</span>
-      <span>2026 — ASTRAL VANILLA+</span>
-      <span>RCON · CONTROL · OPS</span>
-      <span>ASTRAL — SERVER COMMAND</span>
-    </div>
-  </aside>
-  <div class="login-meta">
-    ASTRALRCE.COM<br />
-    ADMIN · SECURE GATE<br />
-    <span id="loginClock">—</span>
-  </div>
   <div class="login-stage">
-    <div>
+    <div class="login-header">
       <img class="login-mark" src="/logo.png" alt="Astral" />
-      <p class="login-kicker">authorized access only</p>
-      <h1 class="login-title" id="loginTitle" aria-label="Astral"></h1>
-      <p class="login-sub" id="loginTyping" aria-live="polite"></p>
+      <h1 class="login-title">ASTRAL CTRL</h1>
+      <p class="login-subtitle">Server Administration</p>
     </div>
     <div class="login-card">
-      <span class="hud-c tl"></span><span class="hud-c tr"></span>
-      <span class="hud-c bl"></span><span class="hud-c br"></span>
-      <p class="tag">AUTH://PANEL</p>
-      <div class="row">
-        <input id="password" type="password" placeholder="ACCESS KEY" autocomplete="current-password" />
-        <button class="primary" id="loginBtn">Enter control</button>
-        <div id="loginError" class="muted" style="font-family:var(--mono);font-size:.75rem;min-height:1em"></div>
-      </div>
+      <label for="password">Access Key</label>
+      <input id="password" type="password" placeholder="Enter your admin password" autocomplete="current-password" />
+      <button class="primary" id="loginBtn">Sign In</button>
+      <div id="loginError" class="login-error hidden"></div>
     </div>
   </div>
 </div>
@@ -995,102 +889,17 @@ function stopLoginScene() {
 }
 
 function initLoginScene() {
+  // Simple login scene - no heavy animations
   const root = document.getElementById("login");
-  if (!root || root.classList.contains("hidden") || state.loginFx) return;
+  if (!root || root.classList.contains("hidden")) return;
+  state.loginFx = { cleanups: [] };
+}
 
-  const cleanups = [];
-  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-  // Kinetic title
-  const title = document.getElementById("loginTitle");
-  const word = "ASTRAL";
-  title.innerHTML = [...word].map((ch, i) =>
-    `<span class="ink-char" style="animation-delay:${80 + i * 55}ms">${ch}</span>`
-  ).join("");
-
-  // Clock
-  const clock = document.getElementById("loginClock");
-  const tickClock = () => {
-    const d = new Date();
-    clock.textContent = d.toISOString().replace("T", " · ").slice(0, 22) + "Z";
-  };
-  tickClock();
-  const clockId = setInterval(tickClock, 1000);
-  cleanups.push(() => clearInterval(clockId));
-
-  // Typing line
-  const typingEl = document.getElementById("loginTyping");
-  const phrase = "CONTROL · RCON · OPS";
-  let ti = 0;
-  let typeTimer = null;
-  const type = () => {
-    if (ti <= phrase.length) {
-      typingEl.innerHTML = phrase.slice(0, ti) + '<span class="caret"></span>';
-      ti += 1;
-      typeTimer = setTimeout(type, reduceMotion ? 0 : 38);
-    } else {
-      typingEl.textContent = phrase;
-    }
-  };
-  if (reduceMotion) typingEl.textContent = phrase;
-  else typeTimer = setTimeout(type, 420);
-  cleanups.push(() => clearTimeout(typeTimer));
-
-  requestAnimationFrame(() => root.classList.add("is-entered"));
-
-  // Ambient starfield — slow drifting particles, no mouse interaction
-  const canvas = document.getElementById("loginStars");
-  const ctx = canvas.getContext("2d");
-  const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  let w = 0, h = 0, stars = [];
-
-  const makeStars = () => {
-    const count = Math.min(140, Math.floor((w * h) / 14000));
-    stars = Array.from({ length: count }, () => ({
-      x: Math.random() * w,
-      y: Math.random() * h,
-      r: Math.random() * 1.4 + 0.3,
-      vx: (Math.random() - 0.5) * 0.12,
-      vy: -(Math.random() * 0.18 + 0.04),
-      tw: Math.random() * Math.PI * 2,
-      tws: Math.random() * 0.015 + 0.004,
-    }));
-  };
-
-  const resize = () => {
-    w = window.innerWidth;
-    h = window.innerHeight;
-    canvas.width = Math.floor(w * dpr);
-    canvas.height = Math.floor(h * dpr);
-    canvas.style.width = w + "px";
-    canvas.style.height = h + "px";
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    makeStars();
-  };
-  resize();
-  window.addEventListener("resize", resize);
-  cleanups.push(() => window.removeEventListener("resize", resize));
-
-  const tick = () => {
-    ctx.clearRect(0, 0, w, h);
-    for (const s of stars) {
-      s.x += s.vx;
-      s.y += s.vy;
-      s.tw += s.tws;
-      if (s.y < -4) { s.y = h + 4; s.x = Math.random() * w; }
-      if (s.x < -4) s.x = w + 4;
-      if (s.x > w + 4) s.x = -4;
-      const alpha = 0.25 + Math.abs(Math.sin(s.tw)) * 0.5;
-      ctx.beginPath();
-      ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(230,230,230,${alpha})`;
-      ctx.fill();
-    }
-    state.loginFx.raf = requestAnimationFrame(tick);
-  };
-
-  state.loginFx = { raf: 0, cleanups };
-  if (!reduceMotion) state.loginFx.raf = requestAnimationFrame(tick);
+function stopLoginScene() {
+  if (state.loginFx?.cleanups) {
+    state.loginFx.cleanups.forEach((fn) => fn());
+  }
+  state.loginFx = null;
 }
 
 async function boot() {
