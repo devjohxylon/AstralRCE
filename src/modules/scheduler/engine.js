@@ -1,6 +1,6 @@
 import { getScheduledEvents, saveScheduledEvents } from "../../data/store.js";
 import { logAction } from "../audit/logger.js";
-import { runCommand } from "../rcon/client.js";
+import { sendGameCommand } from "../rcon/client.js";
 
 let cache = null;
 let dirty = false;
