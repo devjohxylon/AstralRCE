@@ -155,10 +155,7 @@ export async function handleLinkModal(interaction) {
 
   await syncVipForDiscord(interaction.user.id, interaction.member).catch(() => {});
   await interaction.editReply({
-    content:
-      `✅ **Linked as \`${result.ign}\`**\n\n` +
-      "You can now use `/home`, `/warp`, and `/tpr`.\n" +
-      "VIP players get their kit synced automatically.",
+    content: `✅ Linked as **${result.ign}**`,
   });
   return true;
 }

@@ -46,9 +46,7 @@ export async function handleLinkCommand(interaction) {
       return interaction.editReply(`Already linked as **${result.ign}**.`);
     }
     await syncVipForDiscord(interaction.user.id, interaction.member).catch(() => {});
-    return interaction.editReply(
-      `Linked as **${result.ign}**. You can use \`/home\`, \`/warp\`, and \`/tpr\` now.`,
-    );
+    return interaction.editReply(`✅ Linked as **${result.ign}**`);
   }
 
   if (sub === "status") {
