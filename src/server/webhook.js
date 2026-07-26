@@ -1,10 +1,12 @@
 import express from "express";
+import { createServer } from "http";
 import path from "path";
 import { fileURLToPath } from "url";
 import { config } from "../config.js";
 import { publishFromWebsite, getBotStatus } from "../services/discordPublish.js";
 import { backfillChannel, syncLatestLeaderboard } from "../services/website.js";
 import { attachAdminPanel } from "./admin/api.js";
+import { createWebSocketServer } from "./websocket.js";
 
 const LOGO_PATH = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -82,5 +84,8 @@ export function createWebhookServer(client) {
     }
   });
 
-  return app;
+  const httpServer = createServer(app);
+  createWebSocketServer(httpServer);
+
+  return httpServer;
 }

@@ -66,6 +66,17 @@ import {
   setSessionCookie,
   updateAccessKey,
 } from "../../modules/admin/access-keys.js";
+import { getAnalyticsSummary } from "../../modules/analytics/tracker.js";
+import {
+  getPlayerProfile,
+  addPlayerNote,
+  removePlayerNote,
+  addPlayerTag,
+  removePlayerTag,
+  addPlayerWarning,
+  searchPlayers,
+  listAllProfiles,
+} from "../../modules/profiles/manager.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PANEL_HTML = readFileSync(path.join(__dirname, "panel.html"), "utf8");
@@ -694,5 +705,93 @@ export function attachAdminPanel(app, client) {
   app.get("/admin/api/logs", requireAuth, requirePerm("logs"), async (req, res) => {
     const limit = Number(req.query.limit) || 100;
     res.json({ ok: true, entries: await listPanelLogs(limit) });
+  });
+
+  // ——— Analytics Dashboard ———
+  app.get("/admin/api/analytics", requireAuth, requirePerm("overview"), async (_req, res) => {
+    try {
+      const data = await getAnalyticsSummary();
+      res.json({ ok: true, ...data });
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  // ——— Player Profiles ———
+  app.get("/admin/api/profiles", requireAuth, requirePerm("players"), async (req, res) => {
+    try {
+      const q = String(req.query.q ?? "").trim();
+      const profiles = q ? await searchPlayers(q) : await listAllProfiles();
+      res.json({ ok: true, profiles });
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  app.get("/admin/api/profiles/:ign", requireAuth, requirePerm("players"), async (req, res) => {
+    try {
+      const profile = await getPlayerProfile(req.params.ign);
+      res.json({ ok: true, profile });
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  app.post("/admin/api/profiles/:ign/notes", requireAuth, requirePerm("players"), async (req, res) => {
+    try {
+      const { text } = req.body ?? {};
+      if (!text) return res.status(400).json({ ok: false, error: "Missing note text" });
+      const note = await addPlayerNote(req.params.ign, text, req.session.label);
+      await audit(req, "player_note_add", { ign: req.params.ign });
+      res.json({ ok: true, note });
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  app.delete("/admin/api/profiles/:ign/notes/:noteId", requireAuth, requirePerm("players"), async (req, res) => {
+    try {
+      const result = await removePlayerNote(req.params.ign, req.params.noteId);
+      if (!result.ok) return res.status(404).json(result);
+      await audit(req, "player_note_delete", { ign: req.params.ign, noteId: req.params.noteId });
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  app.post("/admin/api/profiles/:ign/tags", requireAuth, requirePerm("players"), async (req, res) => {
+    try {
+      const { tag } = req.body ?? {};
+      if (!tag) return res.status(400).json({ ok: false, error: "Missing tag" });
+      const result = await addPlayerTag(req.params.ign, tag);
+      await audit(req, "player_tag_add", { ign: req.params.ign, tag });
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  app.delete("/admin/api/profiles/:ign/tags/:tag", requireAuth, requirePerm("players"), async (req, res) => {
+    try {
+      const result = await removePlayerTag(req.params.ign, req.params.tag);
+      if (!result.ok) return res.status(404).json(result);
+      await audit(req, "player_tag_delete", { ign: req.params.ign, tag: req.params.tag });
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  app.post("/admin/api/profiles/:ign/warnings", requireAuth, requirePerm("players"), async (req, res) => {
+    try {
+      const { reason } = req.body ?? {};
+      if (!reason) return res.status(400).json({ ok: false, error: "Missing reason" });
+      const warning = await addPlayerWarning(req.params.ign, reason, req.session.label);
+      await audit(req, "player_warning_add", { ign: req.params.ign, reason });
+      res.json({ ok: true, warning });
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
   });
 }

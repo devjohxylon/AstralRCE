@@ -185,3 +185,25 @@ export async function getKits() {
 export async function saveKits(data) {
   await writeJson("kits.json", data);
 }
+
+export async function getAnalytics() {
+  return readJson("analytics.json", {
+    hourly: {},
+    daily: {},
+    playerActivity: {},
+    weaponStats: {},
+    serverPerformance: [],
+  });
+}
+
+export async function saveAnalytics(data) {
+  await writeJson("analytics.json", data);
+}
+
+export async function getPlayerProfiles() {
+  return readJson("player-profiles.json", { profiles: {} });
+}
+
+export async function savePlayerProfiles(data) {
+  await writeJson("player-profiles.json", data);
+}

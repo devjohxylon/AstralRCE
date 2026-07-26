@@ -8,10 +8,13 @@ import { triggerRaidAlert } from "./modules/moderation/actions.js";
 import { handleMemberJoin } from "./modules/welcome/handlers.js";
 import { checkExpiredGiveaways } from "./modules/giveaways/manager.js";
 import { relayDiscordToGame, shutdownRcon, startRcon } from "./modules/rcon/index.js";
-import { isRconEnabled } from "./modules/rcon/client.js";
+import { isRconEnabled, getOnlinePlayers, getServerInfo } from "./modules/rcon/client.js";
 import { handleVipRoleChange } from "./modules/rcon/vip-sync.js";
 import { loadChannelOverrides } from "./modules/admin/channel-settings.js";
 import { assertDataPersistence } from "./data/store.js";
+import { attachWebSocket, attachAnalytics } from "./modules/rcon/feeds.js";
+import * as websocketModule from "./server/websocket.js";
+import * as analyticsModule from "./modules/analytics/tracker.js";
 
 export function createBotClient() {
   const client = new Client({
@@ -27,6 +30,9 @@ export function createBotClient() {
   client.once("ready", async () => {
     console.log(`Logged in as ${client.user.tag}`);
     console.log(`Auto-mod: ${config.automod.enabled ? "ON" : "OFF"}`);
+
+    attachWebSocket(websocketModule);
+    attachAnalytics(analyticsModule);
 
     await assertDataPersistence().catch((e) =>
       console.error("Data persistence check failed:", e.message),
@@ -45,6 +51,20 @@ export function createBotClient() {
       );
       setInterval(() => syncServerPop(client, { silent: true }).catch(() => {}), config.server.pollMs);
     }
+
+    setInterval(() => {
+      const players = getOnlinePlayers();
+      analyticsModule.trackPlayerCount(players.length).catch(() => {});
+      
+      const server = getServerInfo();
+      if (server) {
+        analyticsModule.trackServerPerformance(
+          server.Framerate,
+          server.EntityCount,
+          server.Players
+        ).catch(() => {});
+      }
+    }, 60000);
 
     setInterval(() => checkExpiredGiveaways(client).catch(() => {}), 30_000);
 

@@ -6,9 +6,19 @@ const MAX_CHARS = 1900;
 
 const buffers = new Map();
 let discordClient = null;
+let wsModule = null;
+let analyticsModule = null;
 
 export function attachFeedClient(client) {
   discordClient = client;
+}
+
+export function attachWebSocket(ws) {
+  wsModule = ws;
+}
+
+export function attachAnalytics(analytics) {
+  analyticsModule = analytics;
 }
 
 // Batches feed lines per channel — a busy wipe night can produce dozens of
@@ -74,7 +84,6 @@ const STREAK_MILESTONES = new Set([3, 5, 10, 15, 20]);
 
 export function feedKill(data) {
   const channelId = config.channels.killfeed;
-  if (!channelId) return;
 
   const killer = data?.killer ?? data;
   const victim = data?.victim;
@@ -91,6 +100,30 @@ export function feedKill(data) {
 
   const pvp = killer?.type === "Player" && victim?.type === "Player";
   const suicide = pvp && killer.name === victim.name;
+
+  if (wsModule?.broadcastKillEvent) {
+    wsModule.broadcastKillEvent({
+      killer: killer?.name,
+      victim: victim?.name,
+      weapon,
+      headshot,
+    });
+  }
+
+  if (analyticsModule?.trackWeaponKill && weapon && pvp && !suicide) {
+    analyticsModule.trackWeaponKill(weapon).catch(() => {});
+  }
+
+  if (analyticsModule?.trackPlayerActivity) {
+    if (killer?.name && pvp && !suicide) {
+      analyticsModule.trackPlayerActivity(killer.name, "kill").catch(() => {});
+    }
+    if (victim?.name) {
+      analyticsModule.trackPlayerActivity(victim.name, "death").catch(() => {});
+    }
+  }
+
+  if (!channelId) return;
 
   if (suicide) {
     killStreaks.delete(String(victim.name).toLowerCase());
@@ -139,10 +172,16 @@ export function feedKill(data) {
 }
 
 export function feedJoin(player) {
+  if (wsModule?.broadcastPlayerJoin) {
+    wsModule.broadcastPlayerJoin(player?.ign);
+  }
   queueFeedLine(config.channels.joinLeave, `📥 **${clean(player?.ign)}** joined the server`);
 }
 
 export function feedLeave(player) {
+  if (wsModule?.broadcastPlayerLeave) {
+    wsModule.broadcastPlayerLeave(player?.ign);
+  }
   queueFeedLine(config.channels.joinLeave, `📤 **${clean(player?.ign)}** left the server`);
 }
 
