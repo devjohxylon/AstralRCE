@@ -474,6 +474,20 @@ input:focus, textarea:focus, select:focus {
 
 /* ── Forms ── */
 .form-row { display: grid; gap: .55rem; grid-template-columns: 1fr auto; margin-top: .7rem; align-items: start; }
+.chan-grid { display: grid; gap: .65rem; }
+.chan-row {
+  display: grid; gap: .45rem .7rem;
+  grid-template-columns: minmax(140px, 180px) 1fr minmax(160px, 1.2fr);
+  align-items: center; padding: .55rem 0; border-bottom: 1px solid var(--line);
+}
+.chan-row:last-child { border-bottom: none; }
+.chan-row label { font-size: .8rem; font-weight: 600; }
+.chan-row label small { display: block; color: var(--faint); font-weight: 400; font-family: var(--mono); font-size: .62rem; margin-top: .15rem; }
+.chan-row select, .chan-row input { margin: 0; }
+.cmd-actions { display: flex; flex-wrap: wrap; gap: .4rem; }
+@media (max-width: 900px) {
+  .chan-row { grid-template-columns: 1fr; }
+}
 .form-grid { display: grid; gap: .55rem; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
 .field { display: grid; gap: .35rem; }
 .field label { font-family: var(--mono); font-size: .62rem; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
@@ -569,6 +583,8 @@ input:focus, textarea:focus, select:focus {
         <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Overview</button>
       <button data-tab="players" data-perm="players">
         <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><path d="M17 5a3 3 0 0 1 0 6M21 20c0-2.5-1.5-4.7-3.7-5.6"/></svg>Players</button>
+      <button data-tab="commands" data-perm="serverCommands">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l2.2 4.5L19 8.3l-3.5 3.4.8 4.8L12 14.2 7.7 16.5l.8-4.8L5 8.3l4.8-.8L12 3z"/><path d="M5 20h14"/></svg>Server Commands</button>
       <button data-tab="console" data-perm="rcon">
         <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3M13 15h4"/></svg>RCON Console</button>
       <button data-tab="stats" data-perm="stats">
@@ -833,13 +849,14 @@ function setTab(tab) {
   state.tab = tab;
   document.querySelectorAll(".nav [data-tab]").forEach((b) => b.classList.toggle("active", b.dataset.tab === tab));
   const titles = {
-    overview: "Overview", players: "Players", console: "RCON Console", stats: "Stats",
+    overview: "Overview", players: "Players", commands: "Server Commands", console: "RCON Console", stats: "Stats",
     warps: "Warps / Teleports", links: "Account Links", automsg: "Auto Messages", schedule: "Auto Commands",
     kits: "Kits", keys: "Access Keys", logs: "Audit Logs",
   };
   const subs = {
     overview: "Live server health and quick controls",
     players: "Everyone currently connected to the server",
+    commands: "Feed channels, ranks, kits, and in-game events",
     console: "Send raw RCON commands and see responses",
     stats: "Leaderboards and per-player lookups",
     warps: "Manage public warps and force teleports",
@@ -863,6 +880,7 @@ async function render() {
   try {
     if (state.tab === "overview") view.innerHTML = renderOverview();
     if (state.tab === "players") view.innerHTML = await renderPlayers();
+    if (state.tab === "commands") view.innerHTML = await renderServerCommands();
     if (state.tab === "console") view.innerHTML = renderConsole();
     if (state.tab === "stats") view.innerHTML = await renderStats();
     if (state.tab === "warps") view.innerHTML = await renderWarps();
@@ -1198,6 +1216,108 @@ async function renderSchedule() {
     </div>`;
 }
 
+async function renderServerCommands() {
+  const data = await api("/server-commands");
+  state.serverCommands = data;
+  const groups = {};
+  for (const ch of data.channels || []) {
+    (groups[ch.group] ||= []).push(ch);
+  }
+
+  const channelBlocksClean = Object.entries(groups).map(([group, rows]) => `
+    <div class="card" style="margin-bottom:.75rem">
+      <h3>${esc(group)}</h3>
+      <div class="chan-grid">
+        ${rows.map((ch) => {
+          const selectOpts = [`<option value="">— unset / use .env —</option>`]
+            .concat((data.discordChannels || []).map((c) =>
+              `<option value="${esc(c.id)}" ${c.id === ch.value ? "selected" : ""}>#${esc(c.name)}${c.type === "voice" ? " (voice)" : ""}${c.parent ? ` · ${esc(c.parent)}` : ""}</option>`
+            )).join("");
+          return `
+          <div class="chan-row">
+            <label>${esc(ch.label)}
+              <small>${esc(ch.env)} · ${ch.source}</small>
+            </label>
+            <select data-channel-key="${esc(ch.key)}">${selectOpts}</select>
+            <input data-channel-manual="${esc(ch.key)}" placeholder="or paste channel id" value="${esc(ch.value || "")}" />
+          </div>`;
+        }).join("")}
+      </div>
+    </div>`).join("");
+
+  const onlineOpts = (data.onlinePlayers || []).map((n) =>
+    `<option value="${esc(n)}">${esc(n)}</option>`
+  ).join("") || `<option value="">No one online</option>`;
+
+  const kitOpts = (data.kits || []).map((k) =>
+    `<option value="${esc(k.id)}">${esc(k.label)} (${esc(k.id)})</option>`
+  ).join("") || `<option value="">No kits — create one in Kits tab</option>`;
+
+  const eventBtns = (data.events || []).map((e) =>
+    `<button data-action="runEvent" data-id="${esc(e.id)}" title="${esc(e.command)}">${esc(e.label)}</button>`
+  ).join("");
+
+  const rconOk = data.rcon?.connected;
+
+  return `
+    <div class="split">
+      <div>
+        <div class="card" style="margin-bottom:.75rem">
+          <h3>Discord feed channels</h3>
+          <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:0 0 .85rem">
+            Pick a channel from the dropdown or paste an ID. Saved here overrides <code>.env</code> until cleared.
+            Killfeed is <code>CHANNEL_KILLFEED</code> — set it below to start posting kills.
+          </p>
+          ${channelBlocksClean}
+          <button class="primary" data-action="saveChannels" style="margin-top:.35rem">Save channels</button>
+        </div>
+      </div>
+      <div>
+        <div class="card" style="margin-bottom:.75rem">
+          <h3>Give kit</h3>
+          <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:0 0 .6rem">
+            ${rconOk ? `<span class="pill ok">RCON online</span>` : `<span class="pill bad">RCON offline</span>`}
+          </p>
+          <label class="muted" style="font-size:.7rem">Player</label>
+          <input id="cmdKitIgn" list="cmdOnlineList" placeholder="Online IGN" />
+          <datalist id="cmdOnlineList">${onlineOpts}</datalist>
+          <label class="muted" style="font-size:.7rem;display:block;margin-top:.55rem">Kit</label>
+          <select id="cmdKitId">${kitOpts}</select>
+          <button class="primary" style="margin-top:.7rem;width:100%" data-action="cmdGiveKit">Give kit</button>
+        </div>
+
+        <div class="card" style="margin-bottom:.75rem">
+          <h3>In-game ranks</h3>
+          <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:0 0 .6rem">
+            Owner / Moderator use vanilla auth. VIP grants the VIP kit from <code>VIP_KIT_ID</code>.
+          </p>
+          <input id="cmdRankIgn" list="cmdOnlineList" placeholder="Player IGN" />
+          <select id="cmdRank" style="margin-top:.55rem">
+            <option value="vip">VIP (kit)</option>
+            <option value="moderator">Moderator</option>
+            <option value="owner">Owner</option>
+          </select>
+          <div class="cmd-actions" style="margin-top:.7rem">
+            <button class="primary" data-action="cmdRankGrant">Grant</button>
+            <button class="danger" data-action="cmdRankRevoke">Revoke</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Trigger events</h3>
+          <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:0 0 .6rem">
+            Runs RCON on the live server. Some events need plugins / console support.
+          </p>
+          <div class="cmd-actions">${eventBtns}</div>
+          <div class="form-row" style="margin-top:.85rem">
+            <input id="cmdCustomEvent" placeholder="Custom RCON command" />
+            <button data-action="runCustomEvent">Run</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
+
 async function renderKits() {
   const data = await api("/kits");
   const rows = data.kits.map((k) => `
@@ -1309,6 +1429,45 @@ function bindView() {
     el.onclick = async () => {
       const a = el.dataset.action;
       try {
+        if (a === "saveChannels") {
+          const channels = {};
+          document.querySelectorAll("[data-channel-key]").forEach((sel) => {
+            const key = sel.dataset.channelKey;
+            const manual = document.querySelector(`[data-channel-manual="${key}"]`);
+            const val = (manual?.value || sel.value || "").trim();
+            channels[key] = val;
+          });
+          await api("/channels", { method: "POST", body: { channels } });
+          toast("Channels saved");
+          render();
+        }
+        if (a === "cmdGiveKit") {
+          const ign = document.getElementById("cmdKitIgn")?.value?.trim();
+          const id = document.getElementById("cmdKitId")?.value;
+          if (!ign || !id) { toast("Need kit + player IGN", true); return; }
+          const r = await api(`/kits/${encodeURIComponent(id)}/give`, { method: "POST", body: { ign } });
+          toast(r.ok ? `Gave ${r.given} item(s) to ${ign}` : (r.error || "Failed"), !r.ok);
+        }
+        if (a === "cmdRankGrant" || a === "cmdRankRevoke") {
+          const ign = document.getElementById("cmdRankIgn")?.value?.trim();
+          const rank = document.getElementById("cmdRank")?.value;
+          if (!ign || !rank) { toast("Need player + rank", true); return; }
+          const r = await api("/ranks", {
+            method: "POST",
+            body: { ign, rank, action: a === "cmdRankRevoke" ? "revoke" : "grant" },
+          });
+          toast(r.command ? `Ran ${r.command}` : (r.ok ? "Done" : r.error), !r.ok);
+        }
+        if (a === "runEvent") {
+          const r = await api("/events", { method: "POST", body: { id: el.dataset.id } });
+          toast(`Ran ${r.command}`);
+        }
+        if (a === "runCustomEvent") {
+          const command = document.getElementById("cmdCustomEvent")?.value?.trim();
+          if (!command) { toast("Enter a command", true); return; }
+          const r = await api("/events", { method: "POST", body: { command } });
+          toast(`Ran ${r.command}`);
+        }
         if (a === "broadcast") {
           await api("/broadcast", { method: "POST", body: { message: document.getElementById("broadcastMsg").value } });
           toast("Broadcast sent");
@@ -1485,6 +1644,21 @@ function bindView() {
       if (e.key === "Enter") document.querySelector('[data-action="rcon"]')?.click();
     };
   }
+
+  document.querySelectorAll("[data-channel-key]").forEach((sel) => {
+    sel.onchange = () => {
+      const input = document.querySelector(`[data-channel-manual="${sel.dataset.channelKey}"]`);
+      if (input) input.value = sel.value;
+    };
+  });
+  document.querySelectorAll("[data-channel-manual]").forEach((input) => {
+    input.oninput = () => {
+      const sel = document.querySelector(`[data-channel-key="${input.dataset.channelManual}"]`);
+      if (!sel) return;
+      const match = [...sel.options].find((o) => o.value === input.value.trim());
+      sel.value = match ? match.value : "";
+    };
+  });
 }
 
 document.getElementById("loginBtn").onclick = async () => {

@@ -23,6 +23,7 @@ export const STAFF_PERMISSIONS = {
   automessages: true,
   schedule: false,
   kits: false,
+  serverCommands: true,
 };
 
 export const OWNER_PERMISSIONS = {
@@ -30,6 +31,7 @@ export const OWNER_PERMISSIONS = {
   keys: true,
   logs: true,
   kits: true,
+  serverCommands: true,
 };
 
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;

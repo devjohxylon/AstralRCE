@@ -10,6 +10,7 @@ import { checkExpiredGiveaways } from "./modules/giveaways/manager.js";
 import { relayDiscordToGame, shutdownRcon, startRcon } from "./modules/rcon/index.js";
 import { isRconEnabled } from "./modules/rcon/client.js";
 import { handleVipRoleChange } from "./modules/rcon/vip-sync.js";
+import { loadChannelOverrides } from "./modules/admin/channel-settings.js";
 
 export function createBotClient() {
   const client = new Client({
@@ -22,9 +23,13 @@ export function createBotClient() {
     partials: [Partials.Channel, Partials.GuildMember],
   });
 
-  client.once("ready", () => {
+  client.once("ready", async () => {
     console.log(`Logged in as ${client.user.tag}`);
     console.log(`Auto-mod: ${config.automod.enabled ? "ON" : "OFF"}`);
+
+    await loadChannelOverrides().catch((e) =>
+      console.error("Channel overrides failed:", e.message),
+    );
     console.log(`Watching ${config.channels.watch.size} relay channel(s)`);
 
     // With RCON connected we get live player counts straight from the game,

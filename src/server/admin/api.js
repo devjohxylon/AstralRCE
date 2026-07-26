@@ -44,6 +44,12 @@ import {
 } from "../../modules/rcon/kits.js";
 import { getWipeAt, setWipeAt, syncWipeStatus } from "../../modules/rcon/wipe.js";
 import {
+  EVENT_PRESETS,
+  RANK_PRESETS,
+  getChannelConfig,
+  saveChannelConfig,
+} from "../../modules/admin/channel-settings.js";
+import {
   STAFF_PERMISSIONS,
   appendPanelLog,
   authenticateAccessKey,
@@ -487,6 +493,120 @@ export function attachAdminPanel(app, client) {
     await syncWipeStatus(client, { force: true }).catch(() => {});
     await audit(req, "wipe_set", { wipeAt: result.wipeAt });
     res.json(result);
+  });
+
+  // ——— Server Commands: channels / ranks / events ———
+  app.get("/admin/api/server-commands", requireAuth, requirePerm("serverCommands"), async (_req, res) => {
+    const { config } = await import("../../config.js");
+    const guild = config.discord.guildId
+      ? await client.guilds.fetch(config.discord.guildId).catch(() => null)
+      : client.guilds.cache.first() || null;
+
+    let discordChannels = [];
+    if (guild) {
+      const chans = await guild.channels.fetch().catch(() => null);
+      if (chans) {
+        discordChannels = [...chans.values()]
+          .filter((c) => c && typeof c.isTextBased === "function" && (c.isTextBased() || c.isVoiceBased?.()))
+          .map((c) => ({
+            id: c.id,
+            name: c.name,
+            type: c.isVoiceBased?.() ? "voice" : "text",
+            parent: c.parent?.name || null,
+          }))
+          .sort((a, b) => a.name.localeCompare(b.name));
+      }
+    }
+
+    const online = getOnlinePlayers().map((p) => p.ign);
+    res.json({
+      ok: true,
+      channels: await getChannelConfig(),
+      discordChannels,
+      kits: await listKits(),
+      events: EVENT_PRESETS,
+      ranks: RANK_PRESETS.map((r) => ({ id: r.id, label: r.label })),
+      onlinePlayers: online,
+      rcon: getRconStatus(),
+    });
+  });
+
+  app.post("/admin/api/channels", requireAuth, requirePerm("serverCommands"), async (req, res) => {
+    const patch = req.body?.channels ?? req.body ?? {};
+    if (!patch || typeof patch !== "object") {
+      return res.status(400).json({ ok: false, error: "Missing channels object" });
+    }
+    const result = await saveChannelConfig(patch);
+    if (!result.ok) return res.status(400).json(result);
+    await audit(req, "channels_save", { keys: Object.keys(patch) });
+    res.json(result);
+  });
+
+  app.post("/admin/api/ranks", requireAuth, requirePerm("serverCommands"), async (req, res) => {
+    try {
+      const ign = String(req.body?.ign ?? "").trim();
+      const rank = String(req.body?.rank ?? "").trim().toLowerCase();
+      const action = String(req.body?.action ?? "grant").trim().toLowerCase();
+      if (!ign) return res.status(400).json({ ok: false, error: "Missing player IGN" });
+
+      if (rank === "vip") {
+        const { config } = await import("../../config.js");
+        if (action === "revoke") {
+          if (!config.vip.revokeCommand) {
+            return res.status(400).json({
+              ok: false,
+              error: "Set VIP_RCON_REVOKE in .env to revoke VIP via RCON",
+            });
+          }
+          const cmd = config.vip.revokeCommand
+            .replaceAll("{ign}", ign)
+            .replaceAll("{player}", ign);
+          const result = await sendGameCommand(cmd);
+          await audit(req, "rank_revoke", { rank: "vip", ign, cmd });
+          return res.json({ ok: true, result: result ?? "", command: cmd });
+        }
+
+        if (config.vip.grantCommand) {
+          const cmd = config.vip.grantCommand
+            .replaceAll("{ign}", ign)
+            .replaceAll("{player}", ign);
+          const result = await sendGameCommand(cmd);
+          await audit(req, "rank_grant", { rank: "vip", ign, via: "command" });
+          return res.json({ ok: true, result: result ?? "", command: cmd });
+        }
+
+        const kitResult = await giveKit(ign, config.vip.kitId || "vip");
+        await audit(req, "rank_grant", { rank: "vip", ign, via: "kit" });
+        if (!kitResult.ok) return res.status(400).json(kitResult);
+        return res.json(kitResult);
+      }
+
+      const preset = RANK_PRESETS.find((r) => r.id === rank);
+      if (!preset) return res.status(400).json({ ok: false, error: "Unknown rank" });
+
+      const cmd = action === "revoke" ? preset.revoke(ign) : preset.grant(ign);
+      const result = await sendGameCommand(cmd);
+      await audit(req, action === "revoke" ? "rank_revoke" : "rank_grant", { rank, ign, cmd });
+      res.json({ ok: true, result: result ?? "", command: cmd });
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  app.post("/admin/api/events", requireAuth, requirePerm("serverCommands"), async (req, res) => {
+    try {
+      const id = String(req.body?.id ?? "").trim();
+      const custom = String(req.body?.command ?? "").trim();
+      const preset = EVENT_PRESETS.find((e) => e.id === id);
+      const command = custom || preset?.command;
+      if (!command) return res.status(400).json({ ok: false, error: "Pick an event or enter a command" });
+
+      const result = await sendGameCommand(command);
+      await audit(req, "event_trigger", { id: id || null, command });
+      res.json({ ok: true, result: result ?? "", command });
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
   });
 
   // ——— Owner-only: access keys ———
