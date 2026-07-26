@@ -644,6 +644,9 @@ button { transition: all .15s ease; }
 
 @media (max-width: 900px) {
   #app { grid-template-columns: 1fr; }
+  #app.sidebar-collapsed { grid-template-columns: 1fr; }
+  .sidebar-toggle { display: none !important; }
+  
   .mobile-bar {
     display: flex; align-items: center; gap: .65rem;
     position: sticky; top: 0; z-index: 30;
@@ -659,14 +662,14 @@ button { transition: all .15s ease; }
     width: 26px; height: 26px; border-radius: 50%; border: 1px solid rgba(215,221,230,.25);
   }
   .mobile-bar .icon-btn {
-    width: 42px; height: 42px; padding: 0; display: grid; place-items: center;
-    flex: none; touch-action: manipulation;
+    width: 44px; height: 44px; padding: 0; display: grid; place-items: center;
+    flex: none; touch-action: manipulation; -webkit-tap-highlight-color: transparent;
   }
   .nav-backdrop { display: block; opacity: 0; pointer-events: none; transition: opacity .2s ease; }
   #app.nav-open .nav-backdrop { opacity: 1; pointer-events: auto; }
   .nav {
-    position: fixed; left: 0; top: 0; bottom: 0; width: min(300px, 86vw); height: 100%;
-    transform: translateX(-105%); transition: transform .22s ease;
+    position: fixed; left: 0; top: 0; bottom: 0; width: min(320px, 86vw); height: 100%;
+    transform: translateX(-105%); transition: transform .25s cubic-bezier(.4, 0, .2, 1);
     padding: .85rem .75rem 1.25rem; border-right: 1px solid var(--line2);
     box-shadow: 24px 0 60px rgba(0,0,0,.55);
   }
@@ -674,25 +677,90 @@ button { transition: all .15s ease; }
   .brand { width: 100%; display: flex; align-items: center; }
   .nav-close { display: inline-flex; }
   .nav-group { margin-top: .55rem; }
-  .nav-group-label { display: block; }
-  .nav button { width: 100%; margin: 0 0 .12rem; min-height: 44px; font-size: .9rem; }
-  .nav button .ico { display: block; }
+  .nav-group-label { display: block !important; }
+  .nav button { width: 100%; margin: 0 0 .12rem; min-height: 48px; font-size: .88rem; padding: .6rem .7rem !important; }
+  .nav button .ico { display: block !important; margin-right: .5rem !important; }
+  .nav button span { display: inline !important; }
   .nav-spacer { display: block; }
   .nav-user { display: flex; }
+  
   .main { padding: .85rem .8rem 5.5rem; }
-  .topbar { margin-bottom: .7rem; padding-bottom: .6rem; gap: .45rem; }
+  .topbar { margin-bottom: .7rem; padding-bottom: .6rem; gap: .45rem; flex-direction: column; align-items: flex-start; }
   .topbar h2 { font-size: 1.15rem; }
-  .page-sub { display: none; }
-  .pills .pill { font-size: .55rem; padding: .22rem .4rem; }
-  .card { padding: .7rem .75rem; }
+  .page-sub { font-size: .68rem; margin-top: .15rem; }
+  .pills { width: 100%; }
+  .pills .pill { font-size: .55rem; padding: .25rem .45rem; }
+  
+  .card { padding: .85rem .8rem; margin-bottom: .85rem; }
   .card::before, .card::after { display: none; }
-  .card.stat { min-height: 72px; }
-  .actions { gap: .3rem; }
-  .actions button, button { min-height: 40px; touch-action: manipulation; }
+  .card.stat { min-height: 72px; padding: .7rem .75rem; }
+  .card-head { flex-direction: column; align-items: flex-start; gap: .5rem; }
+  .card h3 { font-size: .65rem; }
+  
+  /* Responsive tables - card layout on mobile */
+  .table-wrap { margin: 0; }
+  .table thead { display: none; }
+  .table, .table tbody, .table tr, .table td { display: block; }
+  .table tr {
+    margin-bottom: .75rem; padding: .75rem; background: rgba(0,0,0,.3);
+    border: 1px solid var(--line); border-radius: var(--radius);
+  }
+  .table tr:hover { background: rgba(0,0,0,.4); }
+  .table td {
+    padding: .4rem 0; border: none; display: flex; justify-content: space-between;
+    align-items: center; gap: .5rem;
+  }
+  .table td:not(:last-child) { border-bottom: 1px solid rgba(255,255,255,.04); }
+  .table td::before {
+    content: attr(data-label); font-weight: 600; color: var(--muted);
+    text-transform: uppercase; font-size: .6rem; letter-spacing: .08em;
+    min-width: 80px; flex: none;
+  }
+  .table td:empty { display: none; }
+  .table td .actions { width: 100%; justify-content: flex-end; }
+  
+  /* Touch-friendly buttons and dropdowns */
+  .actions { gap: .35rem; flex-wrap: wrap; }
+  .actions button, button { 
+    min-height: 44px; padding: .6rem .85rem; font-size: .82rem;
+    touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+  }
+  .dropdown-menu {
+    position: fixed; left: 50%; bottom: 20px; right: auto; top: auto;
+    transform: translateX(-50%) translateY(100%); margin: 0;
+    width: calc(100vw - 2rem); max-width: 400px;
+  }
+  .dropdown.open .dropdown-menu {
+    transform: translateX(-50%) translateY(0);
+  }
+  .dropdown-menu button { min-height: 52px; font-size: .88rem; }
+  
+  /* Command palette on mobile */
+  .command-palette-backdrop { padding-top: 10vh; }
+  .command-palette { width: calc(100vw - 1.5rem); border-radius: var(--radius-sm); }
+  .command-palette input { font-size: .95rem; }
+  .command-item { padding: .85rem 1rem; min-height: 52px; }
+  
+  /* Forms and inputs */
+  input, select, textarea { 
+    min-height: 48px; font-size: 16px; padding: .7rem .8rem;
+    -webkit-appearance: none; appearance: none;
+  }
+  .form-row { grid-template-columns: 1fr; gap: .5rem; }
+  .form-grid { grid-template-columns: 1fr; }
+  
+  /* Charts and canvas */
+  canvas { max-width: 100%; height: auto !important; }
+  .split { grid-template-columns: 1fr; gap: .85rem; }
+  
   .kit-catalog { max-height: 220px; }
   .kit-picked { max-height: 160px; }
   .chan-row { grid-template-columns: 1fr; }
+  .console { min-height: 200px; max-height: 300px; font-size: .72rem; }
   .toast { left: .75rem; right: .75rem; bottom: .75rem; max-width: none; }
+  
+  /* Hide desktop-only elements */
+  .page-sub { display: block; }
 }
 
 @media (min-width: 901px) {
@@ -1238,9 +1306,9 @@ function renderOverview() {
 
   const onlineRows = online.slice(0, 8).map((p) => `
     <tr>
-      <td><strong>${esc(p.ign)}</strong></td>
-      <td>${esc(p.platform || "—")}</td>
-      <td>${p.ping ?? "—"}${p.ping != null ? " ms" : ""}</td>
+      <td data-label="IGN"><strong>${esc(p.ign)}</strong></td>
+      <td data-label="Platform">${esc(p.platform || "—")}</td>
+      <td data-label="Ping">${p.ping ?? "—"}${p.ping != null ? " ms" : ""}</td>
     </tr>`).join("") || `<tr><td colspan="3"><div class="empty">Nobody online right now<span class="empty-hint">Players will appear here when they connect</span></div></td></tr>`;
 
   return `
@@ -1326,11 +1394,11 @@ async function renderPlayers() {
   const data = await api("/players");
   const rows = data.online.map((p) => `
     <tr>
-      <td><strong>${esc(p.ign)}</strong></td>
-      <td>${p.platform || "—"}</td>
-      <td>${p.ping ?? "—"}</td>
-      <td>${p.link ? `<span class="pill ok">linked</span>` : `<span class="pill">unlinked</span>`}</td>
-      <td class="actions">
+      <td data-label="IGN"><strong>${esc(p.ign)}</strong></td>
+      <td data-label="Platform">${p.platform || "—"}</td>
+      <td data-label="Ping">${p.ping ?? "—"}</td>
+      <td data-label="Link">${p.link ? `<span class="pill ok">linked</span>` : `<span class="pill">unlinked</span>`}</td>
+      <td data-label="Actions" class="actions">
         <div class="dropdown">
           <button class="ghost dropdown-btn" data-toggle-dropdown="${esc(p.ign)}">Actions</button>
           <div class="dropdown-menu" data-dropdown="${esc(p.ign)}">
@@ -1383,7 +1451,7 @@ function renderConsole() {
 async function renderStats() {
   const data = await api("/stats?category=kills");
   const rows = data.rows.map((r) =>
-    `<tr><td>#${r.rank}</td><td>${esc(r.name)}</td><td>${esc(r.value)}</td></tr>`
+    `<tr><td data-label="Rank">#${r.rank}</td><td data-label="Player">${esc(r.name)}</td><td data-label="Kills">${esc(r.value)}</td></tr>`
   ).join("") || `<tr><td colspan="3"><div class="empty">No stats tracked yet<span class="empty-hint">Stats will populate as players join and play</span></div></td></tr>`;
   return `
     <div class="split">
@@ -1455,10 +1523,10 @@ async function renderLinks() {
   const data = await api("/links");
   const rows = data.links.map((l) => `
     <tr>
-      <td>${esc(l.ign)}</td>
-      <td><code>${esc(l.discordId)}</code></td>
-      <td>${new Date(l.linkedAt).toLocaleString()}</td>
-      <td class="actions"><button class="danger" data-action="unlink" data-id="${esc(l.discordId)}">Unlink</button></td>
+      <td data-label="IGN">${esc(l.ign)}</td>
+      <td data-label="Discord ID"><code>${esc(l.discordId)}</code></td>
+      <td data-label="Linked">${new Date(l.linkedAt).toLocaleString()}</td>
+      <td data-label="Actions" class="actions"><button class="danger" data-action="unlink" data-id="${esc(l.discordId)}">Unlink</button></td>
     </tr>`).join("") || `<tr><td colspan="4" class="muted">No links</td></tr>`;
   return `
     <div class="split">
@@ -1494,10 +1562,10 @@ async function renderAutomation() {
     const data = await api("/schedule");
     const rows = data.jobs.map((j) => `
       <tr>
-        <td><strong>${esc(j.name)}</strong><div class="muted">${esc(j.command)}</div></td>
-        <td>${j.intervalMinutes}m</td>
-        <td>${j.enabled ? "ON" : "OFF"}</td>
-        <td>${j.lastRunAt ? new Date(j.lastRunAt).toLocaleString() : "—"}</td>
+        <td data-label="Command"><strong>${esc(j.name)}</strong><div class="muted">${esc(j.command)}</div></td>
+        <td data-label="Interval">${j.intervalMinutes}m</td>
+        <td data-label="Status">${j.enabled ? "ON" : "OFF"}</td>
+        <td data-label="Last Run">${j.lastRunAt ? new Date(j.lastRunAt).toLocaleString() : "—"}</td>
         <td class="actions">
           <button data-action="runJob" data-id="${esc(j.id)}">Run</button>
           <button data-action="toggleJob" data-id="${esc(j.id)}" data-on="${j.enabled ? "0" : "1"}">${j.enabled ? "Pause" : "On"}</button>
@@ -1526,10 +1594,10 @@ async function renderAutomation() {
   const data = await api("/automessages");
   const rows = data.messages.map((m) => `
     <tr>
-      <td>${esc(m.text)}</td>
-      <td>${m.intervalMinutes}m</td>
-      <td>${m.enabled ? "ON" : "OFF"}</td>
-      <td class="actions">
+      <td data-label="Message">${esc(m.text)}</td>
+      <td data-label="Interval">${m.intervalMinutes}m</td>
+      <td data-label="Status">${m.enabled ? "ON" : "OFF"}</td>
+      <td data-label="Actions" class="actions">
         <button data-action="toggleMsg" data-id="${esc(m.id)}" data-on="${m.enabled ? "0" : "1"}">${m.enabled ? "Pause" : "On"}</button>
         <button class="danger" data-action="delMsg" data-id="${esc(m.id)}">Del</button>
       </td>
@@ -1691,6 +1759,8 @@ function initAnalyticsCharts() {
   const ctx1 = document.getElementById("analyticsChart");
   const ctx2 = document.getElementById("performanceChart");
   
+  const isMobile = window.innerWidth <= 900;
+  
   if (ctx1 && state.analyticsData?.hourlyData) {
     const hours = state.analyticsData.hourlyData.map(h => h.hour.slice(-2) + ":00");
     const peaks = state.analyticsData.hourlyData.map(h => h.peak);
@@ -1710,10 +1780,28 @@ function initAnalyticsCharts() {
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
+        plugins: { 
+          legend: { display: false },
+          tooltip: { enabled: !isMobile, mode: isMobile ? 'nearest' : 'index' }
+        },
         scales: {
-          y: { beginAtZero: true, ticks: { color: "#9aa0ab" }, grid: { color: "rgba(255,255,255,0.07)" } },
-          x: { ticks: { color: "#9aa0ab" }, grid: { color: "rgba(255,255,255,0.07)" } },
+          y: { 
+            beginAtZero: true, 
+            ticks: { color: "#9aa0ab", font: { size: isMobile ? 10 : 12 } }, 
+            grid: { color: "rgba(255,255,255,0.07)" } 
+          },
+          x: { 
+            ticks: { 
+              color: "#9aa0ab", 
+              maxRotation: isMobile ? 45 : 0,
+              font: { size: isMobile ? 9 : 11 }
+            }, 
+            grid: { color: "rgba(255,255,255,0.07)" } 
+          },
+        },
+        interaction: {
+          mode: isMobile ? 'nearest' : 'index',
+          intersect: isMobile,
         },
       },
     });
@@ -1739,10 +1827,21 @@ function initAnalyticsCharts() {
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
+        plugins: { 
+          legend: { display: false },
+          tooltip: { enabled: !isMobile }
+        },
         scales: {
-          y: { beginAtZero: true, ticks: { color: "#9aa0ab" }, grid: { color: "rgba(255,255,255,0.07)" } },
+          y: { 
+            beginAtZero: true, 
+            ticks: { color: "#9aa0ab", font: { size: isMobile ? 10 : 12 } }, 
+            grid: { color: "rgba(255,255,255,0.07)" } 
+          },
           x: { ticks: { display: false }, grid: { display: false } },
+        },
+        interaction: {
+          mode: isMobile ? 'nearest' : 'index',
+          intersect: isMobile,
         },
       },
     });
@@ -1756,8 +1855,11 @@ function drawMap() {
   const ctx = canvas.getContext("2d");
   const img = document.getElementById("mapImage");
   
-  const w = img ? img.clientWidth : canvas.width;
-  const h = img ? img.clientHeight : canvas.height;
+  const isMobile = window.innerWidth <= 900;
+  const maxSize = isMobile ? window.innerWidth - 40 : 600;
+  
+  const w = img ? Math.min(img.clientWidth, maxSize) : Math.min(canvas.width, maxSize);
+  const h = img ? Math.min(img.clientHeight, maxSize) : Math.min(canvas.height, maxSize);
   
   canvas.width = w;
   canvas.height = h;
@@ -1946,10 +2048,10 @@ async function renderKits() {
   const catalog = await ensureItemCatalog();
   const panelRows = (data.kits || []).map((k) => `
     <tr>
-      <td><strong>${esc(k.label)}</strong><div class="muted"><code>${esc(k.id)}</code> · panel</div></td>
-      <td>${(k.items || []).map((i) => `${esc(i.item)}×${i.amount}`).join(", ") || "—"}</td>
-      <td>${k.cooldownMinutes || 0}m</td>
-      <td class="actions">
+      <td data-label="Kit"><strong>${esc(k.label)}</strong><div class="muted"><code>${esc(k.id)}</code> · panel</div></td>
+      <td data-label="Items">${(k.items || []).map((i) => `${esc(i.item)}×${i.amount}`).join(", ") || "—"}</td>
+      <td data-label="Cooldown">${k.cooldownMinutes || 0}m</td>
+      <td data-label="Actions" class="actions">
         <button data-action="editKit" data-id="${esc(k.id)}">Edit</button>
         <button data-action="giveKit" data-id="${esc(k.id)}" data-source="panel">Give</button>
         <button class="danger" data-action="delKit" data-id="${esc(k.id)}">Delete</button>
@@ -1958,9 +2060,9 @@ async function renderKits() {
 
   const serverRows = (data.serverKits || []).map((k) => `
     <tr>
-      <td><strong>${esc(k.label)}</strong><div class="muted"><code>${esc(k.id)}</code> · server</div></td>
-      <td>${(k.items || []).slice(0, 8).map((i) => `${esc(i.item)}×${i.amount}`).join(", ") || '<span class="muted">—</span>'}${(k.items || []).length > 8 ? "…" : ""}</td>
-      <td class="actions">
+      <td data-label="Kit"><strong>${esc(k.label)}</strong><div class="muted"><code>${esc(k.id)}</code> · server</div></td>
+      <td data-label="Items">${(k.items || []).slice(0, 8).map((i) => `${esc(i.item)}×${i.amount}`).join(", ") || '<span class="muted">—</span>'}${(k.items || []).length > 8 ? "…" : ""}</td>
+      <td data-label="Actions" class="actions">
         <button class="primary" data-action="giveKit" data-id="${esc(k.id)}" data-source="server">Give</button>
       </td>
     </tr>`).join("") || `<tr><td colspan="3"><div class="empty">${data.serverError ? esc(data.serverError) : "No in-game kits returned from RCON (kit list). Make sure KitManager is installed and RCON is online."}</div></td></tr>`;
@@ -2084,18 +2186,18 @@ async function renderReports() {
 
   const groupRows = (data.groups || []).map((g) => `
     <tr>
-      <td class="muted">${new Date(g.at).toLocaleString()}</td>
-      <td><span class="pill bad">${g.size}/${g.max}</span></td>
-      <td>#${esc(g.teamId)}</td>
-      <td>${(g.members || []).map((n) => esc(n)).join(", ")}</td>
+      <td data-label="Time" class="muted">${new Date(g.at).toLocaleString()}</td>
+      <td data-label="Size"><span class="pill bad">${g.size}/${g.max}</span></td>
+      <td data-label="Team ID">#${esc(g.teamId)}</td>
+      <td data-label="Members">${(g.members || []).map((n) => esc(n)).join(", ")}</td>
     </tr>`).join("") || `<tr><td colspan="4"><div class="empty">No group alerts yet<span class="empty-hint">Groups will trigger alerts when large teams form</span></div></td></tr>`;
 
   const combatRows = (data.combat || []).map((c) => `
     <tr>
-      <td class="muted">${new Date(c.at).toLocaleString()}</td>
-      <td><strong>${esc(c.killer)}</strong></td>
-      <td>${esc(c.victim)}</td>
-      <td>${esc(c.weapon || "—")}${c.headshot ? " · HS" : ""}</td>
+      <td data-label="Time" class="muted">${new Date(c.at).toLocaleString()}</td>
+      <td data-label="Killer"><strong>${esc(c.killer)}</strong></td>
+      <td data-label="Victim">${esc(c.victim)}</td>
+      <td data-label="Weapon">${esc(c.weapon || "—")}${c.headshot ? " · HS" : ""}</td>
     </tr>`).join("") || `<tr><td colspan="4"><div class="empty">No combat events yet<span class="empty-hint">Waiting for PvP kills to track</span></div></td></tr>`;
 
   return `
@@ -2590,6 +2692,36 @@ document.getElementById("navClose")?.addEventListener("click", () => setNavOpen(
 document.getElementById("navBackdrop")?.addEventListener("click", () => setNavOpen(false));
 document.getElementById("logoutBtnMobile")?.addEventListener("click", () => document.getElementById("logoutBtn")?.click());
 window.addEventListener("keydown", (e) => { if (e.key === "Escape") setNavOpen(false); });
+
+// Mobile swipe gestures for sidebar
+let touchStartX = 0;
+let touchStartY = 0;
+let touchEndX = 0;
+let touchEndY = 0;
+
+function handleSwipe() {
+  const deltaX = touchEndX - touchStartX;
+  const deltaY = Math.abs(touchEndY - touchStartY);
+  
+  if (Math.abs(deltaX) > 50 && deltaY < 70) {
+    if (deltaX > 0 && touchStartX < 50) {
+      setNavOpen(true);
+    } else if (deltaX < 0 && state.navOpen) {
+      setNavOpen(false);
+    }
+  }
+}
+
+document.addEventListener("touchstart", (e) => {
+  touchStartX = e.changedTouches[0].screenX;
+  touchStartY = e.changedTouches[0].screenY;
+}, { passive: true });
+
+document.addEventListener("touchend", (e) => {
+  touchEndX = e.changedTouches[0].screenX;
+  touchEndY = e.changedTouches[0].screenY;
+  handleSwipe();
+}, { passive: true });
 
 
 boot().catch((e) => {
