@@ -2,6 +2,16 @@
 
 Discord bridge for **Astral Vanilla+** (Rust RCE). Works **alongside KAOS** — KAOS keeps running the server; Astral relays Discord channels to your website and posts site updates back into Discord.
 
+## ⚡ NEW: Advanced Admin Panel
+
+The admin panel now includes powerful real-time features:
+- **🔴 Live WebSocket Updates** - Real-time server stats, player positions, kill feeds
+- **📊 Analytics Dashboard** - Player activity trends, weapon stats, performance metrics
+- **🗺️ Live Map** - Real-time player positions on 2D grid
+- **👥 Player Profiles** - Detailed player history, notes, tags, warnings
+
+See [ADMIN_PANEL_FEATURES.md](./ADMIN_PANEL_FEATURES.md) for full documentation.
+
 ## What it does
 
 | Direction | Behavior |
