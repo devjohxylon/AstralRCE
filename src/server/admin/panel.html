@@ -266,8 +266,15 @@ input:focus, textarea:focus, select:focus {
   #loginStars { display: none; }
 }
 
-#app { display: grid; grid-template-columns: 220px 1fr; min-height: 100vh; }
+#app { display: grid; grid-template-columns: 220px 1fr; min-height: 100vh; transition: grid-template-columns .2s ease; }
+#app.sidebar-collapsed { grid-template-columns: 70px 1fr; }
 .mobile-bar { display: none; }
+.sidebar-toggle { 
+  position: absolute; top: .5rem; right: .5rem; width: 32px; height: 32px; 
+  padding: 0; display: none; align-items: center; justify-content: center;
+  border-radius: 6px; background: rgba(255,255,255,.05);
+}
+@media (min-width: 901px) { .sidebar-toggle { display: inline-flex; } }
 .nav-backdrop {
   display: none; position: fixed; inset: 0; z-index: 40;
   background: rgba(0,0,0,.55); backdrop-filter: blur(2px);
@@ -286,11 +293,13 @@ input:focus, textarea:focus, select:focus {
   z-index: 50;
 }
 .brand {
-  display: flex; align-items: center; gap: .55rem;
+  display: flex; align-items: center; gap: .55rem; position: relative;
   font-size: .95rem; font-weight: 700; letter-spacing: -.02em;
   padding: .2rem .35rem .75rem; margin-bottom: .2rem;
   border-bottom: 1px solid var(--line);
 }
+#app.sidebar-collapsed .brand span { display: none; }
+#app.sidebar-collapsed .brand { justify-content: center; }
 .brand .logo {
   width: 28px; height: 28px; border-radius: 50%; flex: none; object-fit: cover;
   background: #000; border: 1px solid rgba(215,221,230,.28);
@@ -305,12 +314,16 @@ input:focus, textarea:focus, select:focus {
   font-family: var(--mono); font-size: .55rem; letter-spacing: .18em; text-transform: uppercase;
   color: var(--faint); padding: 0 .45rem .3rem;
 }
+#app.sidebar-collapsed .nav-group-label { display: none; }
 .nav button {
   width: 100%; text-align: left; justify-content: flex-start; margin-bottom: .1rem;
   background: transparent; border-color: transparent; font-weight: 600; color: var(--muted);
   padding: .42rem .5rem; gap: .5rem; border-radius: var(--radius-sm);
-  font-size: .82rem; min-height: 36px;
+  font-size: .82rem; min-height: 36px; white-space: nowrap; overflow: hidden;
 }
+#app.sidebar-collapsed .nav button { justify-content: center; padding: .42rem .25rem; }
+#app.sidebar-collapsed .nav button .ico { margin: 0; }
+#app.sidebar-collapsed .nav button span { display: none; }
 .nav button .ico { width: 14px; height: 14px; flex: none; opacity: .7; }
 .nav button:hover { color: var(--text); background: rgba(255,255,255,.035); box-shadow: none; }
 .nav button.active {
@@ -343,8 +356,15 @@ input:focus, textarea:focus, select:focus {
 .main { padding: 1rem 1.25rem 2.5rem; max-width: 1280px; min-width: 0; }
 #view { animation: viewIn .22s ease both; }
 @keyframes viewIn {
-  from { opacity: 0; transform: translateY(6px); }
+  from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: none; }
+}
+.pill { transition: all .15s ease; }
+.pill:hover { transform: translateY(-1px); box-shadow: 0 2px 8px currentColor; }
+.table tbody tr { transition: all .12s ease; }
+button { transition: all .15s ease; }
+.card { transition: all .2s ease; }
+.dropdown-menu { transition: opacity .15s ease, transform .15s ease; }
 }
 .topbar {
   display: flex; flex-wrap: wrap; gap: .55rem .85rem; align-items: flex-end; justify-content: space-between;
@@ -389,12 +409,14 @@ input:focus, textarea:focus, select:focus {
     rgba(12,13,16,.88);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  padding: .8rem .85rem;
+  padding: 1rem 1.1rem;
   position: relative;
   backdrop-filter: blur(8px);
   box-shadow: 0 8px 28px rgba(0,0,0,.22);
   transition: border-color .15s, box-shadow .15s;
+  margin-bottom: 1rem;
 }
+.card:last-child { margin-bottom: 0; }
 .card::before, .card::after {
   content: ""; position: absolute; width: 8px; height: 8px; border-color: var(--hud); border-style: solid; pointer-events: none;
   opacity: .55;
@@ -405,11 +427,11 @@ input:focus, textarea:focus, select:focus {
   border-color: rgba(215,221,230,.14);
   box-shadow: 0 12px 36px rgba(0,0,0,.3);
 }
-.card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: .75rem; margin-bottom: .55rem; }
+.card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: .75rem; margin-bottom: .75rem; }
 .card-head h3 { margin: 0; }
 .card-head .actions { margin: 0; }
 .card h3 {
-  margin: 0 0 .55rem; font-size: .62rem; letter-spacing: .12em; text-transform: uppercase;
+  margin: 0 0 .75rem; font-size: .62rem; letter-spacing: .12em; text-transform: uppercase;
   color: var(--chrome-dim); font-weight: 600; font-family: var(--mono);
 }
 .card-desc { margin: -.3rem 0 .7rem; color: var(--faint); font-size: .72rem; line-height: 1.4; }
@@ -443,15 +465,15 @@ input:focus, textarea:focus, select:focus {
 
 /* ── Tables ── */
 .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 0 -.15rem; }
-.table { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: .74rem; }
+.table { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: .74rem; border-spacing: 0 .25rem; }
 .table thead th {
   position: sticky; top: 0; color: var(--faint); font-weight: 500; text-transform: uppercase;
-  font-size: .58rem; letter-spacing: .08em; padding: .4rem .35rem; border-bottom: 1px solid var(--line2);
+  font-size: .58rem; letter-spacing: .08em; padding: .55rem .45rem .4rem; border-bottom: 1px solid rgba(255,255,255,.05);
   text-align: left; background: transparent;
 }
-.table td { text-align: left; padding: .45rem .35rem; border-bottom: 1px solid var(--line); vertical-align: middle; }
-.table tbody tr { transition: background .12s ease; }
-.table tbody tr:hover { background: rgba(215,221,230,.03); }
+.table td { text-align: left; padding: .65rem .45rem; border-bottom: 1px solid rgba(255,255,255,.02); vertical-align: middle; }
+.table tbody tr { transition: background .12s ease; cursor: pointer; }
+.table tbody tr:hover { background: rgba(255,255,255,.03); }
 .table tbody tr:last-child td { border-bottom: none; }
 .table th:first-child, .table td:first-child { padding-left: .1rem; }
 .table code {
@@ -529,6 +551,63 @@ input:focus, textarea:focus, select:focus {
 .field { display: grid; gap: .35rem; }
 .field label { font-family: var(--mono); font-size: .62rem; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
 
+/* ── Command Palette ── */
+.command-palette-backdrop {
+  position: fixed; inset: 0; z-index: 9999; 
+  background: rgba(0, 0, 0, 0.75); backdrop-filter: blur(8px);
+  display: flex; align-items: flex-start; justify-content: center; padding-top: 20vh;
+  animation: fadeIn .2s;
+}
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+.command-palette {
+  width: 90%; max-width: 600px; background: var(--bg2);
+  border: 1px solid var(--line2); border-radius: var(--radius);
+  overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,.5);
+  position: relative;
+}
+.command-palette::before, .command-palette::after {
+  content: ""; position: absolute; width: 10px; height: 10px; border-color: var(--hud); border-style: solid; pointer-events: none;
+  opacity: .7;
+}
+.command-palette::before { top: -1px; left: -1px; border-width: 2px 0 0 2px; }
+.command-palette::after { bottom: -1px; right: -1px; border-width: 0 2px 2px 0; }
+.command-palette input {
+  width: 100%; padding: 1rem 1.25rem; border: none; border-bottom: 1px solid var(--line);
+  background: transparent; color: var(--fg); font-size: 1rem;
+}
+.command-list { max-height: 400px; overflow-y: auto; }
+.command-item {
+  padding: .75rem 1.25rem; display: flex; align-items: center; gap: .75rem;
+  cursor: pointer; transition: background .15s; font-family: var(--font);
+}
+.command-item:hover, .command-item.selected { background: rgba(255,255,255,.05); }
+.command-icon { font-size: 1.1rem; flex: none; }
+
+/* ── Dropdown Menu ── */
+.dropdown { position: relative; display: inline-block; }
+.dropdown-btn::after {
+  content: "▼"; margin-left: .4rem; opacity: .6; font-size: .65em;
+}
+.dropdown-menu {
+  position: absolute; top: 100%; right: 0; margin-top: .25rem;
+  background: var(--bg2); border: 1px solid var(--line2); border-radius: var(--radius);
+  min-width: 140px; z-index: 100; box-shadow: 0 12px 40px rgba(0,0,0,.6);
+  opacity: 0; transform: translateY(-4px); pointer-events: none;
+  transition: opacity .15s, transform .15s;
+}
+.dropdown.open .dropdown-menu {
+  opacity: 1; transform: translateY(0); pointer-events: all;
+}
+.dropdown-menu button {
+  width: 100%; text-align: left; padding: .55rem .85rem; border: none;
+  border-radius: 0; background: transparent; font-size: .75rem;
+  justify-content: flex-start; border-bottom: 1px solid rgba(255,255,255,.03);
+}
+.dropdown-menu button:last-child { border-bottom: none; }
+.dropdown-menu button:first-child { border-radius: var(--radius) var(--radius) 0 0; }
+.dropdown-menu button:last-child { border-radius: 0 0 var(--radius) var(--radius); }
+.dropdown-menu button:hover { background: rgba(255,255,255,.05); }
+
 /* ── Misc ── */
 .toast {
   position: fixed; right: 1rem; bottom: 1rem; background: #12141a; border: 1px solid rgba(215,221,230,.2);
@@ -537,9 +616,14 @@ input:focus, textarea:focus, select:focus {
 }
 .split { display: grid; gap: .65rem; grid-template-columns: 1.25fr .9fr; align-items: start; }
 .empty {
-  color: var(--faint); font-family: var(--mono); font-size: .68rem; text-align: center;
-  padding: 1.25rem 0; letter-spacing: .05em; text-transform: uppercase;
+  color: var(--faint); font-family: var(--mono); font-size: .7rem; text-align: center;
+  padding: 2.5rem 1rem; letter-spacing: .05em;
 }
+.empty::before {
+  content: "━━━"; display: block; color: var(--line2); margin-bottom: .75rem;
+  font-size: 1rem; letter-spacing: .3em;
+}
+.empty-hint { display: block; margin-top: .5rem; font-size: .62rem; color: var(--faint); opacity: .7; }
 .muted { color: var(--muted); }
 .hint { color: var(--faint); font-family: var(--mono); font-size: .65rem; line-height: 1.45; }
 .section-stack { display: grid; gap: .65rem; }
@@ -672,7 +756,10 @@ input:focus, textarea:focus, select:focus {
 
   <aside class="nav" id="sideNav">
     <div class="brand">
-      <img class="logo" src="/logo.png" alt="Astral" />ASTRAL <span>CTRL</span>
+      <img class="logo" src="/logo.png" alt="Astral" /><span>ASTRAL <span style="background:linear-gradient(180deg,#fff,#9aa3af);-webkit-background-clip:text;background-clip:text;color:transparent;font-weight:600;letter-spacing:.08em;font-size:.65rem">CTRL</span></span>
+      <button type="button" class="sidebar-toggle ghost" id="sidebarToggle" aria-label="Toggle sidebar" title="Toggle sidebar">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+      </button>
       <button type="button" class="nav-close ghost" id="navClose" aria-label="Close menu">✕</button>
     </div>
 
@@ -941,6 +1028,22 @@ async function boot() {
     document.getElementById("navAvatar").textContent = (label[0] || "A").toUpperCase();
     
     connectWebSocket();
+
+    document.getElementById("sidebarToggle")?.addEventListener("click", () => {
+      const app = document.getElementById("app");
+      app.classList.toggle("sidebar-collapsed");
+      localStorage.setItem("sidebarCollapsed", app.classList.contains("sidebar-collapsed"));
+    });
+    if (localStorage.getItem("sidebarCollapsed") === "true") {
+      document.getElementById("app").classList.add("sidebar-collapsed");
+    }
+
+    document.addEventListener("keydown", (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        openCommandPalette();
+      }
+    });
     
     if (can("overview")) await refreshOverview().catch(() => {});
     setTab(state.tab);
@@ -1138,7 +1241,7 @@ function renderOverview() {
       <td><strong>${esc(p.ign)}</strong></td>
       <td>${esc(p.platform || "—")}</td>
       <td>${p.ping ?? "—"}${p.ping != null ? " ms" : ""}</td>
-    </tr>`).join("") || `<tr><td colspan="3"><div class="empty">Nobody online right now</div></td></tr>`;
+    </tr>`).join("") || `<tr><td colspan="3"><div class="empty">Nobody online right now<span class="empty-hint">Players will appear here when they connect</span></div></td></tr>`;
 
   return `
     <div class="grid stats">
@@ -1228,10 +1331,16 @@ async function renderPlayers() {
       <td>${p.ping ?? "—"}</td>
       <td>${p.link ? `<span class="pill ok">linked</span>` : `<span class="pill">unlinked</span>`}</td>
       <td class="actions">
-        ${can("kick") ? `<button data-action="kick" data-ign="${esc(p.ign)}">Kick</button>` : ""}
-        ${can("ban") ? `<button class="danger" data-action="ban" data-ign="${esc(p.ign)}">Ban</button>` : ""}
+        <div class="dropdown">
+          <button class="ghost dropdown-btn" data-toggle-dropdown="${esc(p.ign)}">Actions</button>
+          <div class="dropdown-menu" data-dropdown="${esc(p.ign)}">
+            ${can("kick") ? `<button data-action="kick" data-ign="${esc(p.ign)}">Kick Player</button>` : ""}
+            ${can("ban") ? `<button class="danger" data-action="ban" data-ign="${esc(p.ign)}">Ban Player</button>` : ""}
+            <button data-action="viewPlayer" data-ign="${esc(p.ign)}">View Profile</button>
+          </div>
+        </div>
       </td>
-    </tr>`).join("") || `<tr><td colspan="5"><div class="empty">Nobody online right now</div></td></tr>`;
+    </tr>`).join("") || `<tr><td colspan="5"><div class="empty">Nobody online right now<span class="empty-hint">Players will appear here when they connect</span></div></td></tr>`;
   return `
     <div class="card">
       <div class="card-head">
@@ -1275,7 +1384,7 @@ async function renderStats() {
   const data = await api("/stats?category=kills");
   const rows = data.rows.map((r) =>
     `<tr><td>#${r.rank}</td><td>${esc(r.name)}</td><td>${esc(r.value)}</td></tr>`
-  ).join("") || `<tr><td colspan="3"><div class="empty">No stats tracked yet</div></td></tr>`;
+  ).join("") || `<tr><td colspan="3"><div class="empty">No stats tracked yet<span class="empty-hint">Stats will populate as players join and play</span></div></td></tr>`;
   return `
     <div class="split">
       <div class="card">
@@ -1394,7 +1503,7 @@ async function renderAutomation() {
           <button data-action="toggleJob" data-id="${esc(j.id)}" data-on="${j.enabled ? "0" : "1"}">${j.enabled ? "Pause" : "On"}</button>
           <button class="danger" data-action="delJob" data-id="${esc(j.id)}">Del</button>
         </td>
-      </tr>`).join("") || `<tr><td colspan="5"><div class="empty">No scheduled commands</div></td></tr>`;
+      </tr>`).join("") || `<tr><td colspan="5"><div class="empty">No scheduled commands<span class="empty-hint">Use Schedule Command to automate server tasks</span></div></td></tr>`;
     return `
       <div class="section-stack">
         ${tabs}
@@ -1424,7 +1533,7 @@ async function renderAutomation() {
         <button data-action="toggleMsg" data-id="${esc(m.id)}" data-on="${m.enabled ? "0" : "1"}">${m.enabled ? "Pause" : "On"}</button>
         <button class="danger" data-action="delMsg" data-id="${esc(m.id)}">Del</button>
       </td>
-    </tr>`).join("") || `<tr><td colspan="4"><div class="empty">No auto messages</div></td></tr>`;
+    </tr>`).join("") || `<tr><td colspan="4"><div class="empty">No auto messages<span class="empty-hint">Set up recurring messages to chat</span></div></td></tr>`;
   return `
     <div class="section-stack">
       ${tabs}
@@ -1709,7 +1818,7 @@ function drawMap() {
 function kitDraftRowsHtml() {
   const items = state.kitDraft.items || [];
   if (!items.length) {
-    return `<div class="empty" style="padding:.85rem">No items yet — search and click to add</div>`;
+    return `<div class="empty" style="padding:.85rem">No items yet<span class="empty-hint">Search and click to add items</span></div>`;
   }
   return items.map((row, idx) => `
     <div class="kit-picked-row">
@@ -1734,7 +1843,7 @@ function kitCatalogHtml(catalog) {
   }
   const shown = rows.slice(0, 120);
   if (!shown.length) {
-    return `<div class="empty" style="padding:.85rem">No items match</div>`;
+    return `<div class="empty" style="padding:.85rem">No items match<span class="empty-hint">Try a different search term</span></div>`;
   }
   return shown.map((i) => `
     <button type="button" class="kit-item" data-action="kitAddItem" data-id="${esc(i.id)}" data-name="${esc(i.name)}">
@@ -1845,7 +1954,7 @@ async function renderKits() {
         <button data-action="giveKit" data-id="${esc(k.id)}" data-source="panel">Give</button>
         <button class="danger" data-action="delKit" data-id="${esc(k.id)}">Delete</button>
       </td>
-    </tr>`).join("") || `<tr><td colspan="4"><div class="empty">No panel kits yet — build one on the right, or use server kits below</div></td></tr>`;
+    </tr>`).join("") || `<tr><td colspan="4"><div class="empty">No panel kits yet<span class="empty-hint">Build one on the right, or use server kits below</span></div></td></tr>`;
 
   const serverRows = (data.serverKits || []).map((k) => `
     <tr>
@@ -1979,7 +2088,7 @@ async function renderReports() {
       <td><span class="pill bad">${g.size}/${g.max}</span></td>
       <td>#${esc(g.teamId)}</td>
       <td>${(g.members || []).map((n) => esc(n)).join(", ")}</td>
-    </tr>`).join("") || `<tr><td colspan="4"><div class="empty">No group alerts yet</div></td></tr>`;
+    </tr>`).join("") || `<tr><td colspan="4"><div class="empty">No group alerts yet<span class="empty-hint">Groups will trigger alerts when large teams form</span></div></td></tr>`;
 
   const combatRows = (data.combat || []).map((c) => `
     <tr>
@@ -1987,7 +2096,7 @@ async function renderReports() {
       <td><strong>${esc(c.killer)}</strong></td>
       <td>${esc(c.victim)}</td>
       <td>${esc(c.weapon || "—")}${c.headshot ? " · HS" : ""}</td>
-    </tr>`).join("") || `<tr><td colspan="4"><div class="empty">No combat events yet — waiting for PvP kills</div></td></tr>`;
+    </tr>`).join("") || `<tr><td colspan="4"><div class="empty">No combat events yet<span class="empty-hint">Waiting for PvP kills to track</span></div></td></tr>`;
 
   return `
     <div class="section-stack">
@@ -2413,6 +2522,25 @@ function bindView() {
         toast(e.message, true);
       }
     };
+  });
+
+  document.querySelectorAll("[data-toggle-dropdown]").forEach((btn) => {
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      const target = btn.dataset.toggleDropdown;
+      const dropdown = btn.closest(".dropdown");
+      const wasOpen = dropdown.classList.contains("open");
+      
+      document.querySelectorAll(".dropdown.open").forEach(d => d.classList.remove("open"));
+      
+      if (!wasOpen) {
+        dropdown.classList.add("open");
+      }
+    };
+  });
+
+  document.addEventListener("click", () => {
+    document.querySelectorAll(".dropdown.open").forEach(d => d.classList.remove("open"));
   });
 
   const rconInput = document.getElementById("rconCmd");
