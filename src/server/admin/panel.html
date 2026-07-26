@@ -2117,10 +2117,7 @@ async function renderKits() {
         </div>
       </div>
       <div class="card">
-        <h3>Kit Builder</h3>
-        <p class="muted" style="font-family:var(--mono);font-size:.74rem;margin:0 0 1.5rem">
-          Build custom item kits with images. Search ${catalog.total || 0} items, click to add.
-        </p>
+        <h3>Kit Builder <span class="pill info" style="margin-left:.35rem;font-size:.65rem">Console Edition</span></h3>
         <div class="kit-builder">
           <div class="form-grid" style="grid-template-columns: 1fr 1fr 140px">
             <input id="kitId" placeholder="Kit ID (e.g. vip)" value="${esc(d.id)}" />

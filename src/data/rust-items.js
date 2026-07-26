@@ -28,6 +28,8 @@ export function listRustItems({ q = "", category = "" } = {}) {
   }
 
   return {
+    platform: CATALOG.platform || "console",
+    label: CATALOG.label || "Rust Console Edition",
     total: ITEMS.length,
     categories: ["All", ...CATEGORIES],
     items: rows,
