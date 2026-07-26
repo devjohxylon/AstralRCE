@@ -119,7 +119,7 @@ export async function runEventNow(id, admin) {
   }
   
   try {
-    const result = await runCommand(event.command);
+    const result = await sendGameCommand(event.command);
     
     event.lastRunAt = new Date().toISOString();
     event.runCount++;
@@ -178,7 +178,7 @@ function scheduleEvent(event) {
 
 async function executeEvent(event) {
   try {
-    const result = await runCommand(event.command);
+    const result = await sendGameCommand(event.command);
     
     const data = await load();
     const e = data.events.find(ev => ev.id === event.id);
