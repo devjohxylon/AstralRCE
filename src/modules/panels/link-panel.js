@@ -1,5 +1,9 @@
+import { existsSync } from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 import {
   ActionRowBuilder,
+  AttachmentBuilder,
   ButtonBuilder,
   ButtonStyle,
   EmbedBuilder,
@@ -17,16 +21,23 @@ const BUTTON_STATUS = "link:status";
 const MODAL_ID = "link:modal";
 const IGN_FIELD = "ign";
 
+const LOGO_NAME = "astral-logo.png";
+const LOGO_PATH = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../../../assets/astral-logo.png",
+);
+
+// Uploading the logo with the message keeps the embed working even when the
+// public admin domain isn't reachable.
 function brandIcon(guild) {
-  return (
-    config.brand?.logoUrl ||
-    guild?.iconURL({ size: 256, extension: "png" }) ||
-    null
-  );
+  if (config.brand?.logoUrl) return { url: config.brand.logoUrl, attach: false };
+  if (existsSync(LOGO_PATH)) return { url: `attachment://${LOGO_NAME}`, attach: true };
+  const guildIcon = guild?.iconURL({ size: 256, extension: "png" });
+  return { url: guildIcon || null, attach: false };
 }
 
 export function buildLinkPanelEmbed(guild) {
-  const icon = brandIcon(guild);
+  const { url: icon } = brandIcon(guild);
   const embed = new EmbedBuilder()
     .setColor(ACCENT)
     .setTitle("🔗 Link Your Account")
@@ -63,9 +74,11 @@ export function buildLinkPanelRow() {
 }
 
 export async function postLinkPanel(channel) {
+  const { attach } = brandIcon(channel.guild);
   return channel.send({
     embeds: [buildLinkPanelEmbed(channel.guild)],
     components: [buildLinkPanelRow()],
+    files: attach ? [new AttachmentBuilder(LOGO_PATH, { name: LOGO_NAME })] : [],
   });
 }
 

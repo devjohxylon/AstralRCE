@@ -1,8 +1,15 @@
 import express from "express";
+import path from "path";
+import { fileURLToPath } from "url";
 import { config } from "../config.js";
 import { publishFromWebsite, getBotStatus } from "../services/discordPublish.js";
 import { backfillChannel, syncLatestLeaderboard } from "../services/website.js";
 import { attachAdminPanel } from "./admin/api.js";
+
+const LOGO_PATH = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../../assets/astral-logo.png",
+);
 
 function authorize(req, res, next) {
   const header = req.get("authorization") ?? "";
@@ -18,6 +25,10 @@ function authorize(req, res, next) {
 export function createWebhookServer(client) {
   const app = express();
   app.use(express.json({ limit: "1mb" }));
+
+  app.get(["/logo.png", "/favicon.ico"], (_req, res) => {
+    res.type("image/png").sendFile(LOGO_PATH);
+  });
 
   attachAdminPanel(app, client);
 
