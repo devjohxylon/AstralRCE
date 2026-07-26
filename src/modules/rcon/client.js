@@ -160,34 +160,61 @@ export async function broadcast(message) {
 
 let cachedMapMetadata = null;
 
+function parseMapNumber(raw) {
+  if (raw == null) return null;
+  const text = String(raw).replace(/,/g, "");
+  const match = text.match(/-?\d+(?:\.\d+)?/);
+  if (!match) return null;
+  const n = Number(match[0]);
+  return Number.isFinite(n) ? Math.round(n) : null;
+}
+
+function mapImageCandidates(seed, size) {
+  const custom = process.env.RUST_MAP_IMAGE_URL?.trim();
+  if (custom) return [custom];
+  if (!seed) return [];
+  // Public rustmaps CDN patterns (may 404 for console / unindexed seeds)
+  return [
+    `https://rustmaps.com/img/228/${seed}/${size}/${size}/0/2/map.jpg`,
+    `https://rustmaps.com/img/${seed}_${size}.jpg`,
+  ];
+}
+
 export async function getMapMetadata() {
   if (cachedMapMetadata) return cachedMapMetadata;
 
+  const envSeed = process.env.RUST_MAP_SEED ? parseMapNumber(process.env.RUST_MAP_SEED) : null;
+  const envSize = process.env.RUST_MAP_SIZE ? parseMapNumber(process.env.RUST_MAP_SIZE) : null;
+
   if (!manager || !socketIsOpen()) {
+    const seed = envSeed;
+    const size = envSize || 4000;
     return {
-      seed: process.env.RUST_MAP_SEED ? parseInt(process.env.RUST_MAP_SEED) : null,
-      size: process.env.RUST_MAP_SIZE ? parseInt(process.env.RUST_MAP_SIZE) : 4000,
+      seed,
+      size,
+      imageUrl: mapImageCandidates(seed, size)[0] || null,
+      imageUrls: mapImageCandidates(seed, size),
     };
   }
 
   try {
-    const seedResponse = await sendGameCommand("global.seed").catch(() => 
-      sendGameCommand("seed").catch(() => null)
-    );
-    
-    const sizeResponse = await sendGameCommand("global.worldsize").catch(() => 
-      sendGameCommand("worldsize").catch(() => null)
+    const seedResponse = await sendGameCommand("global.seed").catch(() =>
+      sendGameCommand("seed").catch(() => null),
     );
 
-    const seed = seedResponse ? parseInt(seedResponse.trim()) : null;
-    const size = sizeResponse ? parseInt(sizeResponse.trim()) : 4000;
+    const sizeResponse = await sendGameCommand("global.worldsize").catch(() =>
+      sendGameCommand("worldsize").catch(() => null),
+    );
 
-    const envSeed = process.env.RUST_MAP_SEED ? parseInt(process.env.RUST_MAP_SEED) : null;
-    const envSize = process.env.RUST_MAP_SIZE ? parseInt(process.env.RUST_MAP_SIZE) : null;
+    const seed = parseMapNumber(seedResponse) || envSeed;
+    const size = parseMapNumber(sizeResponse) || envSize || 4000;
+    const images = mapImageCandidates(seed, size);
 
     cachedMapMetadata = {
-      seed: seed || envSeed,
-      size: size || envSize || 4000,
+      seed,
+      size,
+      imageUrl: images[0] || null,
+      imageUrls: images,
     };
 
     if (cachedMapMetadata.seed) {
@@ -197,9 +224,13 @@ export async function getMapMetadata() {
     return cachedMapMetadata;
   } catch (error) {
     console.error("Failed to fetch map metadata:", error.message);
+    const seed = envSeed;
+    const size = envSize || 4000;
     return {
-      seed: process.env.RUST_MAP_SEED ? parseInt(process.env.RUST_MAP_SEED) : null,
-      size: process.env.RUST_MAP_SIZE ? parseInt(process.env.RUST_MAP_SIZE) : 4000,
+      seed,
+      size,
+      imageUrl: mapImageCandidates(seed, size)[0] || null,
+      imageUrls: mapImageCandidates(seed, size),
     };
   }
 }

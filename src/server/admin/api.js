@@ -10,6 +10,7 @@ import {
   getMapMetadata,
   clearMapMetadataCache,
 } from "../../modules/rcon/client.js";
+import { getPlayersWithPositions } from "../../modules/rcon/live-map.js";
 import {
   forceLink,
   listLinks,
@@ -198,6 +199,7 @@ export async function attachAdminPanel(app, client) {
             map: info.Map,
             mapSeed: mapMetadata.seed,
             mapSize: mapMetadata.size,
+            mapImageUrl: mapMetadata.imageUrl || null,
             gameTime: info.GameTime,
             uptime: info.Uptime,
             fps: info.Framerate,
@@ -248,6 +250,18 @@ export async function attachAdminPanel(app, client) {
     } catch (error) {
       res.status(500).json({ ok: false, error: error.message });
     }
+  });
+
+  app.get("/admin/api/map", requireAuth, requirePerm("overview"), async (_req, res) => {
+    const mapMetadata = await getMapMetadata();
+    res.json({
+      ok: true,
+      seed: mapMetadata.seed,
+      size: mapMetadata.size,
+      imageUrl: mapMetadata.imageUrl || null,
+      imageUrls: mapMetadata.imageUrls || [],
+      players: getPlayersWithPositions(),
+    });
   });
 
   app.post("/admin/api/map/refresh", requireAuth, requirePerm("overview"), async (req, res) => {

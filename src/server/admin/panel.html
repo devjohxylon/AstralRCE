@@ -1041,13 +1041,24 @@ function connectWebSocket() {
   });
 
   state.socket.on("players:update", (players) => {
-    state.playerPositions = players;
-    if (state.tab === "map") {
-      renderMap().then(() => {
-        const view = document.getElementById("view");
-        if (view) view.innerHTML = renderMap();
+    state.playerPositions = players || [];
+    if (state.tab !== "map") return;
+    drawMap();
+    const tbody = document.getElementById("mapPlayerRows");
+    if (tbody) {
+      tbody.innerHTML = mapPlayerRowsHtml(state.playerPositions);
+      tbody.querySelectorAll("[data-action]").forEach((el) => {
+        el.onclick = async () => {
+          if (el.dataset.action === "viewPlayer") {
+            state.selectedPlayer = el.dataset.ign;
+            state.tab = "players";
+            render();
+          }
+        };
       });
     }
+    const count = document.getElementById("mapOnlineCount");
+    if (count) count.textContent = `Online (${state.playerPositions.length})`;
   });
 
   state.socket.on("kill:new", (data) => {
@@ -1740,35 +1751,46 @@ function drawMap() {
   const isMobile = window.innerWidth <= 900;
   const maxSize = isMobile ? window.innerWidth - 40 : 600;
   
-  const w = img ? Math.min(img.clientWidth, maxSize) : Math.min(canvas.width, maxSize);
-  const h = img ? Math.min(img.clientHeight, maxSize) : Math.min(canvas.height, maxSize);
+  let w = Math.min(canvas.clientWidth || canvas.width || 500, maxSize);
+  let h = Math.min(canvas.clientHeight || canvas.height || 500, maxSize);
+  if (img && img.clientWidth) {
+    w = Math.min(img.clientWidth, maxSize);
+    h = Math.min(img.clientHeight || img.clientWidth, maxSize);
+  }
+  if (!w || !h) {
+    w = Math.min(500, maxSize);
+    h = w;
+  }
   
   canvas.width = w;
   canvas.height = h;
   
-  if (!img) {
+  ctx.clearRect(0, 0, w, h);
+  
+  if (!img || !img.complete || img.naturalWidth === 0) {
     ctx.fillStyle = "#0a0a0a";
     ctx.fillRect(0, 0, w, h);
     
     ctx.strokeStyle = "rgba(255,255,255,0.1)";
     ctx.lineWidth = 1;
-    for (let i = 0; i < w; i += w / 10) {
+    for (let i = 0; i <= 10; i++) {
+      const x = (i / 10) * w;
+      const y = (i / 10) * h;
       ctx.beginPath();
-      ctx.moveTo(i, 0);
-      ctx.lineTo(i, h);
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, h);
       ctx.stroke();
-    }
-    for (let i = 0; i < h; i += h / 10) {
       ctx.beginPath();
-      ctx.moveTo(0, i);
-      ctx.lineTo(w, i);
+      ctx.moveTo(0, y);
+      ctx.lineTo(w, y);
       ctx.stroke();
     }
   }
   
   const MAP_SIZE = state.overview?.server?.mapSize || 4000;
+  const players = state.playerPositions || [];
   
-  state.playerPositions.forEach(p => {
+  players.forEach(p => {
     if (!p.coords) return;
     
     const x = ((p.coords.x + MAP_SIZE / 2) / MAP_SIZE) * w;
@@ -1797,6 +1819,24 @@ function drawMap() {
     
     ctx.shadowBlur = 0;
   });
+}
+
+function mapPlayerRowsHtml(players) {
+  const rows = (players || []).map(p => {
+    const coords = p.coords
+      ? `(${Math.round(p.coords.x)}, ${Math.round(p.coords.y)}, ${Math.round(p.coords.z)})`
+      : "…";
+    return `
+      <tr>
+        <td><strong>${esc(p.ign)}</strong></td>
+        <td>${coords}</td>
+        <td class="actions">
+          <button data-action="viewPlayer" data-ign="${esc(p.ign)}">Profile</button>
+        </td>
+      </tr>
+    `;
+  }).join("");
+  return rows || `<tr><td colspan="3" class="muted">No players online</td></tr>`;
 }
 
 function kitDraftRowsHtml() {
@@ -2354,28 +2394,28 @@ async function renderAnalytics() {
 }
 
 async function renderMap() {
+  try {
+    const live = await api("/map");
+    if (live?.ok && Array.isArray(live.players)) {
+      state.playerPositions = live.players;
+      if (state.overview?.server) {
+        if (live.seed) state.overview.server.mapSeed = live.seed;
+        if (live.size) state.overview.server.mapSize = live.size;
+        if (live.imageUrl) state.overview.server.mapImageUrl = live.imageUrl;
+      }
+    }
+  } catch {
+    /* websocket / overview fallback */
+  }
+
   const players = state.playerPositions || [];
   const server = state.overview?.server;
   const mapSeed = server?.mapSeed || 0;
   const mapSize = server?.mapSize || 4000;
   const mapName = server?.map || "Unknown";
-  
-  const mapImageUrl = mapSeed 
-    ? `https://rustmaps.com/img/228/${mapSeed}/${mapSize}/${mapSize}/0/2/map.jpg`
-    : null;
-  
-  const rows = players.map(p => {
-    const coords = p.coords ? `(${Math.round(p.coords.x)}, ${Math.round(p.coords.y)}, ${Math.round(p.coords.z)})` : "—";
-    return `
-      <tr>
-        <td><strong>${esc(p.ign)}</strong></td>
-        <td>${coords}</td>
-        <td class="actions">
-          ${coords !== "—" ? `<button data-action="viewPlayer" data-ign="${esc(p.ign)}">Profile</button>` : ""}
-        </td>
-      </tr>
-    `;
-  }).join("") || `<tr><td colspan="3" class="muted">No players online</td></tr>`;
+  const mapImageUrl = server?.mapImageUrl
+    || (mapSeed ? `https://rustmaps.com/img/228/${mapSeed}/${mapSize}/${mapSize}/0/2/map.jpg` : null);
+  const withCoords = players.filter((p) => p.coords).length;
 
   return `
     <div class="split">
@@ -2385,17 +2425,21 @@ async function renderMap() {
           <button data-action="refreshMap" style="padding:.3rem .6rem;font-size:.72rem">Refresh Map</button>
         </div>
         <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:0 0 .75rem">
-          ${mapSeed ? `Map: ${esc(mapName)} · Seed: ${mapSeed} · Size: ${mapSize}m` : 'Waiting for server data...'}
+          ${mapSeed
+            ? `Map: ${esc(mapName)} · Seed: ${mapSeed} · Size: ${mapSize}m · Tracked: ${withCoords}/${players.length}`
+            : "Waiting for seed/size — set RUST_MAP_SEED / RUST_MAP_SIZE or click Refresh Map"}
         </p>
-        <div style="position:relative;max-width:500px;margin:0 auto">
-          ${mapImageUrl ? `<img id="mapImage" src="${mapImageUrl}" style="width:100%;height:auto;display:block;border:1px solid var(--line)" crossorigin="anonymous" />` : ''}
-          <canvas id="mapCanvas" width="500" height="500" style="position:absolute;top:0;left:0;width:100%;height:100%;${!mapImageUrl ? 'border:1px solid var(--line);background:#0a0a0a;position:relative;' : ''}"></canvas>
+        <div style="position:relative;max-width:500px;margin:0 auto;aspect-ratio:1;background:#0a0a0a;border:1px solid var(--line)">
+          ${mapImageUrl
+            ? `<img id="mapImage" src="${esc(mapImageUrl)}" alt="Map" style="width:100%;height:100%;object-fit:contain;display:block" onload="drawMap()" onerror="this.style.display='none';drawMap()" />`
+            : ""}
+          <canvas id="mapCanvas" width="500" height="500" style="position:absolute;inset:0;width:100%;height:100%"></canvas>
         </div>
+        <p class="hint" style="margin-top:.75rem">Positions poll via RCON every few seconds. Grid still works if the map image 404s (common for console seeds).</p>
       </div>
       <div class="card">
-        <h3>Online (${players.length})</h3>
-        <div class="table-wrap"><table class="table"><thead><tr><th>IGN</th><th>Position</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
-        ${!mapSeed ? `<p class="hint" style="margin-top:.75rem">Map will load once server data is available. Make sure RCON is connected and reporting seed/size.</p>` : ''}
+        <h3 id="mapOnlineCount">Online (${players.length})</h3>
+        <div class="table-wrap"><table class="table"><thead><tr><th>IGN</th><th>Position</th><th></th></tr></thead><tbody id="mapPlayerRows">${mapPlayerRowsHtml(players)}</tbody></table></div>
       </div>
     </div>
   `;
@@ -2427,7 +2471,7 @@ function bindView() {
           const r = await api("/map/refresh", { method: "POST", body: {} });
           if (r.ok) {
             toast(`Map refreshed: Seed ${r.seed}, Size ${r.size}m`);
-            await fetchOverview();
+            await refreshOverview();
             render();
           } else {
             toast(`Failed to refresh map: ${r.error}`);

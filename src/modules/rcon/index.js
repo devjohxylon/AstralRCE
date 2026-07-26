@@ -40,6 +40,7 @@ import {
   startGroupScanner,
   stopGroupScanner,
 } from "./reports.js";
+import { startPositionPolling, stopPositionPolling } from "./live-map.js";
 
 const LEADERBOARD_BOARDS = [
   { category: "kills", title: "Top Kills" },
@@ -155,6 +156,7 @@ export async function startRcon(client) {
   startScheduler();
   startWipeScheduler(client);
   startGroupScanner();
+  startPositionPolling();
   return manager;
 }
 
@@ -272,6 +274,7 @@ export async function shutdownRcon() {
   stopScheduler();
   stopWipeScheduler();
   stopGroupScanner();
+  stopPositionPolling();
   await flushAllFeeds().catch(() => {});
   await flushStats({ force: true }).catch(() => {});
 }

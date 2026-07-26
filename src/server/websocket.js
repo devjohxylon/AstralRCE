@@ -1,6 +1,7 @@
 import { Server } from "socket.io";
 import { getSession } from "../modules/admin/access-keys.js";
 import { getOnlinePlayers, getRconStatus, getServerInfo } from "../modules/rcon/client.js";
+import { getPlayersWithPositions } from "../modules/rcon/live-map.js";
 import { statsSummary } from "../modules/rcon/stats.js";
 
 let io = null;
@@ -64,13 +65,7 @@ function startRealtimeUpdates() {
       onlineCount: players.length,
     });
 
-    io.emit("players:update", players.map(p => ({
-      ign: p.ign,
-      ping: p.ping ?? null,
-      platform: p.platform ?? null,
-      coords: p.position || null,
-      team: p.team?.id ?? null,
-    })));
+    io.emit("players:update", getPlayersWithPositions());
   }, 3000);
 
   setInterval(async () => {
