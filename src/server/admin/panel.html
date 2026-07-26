@@ -696,6 +696,8 @@ input:focus, textarea:focus, select:focus {
         <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 15l6-6M8.5 7.5l1-1a4 4 0 0 1 6 6l-1 1M15.5 16.5l-1 1a4 4 0 0 1-6-6l1-1"/></svg>Links</button>
       <button data-tab="kits" data-perm="kits">
         <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8h18v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><path d="M3 8l2-4h14l2 4M12 4v16"/></svg>Kits</button>
+      <button data-tab="reports" data-perm="reports">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l2 4h4l-3 3 1 4-4-2-4 2 1-4-3-3h4z"/><circle cx="12" cy="12" r="9"/></svg>Reports</button>
       <button data-tab="automation" data-perm="automation">
         <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Automation</button>
     </div>
@@ -751,6 +753,7 @@ const state = {
   },
   itemCatalog: null,
   autoSub: "messages",
+  reportQuery: "",
 };
 
 function can(perm) {
@@ -963,7 +966,7 @@ function setTab(tab) {
   document.querySelectorAll(".nav [data-tab]").forEach((b) => b.classList.toggle("active", b.dataset.tab === tab));
   const titles = {
     overview: "Overview", players: "Players", commands: "Commands", console: "RCON", stats: "Stats",
-    warps: "Warps", links: "Links", kits: "Kits", automation: "Automation",
+    warps: "Warps", links: "Links", kits: "Kits", reports: "Reports", automation: "Automation",
     keys: "Keys", logs: "Logs",
   };
   const subs = {
@@ -975,6 +978,7 @@ function setTab(tab) {
     warps: "Warps and force teleports",
     links: "Discord ↔ IGN links",
     kits: "Server kits + panel builder",
+    reports: "Combat log and trio group alerts",
     automation: "Auto messages and scheduled commands",
     keys: "Staff access keys",
     logs: "Panel audit trail",
@@ -1000,6 +1004,7 @@ async function render() {
     if (state.tab === "links") view.innerHTML = await renderLinks();
     if (state.tab === "automation") view.innerHTML = await renderAutomation();
     if (state.tab === "kits") view.innerHTML = await renderKits();
+    if (state.tab === "reports") view.innerHTML = await renderReports();
     if (state.tab === "keys") view.innerHTML = await renderKeys();
     if (state.tab === "logs") view.innerHTML = await renderLogs();
     bindView();
@@ -1740,6 +1745,54 @@ async function renderKeys() {
     </div>`;
 }
 
+async function renderReports() {
+  const q = encodeURIComponent(state.reportQuery || "");
+  const data = await api(`/reports?limit=100${q ? `&q=${q}` : ""}`);
+  const max = data.groupMax || 3;
+
+  const groupRows = (data.groups || []).map((g) => `
+    <tr>
+      <td class="muted">${new Date(g.at).toLocaleString()}</td>
+      <td><span class="pill bad">${g.size}/${g.max}</span></td>
+      <td>#${esc(g.teamId)}</td>
+      <td>${(g.members || []).map((n) => esc(n)).join(", ")}</td>
+    </tr>`).join("") || `<tr><td colspan="4"><div class="empty">No group alerts yet</div></td></tr>`;
+
+  const combatRows = (data.combat || []).map((c) => `
+    <tr>
+      <td class="muted">${new Date(c.at).toLocaleString()}</td>
+      <td><strong>${esc(c.killer)}</strong></td>
+      <td>${esc(c.victim)}</td>
+      <td>${esc(c.weapon || "—")}${c.headshot ? " · HS" : ""}</td>
+    </tr>`).join("") || `<tr><td colspan="4"><div class="empty">No combat events yet — waiting for PvP kills</div></td></tr>`;
+
+  return `
+    <div class="section-stack">
+      <div class="card">
+        <div class="card-head">
+          <h3 style="margin:0">Trio group alerts (max ${max})</h3>
+          <div class="actions">
+            <button data-action="scanGroups">Scan now</button>
+          </div>
+        </div>
+        <p class="muted" style="font-family:var(--mono);font-size:.68rem;margin:0 0 .55rem">
+          Teams with more than ${max} members ping Discord <code>CHANNEL_REPORTS</code> and show here.
+        </p>
+        <div class="table-wrap"><table class="table"><thead><tr><th>When</th><th>Size</th><th>Team</th><th>Members</th></tr></thead><tbody>${groupRows}</tbody></table></div>
+      </div>
+      <div class="card">
+        <div class="card-head">
+          <h3 style="margin:0">Combat log</h3>
+        </div>
+        <div class="form-row" style="margin-top:0;margin-bottom:.55rem">
+          <input id="reportSearch" placeholder="Search IGN" value="${esc(state.reportQuery || "")}" />
+          <button data-action="searchCombat">Search</button>
+        </div>
+        <div class="table-wrap"><table class="table"><thead><tr><th>When</th><th>Killer</th><th>Victim</th><th>Detail</th></tr></thead><tbody>${combatRows}</tbody></table></div>
+      </div>
+    </div>`;
+}
+
 async function renderLogs() {
   const data = await api("/logs?limit=150");
   const rows = data.entries.map((e) => `
@@ -1768,6 +1821,17 @@ function bindView() {
       try {
         if (a === "autoSub") {
           state.autoSub = el.dataset.sub || "messages";
+          render();
+          return;
+        }
+        if (a === "scanGroups") {
+          const r = await api("/reports/scan", { method: "POST", body: {} });
+          toast(r.hits?.length ? `${r.hits.length} oversized team(s)` : "No oversized teams");
+          render();
+          return;
+        }
+        if (a === "searchCombat") {
+          state.reportQuery = document.getElementById("reportSearch")?.value?.trim() || "";
           render();
           return;
         }

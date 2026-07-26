@@ -51,6 +51,7 @@ const adminLog = parseChannelId("CHANNEL_ADMIN_LOG");
 const popStatusChannel = parseChannelId("CHANNEL_POP_STATUS");
 const tpLog = parseChannelId("CHANNEL_TP_LOG");
 const wipeStatus = parseChannelId("CHANNEL_WIPE_STATUS");
+const reports = parseChannelId("CHANNEL_REPORTS");
 
 function parseWordList(name) {
   return optional(name)
@@ -145,8 +146,13 @@ export const config = {
     popStatus: popStatusChannel,
     tpLog,
     wipeStatus,
+    reports,
     outbound: outboundChannels,
     watch: watchChannels,
+  },
+  groups: {
+    // Trio wipe: flag teams larger than this (Discord + Reports tab)
+    maxMembers: Number(optional("GROUP_MAX_MEMBERS", "3")) || 3,
   },
   roles: {
     staff: parseIdList("ROLE_STAFF_IDS"),

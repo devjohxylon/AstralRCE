@@ -24,6 +24,7 @@ export const STAFF_PERMISSIONS = {
   schedule: false,
   kits: false,
   serverCommands: true,
+  reports: true,
 };
 
 export const OWNER_PERMISSIONS = {

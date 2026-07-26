@@ -51,6 +51,7 @@ import {
   getChannelConfig,
   saveChannelConfig,
 } from "../../modules/admin/channel-settings.js";
+import { listReports, scanAllTeams, searchCombat } from "../../modules/rcon/reports.js";
 import {
   STAFF_PERMISSIONS,
   appendPanelLog,
@@ -637,6 +638,27 @@ export function attachAdminPanel(app, client) {
       const result = await sendGameCommand(command);
       await audit(req, "event_trigger", { id: id || null, command });
       res.json({ ok: true, result: result ?? "", command });
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  // ——— Reports (combat + group limit) ———
+  app.get("/admin/api/reports", requireAuth, requirePerm("reports"), async (req, res) => {
+    const limit = Number(req.query.limit) || 80;
+    const q = String(req.query.q ?? "").trim();
+    const data = listReports({ limit });
+    if (q) {
+      data.combat = searchCombat(q, limit);
+    }
+    res.json({ ok: true, ...data });
+  });
+
+  app.post("/admin/api/reports/scan", requireAuth, requirePerm("reports"), async (req, res) => {
+    try {
+      const hits = await scanAllTeams();
+      await audit(req, "group_scan", { hits: hits.length });
+      res.json({ ok: true, hits });
     } catch (error) {
       res.status(500).json({ ok: false, error: error.message });
     }

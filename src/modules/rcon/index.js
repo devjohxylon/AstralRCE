@@ -33,6 +33,13 @@ import {
 import { startScheduler, stopScheduler } from "./scheduler.js";
 import { startWipeScheduler, stopWipeScheduler, syncWipeStatus } from "./wipe.js";
 import { syncVipForDiscord, syncVipOnJoin } from "./vip-sync.js";
+import {
+  attachReportsClient,
+  checkTeamSize,
+  recordCombatEvent,
+  startGroupScanner,
+  stopGroupScanner,
+} from "./reports.js";
 
 const LEADERBOARD_BOARDS = [
   { category: "kills", title: "Top Kills" },
@@ -53,6 +60,7 @@ export async function startRcon(client) {
 
   discordClient = client;
   attachFeedClient(client);
+  attachReportsClient(client);
   const manager = await connectRcon();
   if (!manager) {
     startWipeScheduler(client);
@@ -63,10 +71,12 @@ export async function startRcon(client) {
     syncServerStatus(client, getServerInfo(), { force: true }).catch(() => {});
     pushLeaderboardToWebsite().catch(() => {});
     syncWipeStatus(client, { force: true }).catch(() => {});
+    scanTeamsSoon(manager);
   });
 
   manager.on(RCEEvent.PlayerKill, async (data) => {
     feedKill(data);
+    recordCombatEvent(data);
     await recordKill(data).catch(() => {});
 
     if (config.rcon.ingameKillfeed && data.killer?.type === "Player") {
@@ -74,6 +84,17 @@ export async function startRcon(client) {
         `say <color=#ff5555>${data.killer.name}</color> killed <color=#ff5555>${data.victim.name}</color>`,
       ).catch(() => {});
     }
+  });
+
+  for (const evt of [RCEEvent.TeamCreated, RCEEvent.TeamJoin]) {
+    manager.on(evt, ({ team }) => {
+      checkTeamSize(team).catch(() => {});
+    });
+  }
+
+  manager.on(RCEEvent.TeamLeave, () => {
+    // Re-scan shortly so shrunk teams clear and oversized ones still alert
+    setTimeout(() => scanTeamsSoon(manager), 2000);
   });
 
   manager.on(RCEEvent.PlayerJoined, async ({ player }) => {
@@ -133,7 +154,15 @@ export async function startRcon(client) {
 
   startScheduler();
   startWipeScheduler(client);
+  startGroupScanner();
   return manager;
+}
+
+function scanTeamsSoon(manager) {
+  setTimeout(() => {
+    const teams = manager?.getTeams?.(config.rcon.identifier) || [];
+    for (const team of teams) checkTeamSize(team).catch(() => {});
+  }, 3000);
 }
 
 export async function syncServerStatus(client, info = getServerInfo(), { force = false } = {}) {
@@ -242,6 +271,7 @@ export async function relayDiscordToGame(message) {
 export async function shutdownRcon() {
   stopScheduler();
   stopWipeScheduler();
+  stopGroupScanner();
   await flushAllFeeds().catch(() => {});
   await flushStats({ force: true }).catch(() => {});
 }

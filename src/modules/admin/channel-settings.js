@@ -40,6 +40,13 @@ export const CHANNEL_FIELDS = [
   },
   {
     group: "Feeds",
+    key: "reports",
+    label: "Reports / combat",
+    env: "CHANNEL_REPORTS",
+    hint: "Staff combat log + trio group alerts",
+  },
+  {
+    group: "Feeds",
     key: "tpLog",
     label: "Teleport log",
     env: "CHANNEL_TP_LOG",
