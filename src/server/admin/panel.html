@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Astral Control</title>
 <link rel="icon" type="image/png" href="/logo.png" />
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
@@ -678,6 +680,10 @@ input:focus, textarea:focus, select:focus {
       <div class="nav-group-label">Server</div>
       <button data-tab="overview" class="active" data-perm="overview">
         <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Overview</button>
+      <button data-tab="analytics" data-perm="overview">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M18 17l-3-3-4 4-5-5"/></svg>Analytics</button>
+      <button data-tab="map" data-perm="players">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3z"/><path d="M9 3v15M15 6v15"/></svg>Live Map</button>
       <button data-tab="players" data-perm="players">
         <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><path d="M17 5a3 3 0 0 1 0 6M21 20c0-2.5-1.5-4.7-3.7-5.6"/></svg>Players</button>
       <button data-tab="commands" data-perm="serverCommands">
@@ -754,6 +760,10 @@ const state = {
   itemCatalog: null,
   autoSub: "messages",
   reportQuery: "",
+  socket: null,
+  playerPositions: [],
+  selectedPlayer: null,
+  analyticsData: null,
 };
 
 function can(perm) {
@@ -929,6 +939,9 @@ async function boot() {
     document.getElementById("navUserName").textContent = label;
     document.getElementById("navUserRole").textContent = roleTxt;
     document.getElementById("navAvatar").textContent = (label[0] || "A").toUpperCase();
+    
+    connectWebSocket();
+    
     if (can("overview")) await refreshOverview().catch(() => {});
     setTab(state.tab);
     setInterval(() => {
@@ -941,6 +954,83 @@ async function boot() {
     state.session = null;
     initLoginScene();
   }
+}
+
+function connectWebSocket() {
+  if (state.socket) return;
+  
+  state.socket = io({
+    path: "/admin/socket.io",
+    transports: ["websocket", "polling"],
+  });
+
+  state.socket.on("connect", () => {
+    console.log("WebSocket connected");
+  });
+
+  state.socket.on("disconnect", () => {
+    console.log("WebSocket disconnected");
+  });
+
+  state.socket.on("server:update", (data) => {
+    if (state.overview) {
+      Object.assign(state.overview.rcon, data.rcon || {});
+      if (data.server) {
+        Object.assign(state.overview.server, data.server);
+      }
+    }
+    if (state.tab === "overview") {
+      const pills = document.getElementById("statusPills");
+      if (pills) refreshStatusPills();
+    }
+  });
+
+  state.socket.on("players:update", (players) => {
+    state.playerPositions = players;
+    if (state.tab === "map") {
+      renderMap().then(() => {
+        const view = document.getElementById("view");
+        if (view) view.innerHTML = renderMap();
+      });
+    }
+  });
+
+  state.socket.on("kill:new", (data) => {
+    if (state.tab === "overview" || state.tab === "analytics") {
+      toast(`🔫 ${data.killer} killed ${data.victim}`);
+    }
+  });
+
+  state.socket.on("player:join", (data) => {
+    if (state.tab === "players") {
+      toast(`📥 ${data.ign} joined`);
+      setTimeout(() => refreshOverview().then(render).catch(() => {}), 1000);
+    }
+  });
+
+  state.socket.on("player:leave", (data) => {
+    if (state.tab === "players") {
+      toast(`📤 ${data.ign} left`);
+      setTimeout(() => refreshOverview().then(render).catch(() => {}), 1000);
+    }
+  });
+
+  state.socket.on("alert:new", (data) => {
+    toast(data.message, data.level === "error");
+  });
+}
+
+function refreshStatusPills() {
+  const o = state.overview || {};
+  const pills = document.getElementById("statusPills");
+  if (!pills) return;
+  const r = o.rcon || {};
+  pills.innerHTML = `
+    <span class="pill ${!r.enabled ? "warn" : r.connected ? "ok" : "bad"}">RCON ${!r.enabled ? "UNSET" : r.connected ? "ONLINE" : "OFFLINE"}</span>
+    <span class="pill ${o.bot?.ready ? "ok" : "bad"}">DISCORD ${o.bot?.ready ? "READY" : "DOWN"}</span>
+    <span class="pill info">${state.playerPositions.length || o.onlinePlayers?.length || 0} ONLINE</span>
+    <span class="pill info plain">${state.session?.role === "owner" ? "OWNER" : "STAFF"}</span>
+  `;
 }
 
 async function refreshOverview() {
@@ -965,12 +1055,15 @@ function setTab(tab) {
   state.tab = tab;
   document.querySelectorAll(".nav [data-tab]").forEach((b) => b.classList.toggle("active", b.dataset.tab === tab));
   const titles = {
-    overview: "Overview", players: "Players", commands: "Commands", console: "RCON", stats: "Stats",
+    overview: "Overview", analytics: "Analytics", map: "Live Map", players: "Players", 
+    commands: "Commands", console: "RCON", stats: "Stats",
     warps: "Warps", links: "Links", kits: "Kits", reports: "Reports", automation: "Automation",
     keys: "Keys", logs: "Logs",
   };
   const subs = {
     overview: "Server health and quick controls",
+    analytics: "Performance metrics and player trends",
+    map: "Real-time player positions",
     players: "Who's online right now",
     commands: "Channels, kits, ranks, events",
     console: "Raw RCON commands",
@@ -996,6 +1089,8 @@ async function render() {
   view.style.animation = "";
   try {
     if (state.tab === "overview") view.innerHTML = renderOverview();
+    if (state.tab === "analytics") view.innerHTML = await renderAnalytics();
+    if (state.tab === "map") view.innerHTML = await renderMap();
     if (state.tab === "players") view.innerHTML = await renderPlayers();
     if (state.tab === "commands") view.innerHTML = await renderServerCommands();
     if (state.tab === "console") view.innerHTML = renderConsole();
@@ -1483,6 +1578,111 @@ function refreshKitBuilderDom() {
   bindKitBuilderEvents();
 }
 
+function initAnalyticsCharts() {
+  const ctx1 = document.getElementById("analyticsChart");
+  const ctx2 = document.getElementById("performanceChart");
+  
+  if (ctx1 && state.analyticsData?.hourlyData) {
+    const hours = state.analyticsData.hourlyData.map(h => h.hour.slice(-2) + ":00");
+    const peaks = state.analyticsData.hourlyData.map(h => h.peak);
+    
+    new Chart(ctx1, {
+      type: "line",
+      data: {
+        labels: hours,
+        datasets: [{
+          label: "Peak Players",
+          data: peaks,
+          borderColor: "rgb(126, 184, 232)",
+          backgroundColor: "rgba(126, 184, 232, 0.1)",
+          tension: 0.4,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { beginAtZero: true, ticks: { color: "#9aa0ab" }, grid: { color: "rgba(255,255,255,0.07)" } },
+          x: { ticks: { color: "#9aa0ab" }, grid: { color: "rgba(255,255,255,0.07)" } },
+        },
+      },
+    });
+  }
+  
+  if (ctx2 && state.analyticsData?.performanceData) {
+    const recent = state.analyticsData.performanceData.slice(-30);
+    const labels = recent.map((_, i) => `${i}m`);
+    const fps = recent.map(p => p.fps);
+    
+    new Chart(ctx2, {
+      type: "line",
+      data: {
+        labels,
+        datasets: [{
+          label: "FPS",
+          data: fps,
+          borderColor: "rgb(94, 217, 160)",
+          backgroundColor: "rgba(94, 217, 160, 0.1)",
+          tension: 0.4,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { beginAtZero: true, ticks: { color: "#9aa0ab" }, grid: { color: "rgba(255,255,255,0.07)" } },
+          x: { ticks: { display: false }, grid: { display: false } },
+        },
+      },
+    });
+  }
+}
+
+function drawMap() {
+  const canvas = document.getElementById("mapCanvas");
+  if (!canvas) return;
+  
+  const ctx = canvas.getContext("2d");
+  const w = canvas.width;
+  const h = canvas.height;
+  
+  ctx.fillStyle = "#0a0a0a";
+  ctx.fillRect(0, 0, w, h);
+  
+  ctx.strokeStyle = "rgba(255,255,255,0.1)";
+  ctx.lineWidth = 1;
+  for (let i = 0; i < w; i += w / 10) {
+    ctx.beginPath();
+    ctx.moveTo(i, 0);
+    ctx.lineTo(i, h);
+    ctx.stroke();
+  }
+  for (let i = 0; i < h; i += h / 10) {
+    ctx.beginPath();
+    ctx.moveTo(0, i);
+    ctx.lineTo(w, i);
+    ctx.stroke();
+  }
+  
+  const MAP_SIZE = 4000;
+  state.playerPositions.forEach(p => {
+    if (!p.coords) return;
+    const x = ((p.coords.x + MAP_SIZE / 2) / MAP_SIZE) * w;
+    const y = h - ((p.coords.z + MAP_SIZE / 2) / MAP_SIZE) * h;
+    
+    ctx.fillStyle = "#7eb8e8";
+    ctx.beginPath();
+    ctx.arc(x, y, 4, 0, Math.PI * 2);
+    ctx.fill();
+    
+    ctx.fillStyle = "#fff";
+    ctx.font = "10px monospace";
+    ctx.fillText(p.ign, x + 6, y + 3);
+  });
+}
+
 function kitDraftRowsHtml() {
   const items = state.kitDraft.items || [];
   if (!items.length) {
@@ -1810,15 +2010,94 @@ async function renderLogs() {
     </div>`;
 }
 
+async function renderAnalytics() {
+  if (!state.analyticsData) {
+    state.analyticsData = await api("/analytics").catch(() => null);
+  }
+  
+  const data = state.analyticsData || {};
+  const weapons = (data.topWeapons || []).slice(0, 5).map(w => `
+    <tr><td>${esc(w.weapon)}</td><td>${w.kills}</td></tr>
+  `).join("") || `<tr><td colspan="2" class="muted">No data yet</td></tr>`;
+
+  return `
+    <div class="grid stats">
+      ${statCard(data.peak24h || 0, "Peak 24h")}
+      ${statCard(data.avg24h || 0, "Avg 24h")}
+      ${statCard(data.avgFps || "—", "Avg FPS")}
+      ${statCard(data.activePlayers || 0, "Active players")}
+    </div>
+    <div class="split" style="margin-top:1rem">
+      <div class="card">
+        <h3>Player activity (24h)</h3>
+        <canvas id="analyticsChart" style="max-height:300px"></canvas>
+      </div>
+      <div class="card">
+        <h3>Top weapons</h3>
+        <table class="table"><thead><tr><th>Weapon</th><th>Kills</th></tr></thead><tbody>${weapons}</tbody></table>
+        <h3 style="margin-top:1.5rem">Server performance</h3>
+        <canvas id="performanceChart" style="max-height:180px"></canvas>
+      </div>
+    </div>
+  `;
+}
+
+async function renderMap() {
+  const players = state.playerPositions || [];
+  const rows = players.map(p => {
+    const coords = p.coords ? `(${Math.round(p.coords.x)}, ${Math.round(p.coords.y)}, ${Math.round(p.coords.z)})` : "—";
+    return `
+      <tr>
+        <td><strong>${esc(p.ign)}</strong></td>
+        <td>${coords}</td>
+        <td class="actions">
+          ${coords !== "—" ? `<button data-action="viewPlayer" data-ign="${esc(p.ign)}">Profile</button>` : ""}
+        </td>
+      </tr>
+    `;
+  }).join("") || `<tr><td colspan="3" class="muted">No players online</td></tr>`;
+
+  return `
+    <div class="split">
+      <div class="card">
+        <h3>Live player positions</h3>
+        <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:0 0 .75rem">Updates every 3 seconds via WebSocket. Click player for profile.</p>
+        <canvas id="mapCanvas" width="400" height="400" style="border:1px solid var(--line);background:#0a0a0a;max-width:100%"></canvas>
+      </div>
+      <div class="card">
+        <h3>Online (${players.length})</h3>
+        <div class="table-wrap"><table class="table"><thead><tr><th>IGN</th><th>Position</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+      </div>
+    </div>
+  `;
+}
+
 function esc(s) {
   return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[c]));
 }
 
 function bindView() {
+  // Initialize charts if on analytics tab
+  if (state.tab === "analytics" && state.analyticsData) {
+    initAnalyticsCharts();
+  }
+  
+  // Draw map if on map tab
+  if (state.tab === "map") {
+    drawMap();
+  }
+
   document.querySelectorAll("[data-action]").forEach((el) => {
     el.onclick = async () => {
       const a = el.dataset.action;
       try {
+        if (a === "viewPlayer") {
+          const ign = el.dataset.ign;
+          state.selectedPlayer = ign;
+          state.tab = "players";
+          render();
+          return;
+        }
         if (a === "autoSub") {
           state.autoSub = el.dataset.sub || "messages";
           render();
