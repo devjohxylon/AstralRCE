@@ -1741,6 +1741,99 @@ function initAnalyticsCharts() {
   }
 }
 
+function hash2(x, y, seed) {
+  let n = Math.imul(x, 374761393) + Math.imul(y, 668265263) + seed;
+  n = (n ^ (n >>> 13)) >>> 0;
+  n = Math.imul(n, 1274126177);
+  return ((n ^ (n >>> 16)) >>> 0) / 4294967295;
+}
+
+function smoothNoise(x, y, seed) {
+  const x0 = Math.floor(x);
+  const y0 = Math.floor(y);
+  const fx = x - x0;
+  const fy = y - y0;
+  const sx = fx * fx * (3 - 2 * fx);
+  const sy = fy * fy * (3 - 2 * fy);
+  const a = hash2(x0, y0, seed);
+  const b = hash2(x0 + 1, y0, seed);
+  const c = hash2(x0, y0 + 1, seed);
+  const d = hash2(x0 + 1, y0 + 1, seed);
+  return a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy;
+}
+
+function fbm(x, y, seed) {
+  let v = 0;
+  let amp = 0.5;
+  let freq = 1;
+  for (let i = 0; i < 5; i++) {
+    v += smoothNoise(x * freq, y * freq, seed + i * 1013) * amp;
+    amp *= 0.5;
+    freq *= 2;
+  }
+  return v;
+}
+
+function drawProceduralTerrain(ctx, w, h, seed) {
+  const s = Number(seed) || 1;
+  const img = ctx.createImageData(w, h);
+  const data = img.data;
+  for (let py = 0; py < h; py++) {
+    for (let px = 0; px < w; px++) {
+      const nx = px / w;
+      const ny = py / h;
+      const dx = nx - 0.5;
+      const dy = ny - 0.5;
+      const dist = Math.sqrt(dx * dx + dy * dy) * 2;
+      const elev = fbm(nx * 4, ny * 4, s) - dist * 0.55;
+      const moist = fbm(nx * 3 + 40, ny * 3 + 40, s + 99);
+      const i = (py * w + px) * 4;
+      let r; let g; let b;
+      if (elev < 0.08) {
+        // ocean
+        const deep = Math.max(0, Math.min(1, (0.08 - elev) * 4));
+        r = 18 + deep * 8;
+        g = 48 + deep * 20;
+        b = 72 + deep * 40;
+      } else if (elev < 0.14) {
+        // shore
+        r = 194; g = 178; b = 128;
+      } else if (moist < 0.35 && elev < 0.55) {
+        // arid
+        r = 176 + elev * 40; g = 142; b = 82;
+      } else if (elev > 0.72 || (moist > 0.65 && elev > 0.55)) {
+        // arctic / snow peaks
+        r = 210 + elev * 30; g = 220; b = 230;
+      } else if (moist > 0.55) {
+        // tundra / forest
+        r = 58 + elev * 40; g = 98 + elev * 50; b = 62;
+      } else {
+        // temperate grass
+        r = 72 + elev * 50; g = 118 + elev * 40; b = 58;
+      }
+      // subtle grid roads-ish noise
+      const road = smoothNoise(nx * 18, ny * 18, s + 7);
+      if (elev > 0.16 && road > 0.82) {
+        r = (r + 90) / 2; g = (g + 80) / 2; b = (b + 60) / 2;
+      }
+      data[i] = Math.min(255, r);
+      data[i + 1] = Math.min(255, g);
+      data[i + 2] = Math.min(255, b);
+      data[i + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  // grid overlay
+  ctx.strokeStyle = "rgba(255,255,255,0.08)";
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 10; i++) {
+    const x = (i / 10) * w;
+    const y = (i / 10) * h;
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+  }
+}
+
 function drawMap() {
   const canvas = document.getElementById("mapCanvas");
   if (!canvas) return;
@@ -1753,7 +1846,7 @@ function drawMap() {
   
   let w = Math.min(canvas.clientWidth || canvas.width || 500, maxSize);
   let h = Math.min(canvas.clientHeight || canvas.height || 500, maxSize);
-  if (img && img.clientWidth) {
+  if (img && img.clientWidth && img.style.display !== "none") {
     w = Math.min(img.clientWidth, maxSize);
     h = Math.min(img.clientHeight || img.clientWidth, maxSize);
   }
@@ -1762,29 +1855,20 @@ function drawMap() {
     h = w;
   }
   
-  canvas.width = w;
-  canvas.height = h;
+  // Cap procedural resolution for speed
+  const drawW = Math.min(Math.round(w), 520);
+  const drawH = Math.min(Math.round(h), 520);
+  canvas.width = drawW;
+  canvas.height = drawH;
+  canvas.style.width = "100%";
+  canvas.style.height = "100%";
   
-  ctx.clearRect(0, 0, w, h);
+  ctx.clearRect(0, 0, drawW, drawH);
   
-  if (!img || !img.complete || img.naturalWidth === 0) {
-    ctx.fillStyle = "#0a0a0a";
-    ctx.fillRect(0, 0, w, h);
-    
-    ctx.strokeStyle = "rgba(255,255,255,0.1)";
-    ctx.lineWidth = 1;
-    for (let i = 0; i <= 10; i++) {
-      const x = (i / 10) * w;
-      const y = (i / 10) * h;
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, h);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(w, y);
-      ctx.stroke();
-    }
+  const hasPhoto = img && img.style.display !== "none" && img.complete && img.naturalWidth > 0;
+  if (!hasPhoto) {
+    const seed = state.overview?.server?.mapSeed || 1;
+    drawProceduralTerrain(ctx, drawW, drawH, seed);
   }
   
   const MAP_SIZE = state.overview?.server?.mapSize || 4000;
@@ -1793,8 +1877,8 @@ function drawMap() {
   players.forEach(p => {
     if (!p.coords) return;
     
-    const x = ((p.coords.x + MAP_SIZE / 2) / MAP_SIZE) * w;
-    const y = h - ((p.coords.z + MAP_SIZE / 2) / MAP_SIZE) * h;
+    const x = ((p.coords.x + MAP_SIZE / 2) / MAP_SIZE) * drawW;
+    const y = drawH - ((p.coords.z + MAP_SIZE / 2) / MAP_SIZE) * drawH;
     
     ctx.shadowColor = "rgba(0,0,0,0.8)";
     ctx.shadowBlur = 4;
@@ -2394,15 +2478,25 @@ async function renderAnalytics() {
 }
 
 async function renderMap() {
+  let imageReady = false;
+  let imageStatus = null;
+  let imageMessage = null;
+  let rustmapsUrl = null;
+  let mapImageUrl = null;
+
   try {
     const live = await api("/map");
-    if (live?.ok && Array.isArray(live.players)) {
-      state.playerPositions = live.players;
+    if (live?.ok) {
+      if (Array.isArray(live.players)) state.playerPositions = live.players;
       if (state.overview?.server) {
         if (live.seed) state.overview.server.mapSeed = live.seed;
         if (live.size) state.overview.server.mapSize = live.size;
-        if (live.imageUrl) state.overview.server.mapImageUrl = live.imageUrl;
       }
+      imageReady = Boolean(live.imageReady);
+      imageStatus = live.imageStatus;
+      imageMessage = live.imageMessage;
+      rustmapsUrl = live.rustmapsUrl;
+      mapImageUrl = live.imageUrl || null;
     }
   } catch {
     /* websocket / overview fallback */
@@ -2413,9 +2507,16 @@ async function renderMap() {
   const mapSeed = server?.mapSeed || 0;
   const mapSize = server?.mapSize || 4000;
   const mapName = server?.map || "Unknown";
-  const mapImageUrl = server?.mapImageUrl
-    || (mapSeed ? `https://rustmaps.com/img/228/${mapSeed}/${mapSize}/${mapSize}/0/2/map.jpg` : null);
   const withCoords = players.filter((p) => p.coords).length;
+  if (!rustmapsUrl && mapSeed) rustmapsUrl = `https://rustmaps.com/map/${mapSeed}_${mapSize}`;
+
+  const statusHint = imageReady
+    ? "Showing RustMaps preview (cached)."
+    : imageStatus === "generating"
+      ? "RustMaps is generating this seed — hit Refresh Map in a bit."
+      : imageStatus === "needs_key"
+        ? `For an exact map image, set <code>RUSTMAPS_API_KEY</code> in Railway (free key at <a href="https://rustmaps.com/dashboard" target="_blank" rel="noopener">rustmaps.com/dashboard</a>). Showing a seed-based preview for now.`
+        : `Showing a seed-based terrain preview. ${rustmapsUrl ? `<a href="${esc(rustmapsUrl)}" target="_blank" rel="noopener">Open on RustMaps</a>` : ""}`;
 
   return `
     <div class="split">
@@ -2431,11 +2532,11 @@ async function renderMap() {
         </p>
         <div style="position:relative;max-width:500px;margin:0 auto;aspect-ratio:1;background:#0a0a0a;border:1px solid var(--line)">
           ${mapImageUrl
-            ? `<img id="mapImage" src="${esc(mapImageUrl)}" alt="Map" style="width:100%;height:100%;object-fit:contain;display:block" onload="drawMap()" onerror="this.style.display='none';drawMap()" />`
+            ? `<img id="mapImage" src="${esc(mapImageUrl)}&t=${Date.now()}" alt="Map" style="width:100%;height:100%;object-fit:contain;display:block" onload="drawMap()" onerror="this.style.display='none';drawMap()" />`
             : ""}
           <canvas id="mapCanvas" width="500" height="500" style="position:absolute;inset:0;width:100%;height:100%"></canvas>
         </div>
-        <p class="hint" style="margin-top:.75rem">Positions poll via RCON every few seconds. Grid still works if the map image 404s (common for console seeds).</p>
+        <p class="hint" style="margin-top:.75rem">${statusHint}${imageMessage && !imageReady ? ` <span class="muted">(${esc(imageMessage)})</span>` : ""}</p>
       </div>
       <div class="card">
         <h3 id="mapOnlineCount">Online (${players.length})</h3>
@@ -2470,7 +2571,14 @@ function bindView() {
           btn.textContent = "Refreshing...";
           const r = await api("/map/refresh", { method: "POST", body: {} });
           if (r.ok) {
-            toast(`Map refreshed: Seed ${r.seed}, Size ${r.size}m`);
+            const imgNote = r.imageReady
+              ? " · map image ready"
+              : r.imageStatus === "generating"
+                ? " · generating on RustMaps…"
+                : r.imageStatus === "needs_key"
+                  ? " · add RUSTMAPS_API_KEY for exact preview"
+                  : "";
+            toast(`Map refreshed: Seed ${r.seed}, Size ${r.size}m${imgNote}`);
             await refreshOverview();
             render();
           } else {

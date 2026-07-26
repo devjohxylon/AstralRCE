@@ -12,6 +12,11 @@ import {
 } from "../../modules/rcon/client.js";
 import { getPlayersWithPositions } from "../../modules/rcon/live-map.js";
 import {
+  ensureMapPreview,
+  hasCachedMapImage,
+  readCachedMapImage,
+} from "../../modules/rcon/map-preview.js";
+import {
   forceLink,
   listLinks,
   unlinkDiscord,
@@ -254,22 +259,87 @@ export async function attachAdminPanel(app, client) {
 
   app.get("/admin/api/map", requireAuth, requirePerm("overview"), async (_req, res) => {
     const mapMetadata = await getMapMetadata();
+    const seed = mapMetadata.seed;
+    const size = mapMetadata.size;
+    const imageReady = seed ? await hasCachedMapImage(seed, size) : false;
+    let preview = null;
+    if (seed && !imageReady) {
+      // Kick off fetch in background so first paint isn't blocked for long gens
+      preview = await ensureMapPreview(seed, size).catch((e) => ({
+        ok: false,
+        status: "error",
+        imageReady: false,
+        message: e.message,
+      }));
+    } else if (imageReady) {
+      preview = {
+        ok: true,
+        status: "cached",
+        imageReady: true,
+        proxyPath: `/admin/api/map/image?seed=${seed}&size=${size}`,
+      };
+    }
     res.json({
       ok: true,
-      seed: mapMetadata.seed,
-      size: mapMetadata.size,
-      imageUrl: mapMetadata.imageUrl || null,
-      imageUrls: mapMetadata.imageUrls || [],
+      seed,
+      size,
+      imageUrl: preview?.imageReady
+        ? `/admin/api/map/image?seed=${seed}&size=${size}`
+        : null,
+      imageReady: Boolean(preview?.imageReady),
+      imageStatus: preview?.status || (seed ? "pending" : "no_seed"),
+      imageMessage: preview?.message || null,
+      rustmapsUrl: seed ? `https://rustmaps.com/map/${seed}_${size}` : null,
       players: getPlayersWithPositions(),
     });
+  });
+
+  app.get("/admin/api/map/image", requireAuth, requirePerm("overview"), async (req, res) => {
+    try {
+      const seed = Number(req.query.seed);
+      const size = Number(req.query.size) || 4000;
+      let buf = await readCachedMapImage(seed, size);
+      if (!buf) {
+        const preview = await ensureMapPreview(seed, size);
+        if (!preview.imageReady) {
+          return res.status(404).json({ ok: false, error: preview.message || "No map image" });
+        }
+        buf = await readCachedMapImage(seed, size);
+      }
+      if (!buf) return res.status(404).json({ ok: false, error: "No map image" });
+      res.setHeader("Content-Type", "image/jpeg");
+      res.setHeader("Cache-Control", "private, max-age=3600");
+      res.send(buf);
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
   });
 
   app.post("/admin/api/map/refresh", requireAuth, requirePerm("overview"), async (req, res) => {
     try {
       clearMapMetadataCache();
       const mapMetadata = await getMapMetadata();
-      await audit(req, "map_refresh", { seed: mapMetadata.seed, size: mapMetadata.size });
-      res.json({ ok: true, ...mapMetadata });
+      const preview = mapMetadata.seed
+        ? await ensureMapPreview(mapMetadata.seed, mapMetadata.size, { force: true })
+        : { imageReady: false, status: "no_seed" };
+      await audit(req, "map_refresh", {
+        seed: mapMetadata.seed,
+        size: mapMetadata.size,
+        imageStatus: preview.status,
+      });
+      res.json({
+        ok: true,
+        ...mapMetadata,
+        imageReady: Boolean(preview.imageReady),
+        imageStatus: preview.status,
+        imageMessage: preview.message || null,
+        imageUrl: preview.imageReady
+          ? `/admin/api/map/image?seed=${mapMetadata.seed}&size=${mapMetadata.size}`
+          : null,
+        rustmapsUrl: mapMetadata.seed
+          ? `https://rustmaps.com/map/${mapMetadata.seed}_${mapMetadata.size}`
+          : null,
+      });
     } catch (error) {
       res.status(500).json({ ok: false, error: error.message });
     }

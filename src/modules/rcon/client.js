@@ -172,12 +172,9 @@ function parseMapNumber(raw) {
 function mapImageCandidates(seed, size) {
   const custom = process.env.RUST_MAP_IMAGE_URL?.trim();
   if (custom) return [custom];
-  if (!seed) return [];
-  // Public rustmaps CDN patterns (may 404 for console / unindexed seeds)
-  return [
-    `https://rustmaps.com/img/228/${seed}/${size}/${size}/0/2/map.jpg`,
-    `https://rustmaps.com/img/${seed}_${size}.jpg`,
-  ];
+  // Served by /admin/api/map/image after RustMaps / custom download into .data/maps
+  if (seed) return [`/admin/api/map/image?seed=${seed}&size=${size || 4000}`];
+  return [];
 }
 
 export async function getMapMetadata() {
