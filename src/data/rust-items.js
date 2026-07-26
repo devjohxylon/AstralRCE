@@ -1,13 +1,15 @@
 import { readFileSync } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { isConsoleKitItem } from "./console-items.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CATALOG = JSON.parse(
   readFileSync(path.join(__dirname, "rust-items.json"), "utf8"),
 );
 
-const ITEMS = Array.isArray(CATALOG.items) ? CATALOG.items : [];
+const RAW = Array.isArray(CATALOG.items) ? CATALOG.items : [];
+const ITEMS = RAW.filter(isConsoleKitItem);
 const CATEGORIES = [...new Set(ITEMS.map((i) => i.category).filter(Boolean))].sort();
 
 export function listRustItems({ q = "", category = "" } = {}) {
@@ -28,8 +30,8 @@ export function listRustItems({ q = "", category = "" } = {}) {
   }
 
   return {
-    platform: CATALOG.platform || "console",
-    label: CATALOG.label || "Rust Console Edition",
+    platform: "console",
+    label: "Rust Console Edition",
     total: ITEMS.length,
     categories: ["All", ...CATEGORIES],
     items: rows,
