@@ -192,6 +192,8 @@ export function attachAdminPanel(app, client) {
             queued: info.Queued,
             joining: info.Joining,
             map: info.Map,
+            mapSeed: info.Seed ?? null,
+            mapSize: info.WorldSize ?? 4000,
             gameTime: info.GameTime,
             uptime: info.Uptime,
             fps: info.Framerate,
