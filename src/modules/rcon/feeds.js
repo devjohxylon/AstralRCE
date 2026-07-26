@@ -221,11 +221,31 @@ export function feedAdminAction(text) {
 export function feedPlayerBanned({ player, admin }) {
   const by = admin?.ign ? ` by **${clean(admin.ign)}**` : "";
   feedAdminAction(`🔨 **${clean(player?.ign)}** was banned${by}`);
+  if (player?.ign) {
+    import("../bans/manager.js")
+      .then(({ upsertActiveBan }) =>
+        upsertActiveBan({
+          ign: player.ign,
+          reason: "Banned in-game",
+          admin: admin?.ign || "Game server",
+          steamId: player.id || player.steamId || null,
+          source: "rcon_event",
+        }),
+      )
+      .catch(() => {});
+  }
 }
 
 export function feedPlayerUnbanned({ player, admin }) {
   const by = admin?.ign ? ` by **${clean(admin.ign)}**` : "";
   feedAdminAction(`♻️ **${clean(player?.ign)}** was unbanned${by}`);
+  if (player?.ign) {
+    import("../bans/manager.js")
+      .then(({ unbanPlayer }) =>
+        unbanPlayer(player.ign, admin?.ign || "Game server", "Unbanned in-game"),
+      )
+      .catch(() => {});
+  }
 }
 
 export function feedItemSpawn({ player, item, quantity }) {

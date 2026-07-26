@@ -207,6 +207,19 @@ export async function handleRconCommand(interaction) {
   try {
     const response = await sendGameCommand(command);
 
+    if (sub === "ban" && player) {
+      const { upsertActiveBan } = await import("../modules/bans/manager.js");
+      await upsertActiveBan({
+        ign: player,
+        reason,
+        admin: interaction.user.username,
+        source: "discord",
+      }).catch(() => {});
+    } else if (sub === "unban" && player) {
+      const { unbanPlayer } = await import("../modules/bans/manager.js");
+      await unbanPlayer(player, interaction.user.username, "Unbanned via Discord").catch(() => {});
+    }
+
     await sendModLog(interaction.guild, {
       title: "RCON command",
       moderatorId: interaction.user.id,

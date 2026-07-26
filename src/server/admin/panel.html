@@ -2315,37 +2315,47 @@ async function renderAudit() {
 async function renderBans() {
   const data = await api("/bans");
   const bans = data.bans || [];
-  
-  const rows = bans.map((b) => {
-    const expires = b.expiresAt ? new Date(b.expiresAt).toLocaleString() : "Never";
-    const bannedAgo = Math.floor((Date.now() - new Date(b.bannedAt).getTime()) / 1000 / 60);
-    
-    return `
-    <tr>
-      <td data-label="Player"><strong>${esc(b.ign)}</strong></td>
-      <td data-label="Reason">${esc(b.reason)}</td>
-      <td data-label="Admin">${esc(b.admin)}</td>
-      <td data-label="Banned">${bannedAgo}m ago</td>
-      <td data-label="Expires">${expires}</td>
-      <td data-label="Actions" class="actions">
-        ${can("ban") ? `<button class="danger" data-action="unban" data-ign="${esc(b.ign)}">Unban</button>` : ""}
-      </td>
-    </tr>`;
-  }).join("") || `<tr><td colspan="6"><div class="empty">No active bans<span class="empty-hint">Banned players will appear here</span></div></td></tr>`;
-  
+  const history = data.history || [];
+  const syncNote = data.sync?.added
+    ? ` · synced ${data.sync.added} from server`
+    : data.sync?.parsed
+      ? ` · server list matched (${data.sync.parsed})`
+      : "";
+
+  function banRows(list, { inactive = false } = {}) {
+    return list.map((b) => {
+      const expires = b.expiresAt ? new Date(b.expiresAt).toLocaleString() : "Never";
+      const when = b.bannedAt ? new Date(b.bannedAt).toLocaleString() : "—";
+      return `
+      <tr>
+        <td data-label="Player"><strong>${esc(b.ign)}</strong></td>
+        <td data-label="Reason">${esc(b.reason)}</td>
+        <td data-label="Admin">${esc(b.admin)}</td>
+        <td data-label="Banned">${esc(when)}</td>
+        <td data-label="${inactive ? "Unbanned" : "Expires"}">${inactive ? esc(b.unbannedAt ? new Date(b.unbannedAt).toLocaleString() : "—") : esc(expires)}</td>
+        <td data-label="Actions" class="actions">
+          ${!inactive && can("ban") ? `<button class="danger" data-action="unban" data-ign="${esc(b.ign)}">Unban</button>` : `<span class="muted">${esc(b.source || "")}</span>`}
+        </td>
+      </tr>`;
+    }).join("") || `<tr><td colspan="6"><div class="empty">${inactive ? "No past bans" : "No active bans"}<span class="empty-hint">${inactive ? "" : "Click Sync from server if players were banned outside the panel"}</span></div></td></tr>`;
+  }
+
   return `
     <div class="card">
       <div class="card-head">
         <h3>Active Bans</h3>
-        <span class="pill ${bans.length > 0 ? "bad" : "ok"}">${bans.length} banned</span>
+        <div style="display:flex;gap:.5rem;align-items:center">
+          <span class="pill ${bans.length > 0 ? "bad" : "ok"}">${bans.length} banned${syncNote}</span>
+          <button data-action="syncBans" style="padding:.3rem .6rem;font-size:.72rem">Sync from server</button>
+        </div>
       </div>
-      <p class="card-desc">Manage player bans - temporary and permanent. Bans are synced with the Rust server.</p>
+      <p class="card-desc">Panel bans, Discord bans, and the live server banlist. Use Sync if older bans are missing.</p>
       <div class="table-wrap"><table class="table">
         <thead><tr><th>Player</th><th>Reason</th><th>Admin</th><th>Banned</th><th>Expires</th><th></th></tr></thead>
-        <tbody>${rows}</tbody>
+        <tbody>${banRows(bans)}</tbody>
       </table></div>
     </div>
-    
+
     <div class="card">
       <h3>Ban Player</h3>
       <div class="form-grid">
@@ -2363,6 +2373,17 @@ async function renderBans() {
         </div>
       </div>
       <button class="primary" style="margin-top:.75rem" data-action="createBan">Ban Player</button>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <h3>Ban history</h3>
+        <span class="pill info">${history.length}</span>
+      </div>
+      <div class="table-wrap"><table class="table">
+        <thead><tr><th>Player</th><th>Reason</th><th>Admin</th><th>Banned</th><th>Unbanned</th><th></th></tr></thead>
+        <tbody>${banRows(history.slice(0, 50), { inactive: true })}</tbody>
+      </table></div>
     </div>`;
 }
 
@@ -2870,6 +2891,17 @@ function bindView() {
         }
         
         // Ban Management
+        if (a === "syncBans") {
+          const r = await api("/bans/sync", { method: "POST", body: {} });
+          if (r.ok) {
+            const added = (r.sync?.added || 0) + (r.fromLogs?.added || 0);
+            toast(added ? `Synced ${added} ban(s)` : "Ban list up to date");
+            render();
+          } else {
+            toast(r.error || "Sync failed");
+          }
+          return;
+        }
         if (a === "createBan") {
           const ign = document.getElementById("banIgn")?.value?.trim();
           const reason = document.getElementById("banReason")?.value?.trim();

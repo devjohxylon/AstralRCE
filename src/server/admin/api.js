@@ -371,9 +371,20 @@ export async function attachAdminPanel(app, client) {
   app.post("/admin/api/players/:ign/ban", requireAuth, requirePerm("ban"), async (req, res) => {
     try {
       const reason = String(req.body?.reason ?? "Banned by admin");
-      const result = await sendGameCommand(`ban "${req.params.ign}" "${reason}"`);
+      const { banPlayer } = await import("../../modules/bans/manager.js");
+      const stored = await banPlayer(req.params.ign, reason, req.session.label);
+      // Already banned in our store is fine — still ensure game ban
+      const result = await sendGameCommand(`ban "${req.params.ign}" "${reason}"`).catch((e) => {
+        if (!stored.ok && stored.error !== "Player is already banned") throw e;
+        return e.message;
+      });
       await audit(req, "ban", { ign: req.params.ign, reason });
-      res.json({ ok: true, result: result ?? "" });
+      res.json({
+        ok: true,
+        result: result ?? "",
+        ban: stored.ban || null,
+        stored: stored.ok || stored.error === "Player is already banned",
+      });
     } catch (error) {
       res.status(500).json({ ok: false, error: error.message });
     }
@@ -922,17 +933,70 @@ export async function attachAdminPanel(app, client) {
     unbanPlayer,
     getBanHistory,
     getAllActiveBans,
+    getAllBans,
+    syncBansFromServer,
+    backfillBansFromPanelLogs,
   } = await import("../../modules/bans/manager.js");
-  
-  app.get("/admin/api/bans", requireAuth, requirePerm("ban"), async (_req, res) => {
+
+  async function fetchServerBanlist() {
+    const commands = ["banlistex", "global.banlistex", "banlist", "global.banlist", "bans"];
+    for (const cmd of commands) {
+      try {
+        const raw = await sendGameCommand(cmd);
+        if (raw && String(raw).trim()) return String(raw);
+      } catch {
+        /* try next */
+      }
+    }
+    return null;
+  }
+
+  app.get("/admin/api/bans", requireAuth, requirePerm("ban"), async (req, res) => {
     try {
-      const bans = await getAllActiveBans();
-      res.json({ ok: true, bans });
+      // Recover bans that only hit RCON + panel logs before the store existed
+      await backfillBansFromPanelLogs().catch(() => null);
+
+      let sync = null;
+      if (req.query.sync !== "0") {
+        const raw = await fetchServerBanlist().catch(() => null);
+        if (raw) {
+          sync = await syncBansFromServer(raw).catch((e) => ({
+            ok: false,
+            error: e.message,
+          }));
+        }
+      }
+
+      const active = await getAllActiveBans();
+      const history = (await getAllBans({ includeInactive: true, limit: 200 })).filter(
+        (b) => !b.active,
+      );
+      res.json({ ok: true, bans: active, history, sync });
     } catch (error) {
       res.status(500).json({ ok: false, error: error.message });
     }
   });
-  
+
+  app.post("/admin/api/bans/sync", requireAuth, requirePerm("ban"), async (req, res) => {
+    try {
+      const fromLogs = await backfillBansFromPanelLogs();
+      const raw = await fetchServerBanlist();
+      if (!raw) {
+        return res.json({
+          ok: true,
+          fromLogs,
+          sync: { ok: false, error: "Could not read banlist from server" },
+          bans: await getAllActiveBans(),
+        });
+      }
+      const sync = await syncBansFromServer(raw);
+      await audit(req, "bans_sync", { added: sync.added, parsed: sync.parsed });
+      res.json({ ok: true, fromLogs, sync, bans: await getAllActiveBans() });
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
   app.get("/admin/api/bans/:ign/history", requireAuth, requirePerm("players"), async (req, res) => {
     try {
       const history = await getBanHistory(req.params.ign);
@@ -941,35 +1005,41 @@ export async function attachAdminPanel(app, client) {
       res.status(500).json({ ok: false, error: error.message });
     }
   });
-  
+
   app.post("/admin/api/bans", requireAuth, requirePerm("ban"), async (req, res) => {
     try {
       const { ign, reason, duration } = req.body ?? {};
       if (!ign) return res.status(400).json({ ok: false, error: "Missing IGN" });
       if (!reason) return res.status(400).json({ ok: false, error: "Missing reason" });
-      
+
       const durationMs = duration ? Number(duration) * 60 * 1000 : null;
       const result = await banPlayer(ign, reason, req.session.label, durationMs);
-      
-      if (result.ok) {
-        await sendGameCommand(`global.ban ${ign} "${reason}"`);
+
+      if (result.ok || result.error === "Player is already banned") {
+        await sendGameCommand(`ban "${ign}" "${reason}"`).catch(() =>
+          sendGameCommand(`global.ban "${ign}" "${reason}"`),
+        );
+        await audit(req, "ban", { ign, reason, duration: duration || 0 });
       }
-      
-      res.json(result);
+
+      res.json(result.ok ? result : { ...result, ok: result.error === "Player is already banned" });
     } catch (error) {
       res.status(500).json({ ok: false, error: error.message });
     }
   });
-  
+
   app.delete("/admin/api/bans/:ign", requireAuth, requirePerm("ban"), async (req, res) => {
     try {
       const { reason } = req.body ?? {};
       const result = await unbanPlayer(req.params.ign, req.session.label, reason || "Unbanned");
-      
+
       if (result.ok) {
-        await sendGameCommand(`global.unban ${req.params.ign}`);
+        await sendGameCommand(`unban "${req.params.ign}"`).catch(() =>
+          sendGameCommand(`global.unban "${req.params.ign}"`),
+        );
+        await audit(req, "unban", { ign: req.params.ign, reason: reason || "Unbanned" });
       }
-      
+
       res.json(result);
     } catch (error) {
       res.status(500).json({ ok: false, error: error.message });
