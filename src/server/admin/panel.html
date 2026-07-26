@@ -1057,6 +1057,7 @@ function setTab(tab) {
     overview: "Overview", analytics: "Analytics", map: "Live Map", players: "Players", 
     commands: "Commands", console: "RCON", stats: "Stats",
     warps: "Warps", links: "Links", kits: "Kits", reports: "Reports", automation: "Automation",
+    audit: "Audit Log", bans: "Ban Management", events: "Scheduled Events",
     keys: "Keys", logs: "Logs",
   };
   const subs = {
@@ -1072,6 +1073,9 @@ function setTab(tab) {
     kits: "Server kits + panel builder",
     reports: "Combat log and trio group alerts",
     automation: "Auto messages and scheduled commands",
+    audit: "Complete history of all admin actions",
+    bans: "Manage player bans - temporary and permanent",
+    events: "Automate RCON commands on a schedule",
     keys: "Staff access keys",
     logs: "Panel audit trail",
   };
@@ -1099,6 +1103,9 @@ async function render() {
     if (state.tab === "automation") view.innerHTML = await renderAutomation();
     if (state.tab === "kits") view.innerHTML = await renderKits();
     if (state.tab === "reports") view.innerHTML = await renderReports();
+    if (state.tab === "audit") view.innerHTML = await renderAudit();
+    if (state.tab === "bans") view.innerHTML = await renderBans();
+    if (state.tab === "events") view.innerHTML = await renderEvents();
     if (state.tab === "keys") view.innerHTML = await renderKeys();
     if (state.tab === "logs") view.innerHTML = await renderLogs();
     bindView();
@@ -2072,6 +2079,164 @@ async function renderLogs() {
     </div>`;
 }
 
+async function renderAudit() {
+  const data = await api("/audit?limit=200");
+  const rows = (data.entries || []).map((e) => `
+    <tr>
+      <td data-label="Time" class="muted">${new Date(e.timestamp).toLocaleString()}</td>
+      <td data-label="Admin"><strong>${esc(e.admin)}</strong></td>
+      <td data-label="Action"><code>${esc(e.action)}</code></td>
+      <td data-label="Target">${e.target ? esc(e.target) : "—"}</td>
+      <td data-label="Details" class="muted" style="font-size:.7rem">${e.details ? esc(JSON.stringify(e.details)) : "—"}</td>
+    </tr>`).join("") || `<tr><td colspan="5"><div class="empty">No audit entries yet<span class="empty-hint">Admin actions will be logged here</span></div></td></tr>`;
+  
+  return `
+    <div class="card">
+      <div class="card-head">
+        <h3>Audit Log</h3>
+        <span class="pill info">${(data.entries || []).length} entries</span>
+      </div>
+      <p class="card-desc">Complete history of all admin actions - kicks, bans, commands, and more.</p>
+      <div class="table-wrap"><table class="table">
+        <thead><tr><th>Time</th><th>Admin</th><th>Action</th><th>Target</th><th>Details</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>
+    </div>`;
+}
+
+async function renderBans() {
+  const data = await api("/bans");
+  const bans = data.bans || [];
+  
+  const rows = bans.map((b) => {
+    const expires = b.expiresAt ? new Date(b.expiresAt).toLocaleString() : "Never";
+    const bannedAgo = Math.floor((Date.now() - new Date(b.bannedAt).getTime()) / 1000 / 60);
+    
+    return `
+    <tr>
+      <td data-label="Player"><strong>${esc(b.ign)}</strong></td>
+      <td data-label="Reason">${esc(b.reason)}</td>
+      <td data-label="Admin">${esc(b.admin)}</td>
+      <td data-label="Banned">${bannedAgo}m ago</td>
+      <td data-label="Expires">${expires}</td>
+      <td data-label="Actions" class="actions">
+        ${can("ban") ? `<button class="danger" data-action="unban" data-ign="${esc(b.ign)}">Unban</button>` : ""}
+      </td>
+    </tr>`;
+  }).join("") || `<tr><td colspan="6"><div class="empty">No active bans<span class="empty-hint">Banned players will appear here</span></div></td></tr>`;
+  
+  return `
+    <div class="card">
+      <div class="card-head">
+        <h3>Active Bans</h3>
+        <span class="pill ${bans.length > 0 ? "bad" : "ok"}">${bans.length} banned</span>
+      </div>
+      <p class="card-desc">Manage player bans - temporary and permanent. Bans are synced with the Rust server.</p>
+      <div class="table-wrap"><table class="table">
+        <thead><tr><th>Player</th><th>Reason</th><th>Admin</th><th>Banned</th><th>Expires</th><th></th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>
+    </div>
+    
+    <div class="card">
+      <h3>Ban Player</h3>
+      <div class="form-grid">
+        <div class="field">
+          <label for="banIgn">Player IGN</label>
+          <input id="banIgn" placeholder="PlayerName" />
+        </div>
+        <div class="field">
+          <label for="banReason">Reason</label>
+          <input id="banReason" placeholder="Cheating, toxicity, etc." />
+        </div>
+        <div class="field">
+          <label for="banDuration">Duration (minutes, 0 = permanent)</label>
+          <input id="banDuration" type="number" value="0" min="0" />
+        </div>
+      </div>
+      <button class="primary" style="margin-top:.75rem" data-action="createBan">Ban Player</button>
+    </div>`;
+}
+
+async function renderEvents() {
+  const data = await api("/events");
+  const events = data.events || [];
+  
+  const rows = events.map((e) => {
+    const nextRun = e.nextRunAt ? new Date(e.nextRunAt).toLocaleString() : "—";
+    const scheduleType = e.schedule.type === "interval" ? `Every ${e.schedule.minutes}m` :
+                         e.schedule.type === "daily" ? `Daily at ${e.schedule.time}` :
+                         e.schedule.type === "once" ? "One time" : "Unknown";
+    
+    return `
+    <tr>
+      <td data-label="Name"><strong>${esc(e.name)}</strong></td>
+      <td data-label="Command"><code style="font-size:.7rem">${esc(e.command)}</code></td>
+      <td data-label="Schedule">${scheduleType}</td>
+      <td data-label="Status"><span class="pill ${e.enabled ? "ok" : "bad"}">${e.enabled ? "ON" : "OFF"}</span></td>
+      <td data-label="Next Run">${nextRun}</td>
+      <td data-label="Runs">${e.runCount || 0}</td>
+      <td data-label="Actions" class="actions">
+        ${can("schedule") ? `
+          <button data-action="runEvent" data-id="${esc(e.id)}">Run Now</button>
+          <button data-action="toggleEvent" data-id="${esc(e.id)}" data-enabled="${e.enabled ? "1" : "0"}">${e.enabled ? "Disable" : "Enable"}</button>
+          <button class="danger" data-action="delEvent" data-id="${esc(e.id)}">Delete</button>
+        ` : ""}
+      </td>
+    </tr>`;
+  }).join("") || `<tr><td colspan="7"><div class="empty">No scheduled events<span class="empty-hint">Create automated tasks below</span></div></td></tr>`;
+  
+  return `
+    <div class="card">
+      <div class="card-head">
+        <h3>Scheduled Events</h3>
+        <span class="pill info">${events.length} events</span>
+      </div>
+      <p class="card-desc">Automate RCON commands on a schedule - restarts, announcements, cleanup, and more.</p>
+      <div class="table-wrap"><table class="table">
+        <thead><tr><th>Name</th><th>Command</th><th>Schedule</th><th>Status</th><th>Next Run</th><th>Runs</th><th></th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>
+    </div>
+    
+    <div class="card">
+      <h3>Create Event</h3>
+      <div class="form-grid">
+        <div class="field">
+          <label for="eventName">Event Name</label>
+          <input id="eventName" placeholder="Auto Restart" />
+        </div>
+        <div class="field">
+          <label for="eventCommand">RCON Command</label>
+          <input id="eventCommand" placeholder='server.save && server.restart' />
+        </div>
+      </div>
+      <div class="form-grid" style="margin-top:.75rem">
+        <div class="field">
+          <label for="eventType">Schedule Type</label>
+          <select id="eventType">
+            <option value="interval">Interval (every X minutes)</option>
+            <option value="daily">Daily (specific time)</option>
+            <option value="once">One Time</option>
+          </select>
+        </div>
+        <div class="field" id="intervalField">
+          <label for="eventInterval">Minutes</label>
+          <input id="eventInterval" type="number" value="60" min="1" />
+        </div>
+        <div class="field hidden" id="timeField">
+          <label for="eventTime">Time (HH:MM)</label>
+          <input id="eventTime" type="time" value="04:00" />
+        </div>
+        <div class="field hidden" id="onceField">
+          <label for="eventOnce">Run At</label>
+          <input id="eventOnce" type="datetime-local" />
+        </div>
+      </div>
+      <button class="primary" style="margin-top:.75rem" data-action="createEvent">Create Event</button>
+    </div>`;
+}
+
 async function renderAnalytics() {
   if (!state.analyticsData) {
     state.analyticsData = await api("/analytics").catch(() => null);
@@ -2448,11 +2613,113 @@ function bindView() {
           toast("Key revoked");
           render();
         }
+        
+        // Ban Management
+        if (a === "createBan") {
+          const ign = document.getElementById("banIgn")?.value?.trim();
+          const reason = document.getElementById("banReason")?.value?.trim();
+          const duration = Number(document.getElementById("banDuration")?.value || 0);
+          
+          if (!ign) { toast("Player IGN required", true); return; }
+          if (!reason) { toast("Ban reason required", true); return; }
+          
+          const r = await api("/bans", { method: "POST", body: { ign, reason, duration } });
+          if (r.ok) {
+            toast(`Banned ${ign}`);
+            render();
+          } else {
+            toast(r.error, true);
+          }
+        }
+        
+        if (a === "unban") {
+          const ign = el.dataset.ign;
+          if (!confirm(`Unban ${ign}?`)) return;
+          
+          const r = await api(`/bans/${encodeURIComponent(ign)}`, { method: "DELETE", body: {} });
+          if (r.ok) {
+            toast(`Unbanned ${ign}`);
+            render();
+          } else {
+            toast(r.error, true);
+          }
+        }
+        
+        // Scheduled Events
+        if (a === "createEvent") {
+          const name = document.getElementById("eventName")?.value?.trim();
+          const command = document.getElementById("eventCommand")?.value?.trim();
+          const type = document.getElementById("eventType")?.value;
+          
+          if (!name) { toast("Event name required", true); return; }
+          if (!command) { toast("Command required", true); return; }
+          
+          let schedule = { type };
+          
+          if (type === "interval") {
+            schedule.minutes = Number(document.getElementById("eventInterval")?.value || 60);
+          } else if (type === "daily") {
+            schedule.time = document.getElementById("eventTime")?.value || "04:00";
+          } else if (type === "once") {
+            schedule.at = document.getElementById("eventOnce")?.value;
+            if (!schedule.at) { toast("Date/time required for one-time events", true); return; }
+          }
+          
+          const r = await api("/events", { method: "POST", body: { name, command, schedule, oneTime: type === "once" } });
+          if (r.ok) {
+            toast("Event created");
+            render();
+          } else {
+            toast(r.error, true);
+          }
+        }
+        
+        if (a === "runEvent") {
+          const r = await api(`/events/${el.dataset.id}/run`, { method: "POST", body: {} });
+          if (r.ok) {
+            toast("Event executed");
+          } else {
+            toast(r.error, true);
+          }
+        }
+        
+        if (a === "toggleEvent") {
+          const enabled = el.dataset.enabled === "1" ? false : true;
+          const r = await api(`/events/${el.dataset.id}`, { method: "PATCH", body: { enabled } });
+          if (r.ok) {
+            toast(enabled ? "Event enabled" : "Event disabled");
+            render();
+          } else {
+            toast(r.error, true);
+          }
+        }
+        
+        if (a === "delEvent") {
+          if (!confirm("Delete this scheduled event?")) return;
+          const r = await api(`/events/${el.dataset.id}`, { method: "DELETE" });
+          if (r.ok) {
+            toast("Event deleted");
+            render();
+          } else {
+            toast(r.error, true);
+          }
+        }
       } catch (e) {
         toast(e.message, true);
       }
     };
   });
+
+  // Event type selector
+  const eventTypeSelector = document.getElementById("eventType");
+  if (eventTypeSelector) {
+    eventTypeSelector.onchange = () => {
+      const type = eventTypeSelector.value;
+      document.getElementById("intervalField")?.classList.toggle("hidden", type !== "interval");
+      document.getElementById("timeField")?.classList.toggle("hidden", type !== "daily");
+      document.getElementById("onceField")?.classList.toggle("hidden", type !== "once");
+    };
+  }
 
   document.querySelectorAll("[data-toggle-dropdown]").forEach((btn) => {
     btn.onclick = (e) => {
