@@ -219,8 +219,7 @@ input:focus, textarea:focus, select:focus {
   border-bottom: 1px solid var(--line);
 }
 #app.sidebar-collapsed .brand > span { display: none; }
-#app.sidebar-collapsed .brand { justify-content: center; }
-#app.sidebar-collapsed .sidebar-toggle { display: none; }
+#app.sidebar-collapsed .brand { justify-content: center; padding: .85rem .35rem; }
 .brand .logo {
   width: 28px; height: 28px; border-radius: 50%; flex: none; object-fit: cover;
   background: #000; border: 1px solid rgba(215,221,230,.28);
@@ -240,6 +239,10 @@ input:focus, textarea:focus, select:focus {
   flex-shrink: 0;
   margin-left: auto;
   transition: all .15s ease;
+}
+#app.sidebar-collapsed .sidebar-toggle {
+  margin-left: 0;
+  margin-top: .5rem;
 }
 .sidebar-toggle:hover {
   background: rgba(255,255,255,.1);
