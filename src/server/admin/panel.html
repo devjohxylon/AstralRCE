@@ -818,10 +818,10 @@ async function refreshOverview() {
   const o = state.overview;
   const pills = document.getElementById("statusPills");
   pills.innerHTML = `
-    <span class="pill ${o.rcon.connected ? "ok" : "bad"}">RCON ${o.rcon.connected ? "ONLINE" : "OFFLINE"}</span>
+    <span class="pill ${!o.rcon.enabled ? "warn" : o.rcon.connected ? "ok" : "bad"}">RCON ${!o.rcon.enabled ? "UNSET" : o.rcon.connected ? "ONLINE" : "OFFLINE"}</span>
     <span class="pill ${o.bot.ready ? "ok" : "bad"}">DISCORD ${o.bot.ready ? "READY" : "DOWN"}</span>
-    <span class="pill">${o.onlinePlayers.length} ONLINE</span>
-    <span class="pill">${state.session?.role === "owner" ? "OWNER" : "STAFF"}</span>
+    <span class="pill info">${o.onlinePlayers.length} ONLINE</span>
+    <span class="pill info plain">${state.session?.role === "owner" ? "OWNER" : "STAFF"}</span>
   `;
 }
 
@@ -890,15 +890,18 @@ function renderOverview() {
   const wipeLabel = wipeAt ? new Date(wipeAt).toLocaleString() : "Not set";
   const online = o.onlinePlayers || [];
 
-  const rconPill = r.connected
-    ? `<span class="pill ok">Connected</span>`
-    : `<span class="pill bad">Offline</span>`;
+  const rconPill = !r.enabled
+    ? `<span class="pill warn">Not configured</span>`
+    : r.connected
+      ? `<span class="pill ok">Connected</span>`
+      : `<span class="pill bad">Offline</span>`;
   const botPill = o.bot?.ready
     ? `<span class="pill ok">Ready</span>`
     : `<span class="pill bad">Down</span>`;
   const connectedSince = r.connectedAt
     ? esc(new Date(r.connectedAt).toLocaleString())
     : "—";
+  const endpoint = r.host && r.port ? `${r.host}:${r.port}` : "—";
 
   const onlineRows = online.slice(0, 8).map((p) => `
     <tr>
@@ -952,10 +955,11 @@ function renderOverview() {
           <table class="table">
             <tbody>
               <tr><td style="color:var(--muted);width:42%">RCON</td><td>${rconPill}</td></tr>
+              <tr><td style="color:var(--muted)">Endpoint</td><td><code>${esc(endpoint)}</code></td></tr>
               <tr><td style="color:var(--muted)">Since</td><td>${connectedSince}</td></tr>
               <tr><td style="color:var(--muted)">Discord bot</td><td>${botPill}</td></tr>
               <tr><td style="color:var(--muted)">Bot uptime</td><td>${fmtUptime(o.bot?.uptimeSeconds)}</td></tr>
-              ${r.lastError ? `<tr><td style="color:var(--muted)">Last error</td><td style="color:var(--bad)">${esc(String(r.lastError).slice(0, 60))}</td></tr>` : ""}
+              ${!r.connected && r.lastError ? `<tr><td style="color:var(--muted)">Last error</td><td style="color:var(--bad)">${esc(String(r.lastError).slice(0, 80))}</td></tr>` : ""}
             </tbody>
           </table>
         </div>
