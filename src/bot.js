@@ -38,6 +38,11 @@ export function createBotClient() {
       console.error("Data persistence check failed:", e.message),
     );
 
+    const { initScheduler } = await import("./modules/scheduler/engine.js");
+    await initScheduler().catch((e) =>
+      console.error("Scheduler initialization failed:", e.message),
+    );
+
     await loadChannelOverrides().catch((e) =>
       console.error("Channel overrides failed:", e.message),
     );

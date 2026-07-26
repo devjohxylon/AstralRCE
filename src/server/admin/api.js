@@ -817,4 +817,143 @@ export function attachAdminPanel(app, client) {
       res.status(500).json({ ok: false, error: error.message });
     }
   });
+
+  // ——— Audit Log ———
+  const { getAuditEntries } = await import("../../modules/audit/logger.js");
+  
+  app.get("/admin/api/audit", requireAuth, requirePerm("logs"), async (req, res) => {
+    try {
+      const filters = {
+        admin: req.query.admin,
+        action: req.query.action,
+        target: req.query.target,
+        startDate: req.query.startDate,
+        endDate: req.query.endDate,
+        limit: Number(req.query.limit) || 100,
+      };
+      const entries = await getAuditEntries(filters);
+      res.json({ ok: true, entries });
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  // ——— Ban Management ———
+  const {
+    banPlayer,
+    unbanPlayer,
+    getBanHistory,
+    getAllActiveBans,
+  } = await import("../../modules/bans/manager.js");
+  
+  app.get("/admin/api/bans", requireAuth, requirePerm("ban"), async (_req, res) => {
+    try {
+      const bans = await getAllActiveBans();
+      res.json({ ok: true, bans });
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+  
+  app.get("/admin/api/bans/:ign/history", requireAuth, requirePerm("players"), async (req, res) => {
+    try {
+      const history = await getBanHistory(req.params.ign);
+      res.json({ ok: true, history });
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+  
+  app.post("/admin/api/bans", requireAuth, requirePerm("ban"), async (req, res) => {
+    try {
+      const { ign, reason, duration } = req.body ?? {};
+      if (!ign) return res.status(400).json({ ok: false, error: "Missing IGN" });
+      if (!reason) return res.status(400).json({ ok: false, error: "Missing reason" });
+      
+      const durationMs = duration ? Number(duration) * 60 * 1000 : null;
+      const result = await banPlayer(ign, reason, req.session.label, durationMs);
+      
+      if (result.ok) {
+        await sendGameCommand(`global.ban ${ign} "${reason}"`);
+      }
+      
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+  
+  app.delete("/admin/api/bans/:ign", requireAuth, requirePerm("ban"), async (req, res) => {
+    try {
+      const { reason } = req.body ?? {};
+      const result = await unbanPlayer(req.params.ign, req.session.label, reason || "Unbanned");
+      
+      if (result.ok) {
+        await sendGameCommand(`global.unban ${req.params.ign}`);
+      }
+      
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  // ——— Scheduled Events ———
+  const {
+    createEvent,
+    updateEvent,
+    deleteEvent,
+    getAllEvents,
+    runEventNow,
+  } = await import("../../modules/scheduler/engine.js");
+  
+  app.get("/admin/api/events", requireAuth, requirePerm("schedule"), async (_req, res) => {
+    try {
+      const events = await getAllEvents();
+      res.json({ ok: true, events });
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+  
+  app.post("/admin/api/events", requireAuth, requirePerm("schedule"), async (req, res) => {
+    try {
+      const { name, command, schedule, oneTime } = req.body ?? {};
+      if (!name) return res.status(400).json({ ok: false, error: "Missing name" });
+      if (!command) return res.status(400).json({ ok: false, error: "Missing command" });
+      if (!schedule) return res.status(400).json({ ok: false, error: "Missing schedule" });
+      
+      const result = await createEvent(name, command, schedule, req.session.label, oneTime);
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+  
+  app.patch("/admin/api/events/:id", requireAuth, requirePerm("schedule"), async (req, res) => {
+    try {
+      const result = await updateEvent(req.params.id, req.body, req.session.label);
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+  
+  app.delete("/admin/api/events/:id", requireAuth, requirePerm("schedule"), async (req, res) => {
+    try {
+      const result = await deleteEvent(req.params.id, req.session.label);
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+  
+  app.post("/admin/api/events/:id/run", requireAuth, requirePerm("schedule"), async (req, res) => {
+    try {
+      const result = await runEventNow(req.params.id, req.session.label);
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
 }

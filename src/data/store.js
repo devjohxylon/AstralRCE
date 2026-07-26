@@ -207,3 +207,28 @@ export async function getPlayerProfiles() {
 export async function savePlayerProfiles(data) {
   await writeJson("player-profiles.json", data);
 }
+
+export async function getAuditLog() {
+  return readJson("audit-log.json", { entries: [] });
+}
+
+export async function saveAuditLog(data) {
+  await writeJson("audit-log.json", data);
+}
+
+export async function getBans() {
+  return readJson("bans.json", { bans: [] });
+}
+
+export async function saveBans(data) {
+  await writeJson("bans.json", data);
+}
+
+export async function getScheduledEvents() {
+  return readJson("scheduled-events.json", { events: [] });
+}
+
+export async function saveScheduledEvents(data) {
+  await writeJson("scheduled-events.json", data);
+}
+

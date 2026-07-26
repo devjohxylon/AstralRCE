@@ -768,10 +768,16 @@ button { transition: all .15s ease; }
         <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l2 4h4l-3 3 1 4-4-2-4 2 1-4-3-3h4z"/><circle cx="12" cy="12" r="9"/></svg>Reports</button>
       <button data-tab="automation" data-perm="automation">
         <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Automation</button>
+      <button data-tab="events" data-perm="schedule">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 2v4M16 2v4M3 10h18"/></svg>Events</button>
+      <button data-tab="bans" data-perm="ban">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M5 19L19 5"/></svg>Bans</button>
     </div>
 
     <div class="nav-group">
       <div class="nav-group-label">Admin</div>
+      <button data-tab="audit" data-perm="logs">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M20 17l-4-4M20 17l-4 4"/></svg>Audit</button>
       <button data-tab="keys" data-perm="keys">
         <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="15" r="4"/><path d="M11 12l7-7 3 3M16 7l2 2"/></svg>Keys</button>
       <button data-tab="logs" data-perm="logs">
@@ -2494,10 +2500,14 @@ function bindView() {
 document.getElementById("loginBtn").onclick = async () => {
   try {
     await api("/login", { method: "POST", body: { password: document.getElementById("password").value } });
-    document.getElementById("loginError").textContent = "";
+    const errorEl = document.getElementById("loginError");
+    errorEl.textContent = "";
+    errorEl.classList.add("hidden");
     await boot();
   } catch (e) {
-    document.getElementById("loginError").textContent = e.message;
+    const errorEl = document.getElementById("loginError");
+    errorEl.textContent = e.message || "Invalid password";
+    errorEl.classList.remove("hidden");
   }
 };
 document.getElementById("password").onkeydown = (e) => {
