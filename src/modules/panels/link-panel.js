@@ -29,53 +29,19 @@ export function buildLinkPanelEmbed(guild) {
   const icon = brandIcon(guild);
   const embed = new EmbedBuilder()
     .setColor(ACCENT)
-    .setAuthor({
-      name: "Astral Vanilla+",
-      iconURL: icon || undefined,
-    })
-    .setTitle("Link Your Account")
+    .setTitle("🔗 Link Your Account")
     .setDescription(
-      "Connect your **in-game name** to Discord so the bot knows who you are on the server.",
-    )
-    .addFields(
-      {
-        name: "How to link",
-        value:
-          "1️⃣ Join **Astral Vanilla+** and stay online\n" +
-          "2️⃣ Press **Link Account** below\n" +
-          "3️⃣ Type your **exact** in-game name\n" +
-          "4️⃣ Confirm — you're linked",
-      },
-      {
-        name: "Requirements",
-        value:
-          "• You must be **online** when linking\n" +
-          "• Name must match **exactly** (caps + spelling)\n" +
-          "• One Discord account ↔ one IGN",
-        inline: true,
-      },
-      {
-        name: "What you unlock",
-        value:
-          "• `/home` set & teleport\n" +
-          "• `/warp` public warps\n" +
-          "• `/tpr` player teleports\n" +
-          "• VIP kit sync (if VIP)",
-        inline: true,
-      },
-      {
-        name: "Important",
-        value:
-          "> Linking is **permanent** unless staff unlinks you.\n" +
-          "> Wrong name? Ask staff before trying again.\n" +
-          "> Stuck? Open a support ticket.",
-      },
+      "Connect your in-game name to Discord.\n\n" +
+        "1️⃣ Click **Link Account** below\n" +
+        "2️⃣ Enter your **exact** in-game username\n" +
+        "3️⃣ Confirm — you're done!\n\n" +
+        "> You can only link once.\n" +
+        "> Contact an admin if you need help.",
     )
     .setFooter({
-      text: "Astral | Vanilla+  •  Account Linking",
+      text: "Astral | Vanilla+",
       iconURL: icon || undefined,
-    })
-    .setTimestamp();
+    });
 
   if (icon) embed.setThumbnail(icon);
   return embed;
