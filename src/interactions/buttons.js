@@ -11,7 +11,7 @@ import { findTicketByChannel } from "../modules/tickets/manager.js";
 export async function handleButton(interaction, client) {
   const [namespace, action, id] = interaction.customId.split(":");
 
-  if (namespace === "link" && action === "open") {
+  if (namespace === "link" && (action === "open" || action === "status")) {
     return handleLinkPanelButton(interaction);
   }
 
