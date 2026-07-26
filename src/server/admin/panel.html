@@ -9,17 +9,25 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" />
 <style>
 :root {
-  --bg: #0a0a0a;
-  --bg2: #141414;
-  --bg3: #1c1c1c;
-  --line: #2e2e2e;
-  --text: #e6e6e6;
-  --muted: #8a8a8a;
-  --accent: #a3a3a3;
+  --bg: #0a0b0d;
+  --bg2: #131519;
+  --bg3: #1a1d23;
+  --bg-elev: #21252e;
+  --line: #262a32;
+  --line2: #343a44;
+  --text: #e8eaed;
+  --muted: #8b909b;
+  --faint: #5b616c;
+  --accent: #3ddc97;
+  --accent-dim: #1f6b4d;
   --accent2: #d4d4d4;
-  --ok: #6bce9a;
-  --bad: #e57373;
-  --warn: #c9a86a;
+  --info: #5aa9e6;
+  --ok: #4ade80;
+  --bad: #f2565b;
+  --warn: #e0b050;
+  --radius: 12px;
+  --radius-sm: 8px;
+  --shadow: 0 10px 34px rgba(0,0,0,.4);
   --font: "Syne", system-ui, sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, monospace;
 }
@@ -33,19 +41,26 @@ body {
 }
 button, input, select, textarea { font: inherit; }
 button {
-  cursor: pointer; border: 1px solid var(--line); background: var(--bg3); color: var(--text);
-  padding: .55rem .9rem; border-radius: 6px; transition: .15s ease;
+  cursor: pointer; border: 1px solid var(--line2); background: var(--bg3); color: var(--text);
+  padding: .5rem .85rem; border-radius: var(--radius-sm); font-weight: 600; font-size: .82rem;
+  display: inline-flex; align-items: center; justify-content: center; gap: .4rem; transition: .14s ease;
 }
-button:hover { border-color: #555; color: #fff; background: #242424; }
-button.primary { background: #2a2a2a; border-color: #555; color: #fff; font-weight: 700; }
-button.primary:hover { background: #333; border-color: #777; }
-button.danger { border-color: #5c3030; color: #ffb4b8; background: #1a1010; }
-button.ghost { background: transparent; }
+button:hover { border-color: #4a505c; color: #fff; background: var(--bg-elev); }
+button:active { transform: translateY(1px); }
+button.primary { background: var(--accent); border-color: var(--accent); color: #04120b; font-weight: 700; }
+button.primary:hover { background: #52f0aa; border-color: #52f0aa; color: #04120b; }
+button.danger { border-color: #5c2b2e; color: #ffb4b8; background: #1c1113; }
+button.danger:hover { background: #2a1618; border-color: #7a3a3e; color: #fff; }
+button.ghost { background: transparent; border-color: transparent; color: var(--muted); }
+button.ghost:hover { background: var(--bg3); color: var(--text); }
 input, select, textarea {
-  width: 100%; background: #0f0f0f; border: 1px solid var(--line); color: var(--text);
-  padding: .6rem .75rem; border-radius: 6px; font-family: var(--mono); font-size: .85rem;
+  width: 100%; background: #0d0f13; border: 1px solid var(--line); color: var(--text);
+  padding: .58rem .7rem; border-radius: var(--radius-sm); font-family: var(--mono); font-size: .82rem;
 }
-input:focus, textarea:focus, select:focus { outline: 1px solid #555; border-color: #555; }
+input::placeholder, textarea::placeholder { color: var(--faint); }
+input:focus, textarea:focus, select:focus {
+  outline: none; border-color: var(--accent-dim); box-shadow: 0 0 0 3px rgba(61,220,151,.12);
+}
 .hidden { display: none !important; }
 
 /* ── Login: cinematic HUD (jcedrik-inspired) ── */
@@ -214,74 +229,167 @@ input:focus, textarea:focus, select:focus { outline: 1px solid #555; border-colo
   #loginStars { display: none; }
 }
 
-#app { display: grid; grid-template-columns: 220px 1fr; min-height: 100vh; }
-@media (max-width: 900px) {
-  #app { grid-template-columns: 1fr; }
-  .nav { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; gap: .35rem; }
-  .nav .brand, .nav .nav-foot { width: 100%; }
-}
+#app { display: grid; grid-template-columns: 244px 1fr; min-height: 100vh; }
 
+/* ── Sidebar ── */
 .nav {
-  background: #111; border-right: 1px solid var(--line);
-  padding: 1.25rem 1rem;
+  background: linear-gradient(180deg, #0e1013, #0b0c0f);
+  border-right: 1px solid var(--line);
+  padding: 1.1rem .85rem 1.25rem;
+  display: flex; flex-direction: column;
+  position: sticky; top: 0; height: 100vh; overflow-y: auto;
 }
-.brand { font-size: 1.15rem; font-weight: 800; letter-spacing: -.03em; margin-bottom: 1.25rem; }
-.brand span { color: var(--accent2); }
+.brand {
+  display: flex; align-items: center; gap: .6rem;
+  font-size: 1.05rem; font-weight: 800; letter-spacing: -.02em;
+  padding: .25rem .4rem 1rem; margin-bottom: .5rem;
+  border-bottom: 1px solid var(--line);
+}
+.brand .logo {
+  width: 30px; height: 30px; border-radius: 8px; flex: none;
+  display: grid; place-items: center; font-weight: 800; font-size: .95rem;
+  color: #04120b; background: linear-gradient(135deg, var(--accent), #2bb87c);
+  box-shadow: 0 4px 14px rgba(61,220,151,.28);
+}
+.brand span { color: var(--muted); font-weight: 600; }
+.nav-group { margin-top: 1rem; }
+.nav-group-label {
+  font-family: var(--mono); font-size: .62rem; letter-spacing: .18em; text-transform: uppercase;
+  color: var(--faint); padding: 0 .55rem .4rem;
+}
 .nav button {
-  width: 100%; text-align: left; margin-bottom: .35rem; background: transparent;
-  border-color: transparent; font-weight: 600; color: var(--muted);
+  width: 100%; text-align: left; justify-content: flex-start; margin-bottom: .15rem;
+  background: transparent; border-color: transparent; font-weight: 600; color: var(--muted);
+  padding: .5rem .55rem; gap: .6rem; border-radius: var(--radius-sm);
 }
-.nav button:hover { color: var(--text); background: #1a1a1a; }
-.nav button.active { background: #1f1f1f; border-color: var(--line); color: #fff; }
-.nav-foot { margin-top: 1.5rem; font-family: var(--mono); font-size: .72rem; color: var(--muted); }
+.nav button .ico { width: 16px; height: 16px; flex: none; opacity: .85; }
+.nav button:hover { color: var(--text); background: var(--bg3); }
+.nav button.active {
+  background: var(--bg3); color: #fff; border-color: var(--line2);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+.nav button.active .ico { opacity: 1; color: var(--accent); }
+.nav-spacer { flex: 1; }
+.nav-user {
+  display: flex; align-items: center; gap: .6rem; padding: .6rem .55rem;
+  border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg2);
+  margin-top: 1rem;
+}
+.nav-user .avatar {
+  width: 30px; height: 30px; border-radius: 50%; flex: none; display: grid; place-items: center;
+  background: var(--bg-elev); color: var(--accent); font-weight: 700; font-size: .8rem;
+  border: 1px solid var(--line2);
+}
+.nav-user .who { min-width: 0; }
+.nav-user .who b { display: block; font-size: .82rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nav-user .who small { color: var(--faint); font-family: var(--mono); font-size: .66rem; letter-spacing: .1em; }
+.nav-foot { display: none; }
 
-.main { padding: 1.25rem 1.5rem 3rem; }
+/* ── Main ── */
+.main { padding: 1.4rem 1.75rem 3rem; max-width: 1400px; }
 .topbar {
-  display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; justify-content: space-between;
-  margin-bottom: 1.25rem;
+  display: flex; flex-wrap: wrap; gap: .75rem 1rem; align-items: flex-end; justify-content: space-between;
+  margin-bottom: 1.5rem; padding-bottom: 1.1rem; border-bottom: 1px solid var(--line);
 }
-.topbar h2 { margin: 0; font-size: 1.45rem; letter-spacing: -.03em; }
+.title-wrap { min-width: 0; }
+.topbar h2 { margin: 0; font-size: 1.55rem; letter-spacing: -.03em; }
+.page-sub { margin: .25rem 0 0; color: var(--muted); font-size: .85rem; }
 .pills { display: flex; gap: .5rem; flex-wrap: wrap; }
 .pill {
-  font-family: var(--mono); font-size: .72rem; padding: .35rem .6rem; border-radius: 999px;
-  border: 1px solid var(--line); background: var(--bg2); color: var(--muted);
+  display: inline-flex; align-items: center; gap: .4rem;
+  font-family: var(--mono); font-size: .68rem; letter-spacing: .04em; padding: .38rem .65rem; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--bg2); color: var(--muted); font-weight: 500;
 }
-.pill.ok { color: var(--ok); border-color: #2a4a38; }
-.pill.bad { color: var(--bad); border-color: #4a2a2a; }
+.pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .8; }
+.pill.plain::before { display: none; }
+.pill.ok { color: var(--ok); border-color: rgba(74,222,128,.28); background: rgba(74,222,128,.06); }
+.pill.bad { color: var(--bad); border-color: rgba(242,86,91,.28); background: rgba(242,86,91,.06); }
+.pill.warn { color: var(--warn); border-color: rgba(224,176,80,.28); background: rgba(224,176,80,.06); }
+.pill.info { color: var(--info); border-color: rgba(90,169,230,.28); background: rgba(90,169,230,.06); }
 
+/* ── Cards & grids ── */
 .grid { display: grid; gap: 1rem; }
-.grid.stats { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+.grid.stats { grid-template-columns: repeat(auto-fit, minmax(168px, 1fr)); }
 .card {
-  background: var(--bg2); border: 1px solid var(--line); border-radius: 10px; padding: 1rem 1.1rem;
+  background: var(--bg2); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 1.1rem 1.15rem; transition: border-color .15s ease;
 }
-.card h3 { margin: 0 0 .75rem; font-size: .95rem; letter-spacing: -.01em; color: #cfcfcf; }
-.metric { font-family: var(--mono); font-size: 1.6rem; font-weight: 600; }
-.metric small { display: block; color: var(--muted); font-size: .72rem; font-weight: 400; margin-top: .2rem; }
+.card:hover { border-color: var(--line2); }
+.card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: .9rem; }
+.card-head h3 { margin: 0; }
+.card-head .actions { margin: 0; }
+.card h3 { margin: 0 0 .9rem; font-size: .78rem; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.card-desc { margin: -.5rem 0 1rem; color: var(--faint); font-size: .78rem; }
 
+/* stat cards */
+.card.stat { padding: 1rem 1.1rem; position: relative; overflow: hidden; }
+.card.stat .metric,
+.metric { font-family: var(--mono); font-size: 1.75rem; font-weight: 600; line-height: 1.1; color: #fff; }
+.metric small { display: block; color: var(--muted); font-size: .7rem; font-weight: 500; letter-spacing: .04em; text-transform: uppercase; margin-top: .35rem; font-family: var(--mono); }
+
+/* ── Tables ── */
 .table { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: .8rem; }
-.table th, .table td { text-align: left; padding: .55rem .4rem; border-bottom: 1px solid var(--line); }
-.table th { color: var(--muted); font-weight: 500; }
-.actions { display: flex; gap: .35rem; flex-wrap: wrap; }
-.actions button { padding: .35rem .55rem; font-size: .75rem; }
-
-.console {
-  background: #050505; border: 1px solid var(--line); border-radius: 10px; min-height: 280px;
-  padding: 1rem; font-family: var(--mono); font-size: .8rem; overflow: auto; white-space: pre-wrap;
+.table thead th {
+  position: sticky; top: 0; color: var(--muted); font-weight: 500; text-transform: uppercase;
+  font-size: .68rem; letter-spacing: .06em; padding: .5rem .5rem; border-bottom: 1px solid var(--line2);
+  text-align: left; background: var(--bg2);
 }
-.console .in { color: #d4d4d4; }
-.console .out { color: #9a9a9a; }
+.table td { text-align: left; padding: .6rem .5rem; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.table tbody tr { transition: background .12s ease; }
+.table tbody tr:hover { background: rgba(255,255,255,.02); }
+.table tbody tr:last-child td { border-bottom: none; }
+.table th:first-child, .table td:first-child { padding-left: .25rem; }
+.table code { background: #0d0f13; border: 1px solid var(--line); padding: .1rem .35rem; border-radius: 5px; font-size: .74rem; color: var(--accent2); }
+.actions { display: flex; gap: .35rem; flex-wrap: wrap; }
+.actions button { padding: .32rem .55rem; font-size: .72rem; }
+
+/* ── Console ── */
+.console {
+  background: #060708; border: 1px solid var(--line); border-radius: var(--radius); min-height: 300px; max-height: 460px;
+  padding: 1rem; font-family: var(--mono); font-size: .8rem; line-height: 1.55; overflow: auto; white-space: pre-wrap;
+}
+.console .in { color: var(--accent); }
+.console .out { color: #b8bcc4; }
 .console .err { color: #ff8a93; }
 
-.form-row { display: grid; gap: .6rem; grid-template-columns: 1fr auto; margin-top: .75rem; }
+/* ── Forms ── */
+.form-row { display: grid; gap: .6rem; grid-template-columns: 1fr auto; margin-top: .75rem; align-items: start; }
 .form-grid { display: grid; gap: .6rem; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+.field { display: grid; gap: .35rem; }
+.field label { font-family: var(--mono); font-size: .68rem; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+
+/* ── Misc ── */
 .toast {
-  position: fixed; right: 1rem; bottom: 1rem; background: var(--bg3); border: 1px solid var(--line);
-  padding: .75rem 1rem; border-radius: 8px; font-family: var(--mono); font-size: .8rem;
-  max-width: min(420px, calc(100vw - 2rem)); z-index: 20; box-shadow: 0 12px 40px rgba(0,0,0,.4);
+  position: fixed; right: 1rem; bottom: 1rem; background: var(--bg-elev); border: 1px solid var(--line2);
+  padding: .8rem 1rem; border-radius: var(--radius-sm); font-family: var(--mono); font-size: .8rem;
+  max-width: min(420px, calc(100vw - 2rem)); z-index: 20; box-shadow: var(--shadow);
 }
-.split { display: grid; gap: 1rem; grid-template-columns: 1.2fr .8fr; }
-@media (max-width: 1000px) { .split { grid-template-columns: 1fr; } }
+.split { display: grid; gap: 1rem; grid-template-columns: 1.35fr .85fr; align-items: start; }
+.empty { color: var(--faint); font-family: var(--mono); font-size: .78rem; text-align: center; padding: 1.5rem 0; }
 .muted { color: var(--muted); }
+.hint { color: var(--faint); font-family: var(--mono); font-size: .72rem; line-height: 1.5; }
+
+/* scrollbars */
+* { scrollbar-width: thin; scrollbar-color: var(--line2) transparent; }
+*::-webkit-scrollbar { width: 9px; height: 9px; }
+*::-webkit-scrollbar-thumb { background: var(--line2); border-radius: 6px; }
+*::-webkit-scrollbar-track { background: transparent; }
+
+@media (max-width: 1000px) { .split { grid-template-columns: 1fr; } }
+@media (max-width: 900px) {
+  #app { grid-template-columns: 1fr; }
+  .nav {
+    position: sticky; top: 0; height: auto; flex-direction: row; flex-wrap: wrap; gap: .3rem;
+    align-items: center; padding: .6rem .75rem;
+  }
+  .brand { width: 100%; border-bottom: none; margin: 0 0 .35rem; padding: .25rem; }
+  .nav-group { margin: 0; display: contents; }
+  .nav-group-label { display: none; }
+  .nav button { width: auto; margin: 0; }
+  .nav button .ico { display: none; }
+  .nav-spacer, .nav-user { display: none; }
+  .main { padding: 1.1rem 1rem 3rem; }
+}
 </style>
 </head>
 <body>
@@ -329,24 +437,60 @@ input:focus, textarea:focus, select:focus { outline: 1px solid #555; border-colo
 
 <div id="app" class="hidden">
   <aside class="nav">
-    <div class="brand">ASTRAL <span>CTRL</span></div>
-    <button data-tab="overview" class="active" data-perm="overview">Overview</button>
-    <button data-tab="players" data-perm="players">Players</button>
-    <button data-tab="console" data-perm="rcon">RCON Console</button>
-    <button data-tab="stats" data-perm="stats">Stats</button>
-    <button data-tab="warps" data-perm="warps">Warps / TP</button>
-    <button data-tab="links" data-perm="links">Links</button>
-    <button data-tab="automsg" data-perm="automessages">Auto Messages</button>
-    <button data-tab="schedule" data-perm="schedule">Auto Commands</button>
-    <button data-tab="kits" data-perm="kits">Kits</button>
-    <button data-tab="keys" data-perm="keys">Access Keys</button>
-    <button data-tab="logs" data-perm="logs">Audit Logs</button>
+    <div class="brand"><span class="logo">A</span>ASTRAL <span>CTRL</span></div>
+
+    <div class="nav-group">
+      <div class="nav-group-label">Server</div>
+      <button data-tab="overview" class="active" data-perm="overview">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Overview</button>
+      <button data-tab="players" data-perm="players">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><path d="M17 5a3 3 0 0 1 0 6M21 20c0-2.5-1.5-4.7-3.7-5.6"/></svg>Players</button>
+      <button data-tab="console" data-perm="rcon">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3M13 15h4"/></svg>RCON Console</button>
+      <button data-tab="stats" data-perm="stats">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Stats</button>
+      <button data-tab="warps" data-perm="warps">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s7-6.5 7-11a7 7 0 1 0-14 0c0 4.5 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>Warps / TP</button>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-group-label">Community</div>
+      <button data-tab="links" data-perm="links">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 15l6-6M8.5 7.5l1-1a4 4 0 0 1 6 6l-1 1M15.5 16.5l-1 1a4 4 0 0 1-6-6l1-1"/></svg>Links</button>
+      <button data-tab="kits" data-perm="kits">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8h18v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><path d="M3 8l2-4h14l2 4M12 4v16"/></svg>Kits</button>
+      <button data-tab="automsg" data-perm="automessages">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5h16v10H8l-4 4z"/></svg>Auto Messages</button>
+      <button data-tab="schedule" data-perm="schedule">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Auto Commands</button>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-group-label">Admin</div>
+      <button data-tab="keys" data-perm="keys">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="15" r="4"/><path d="M11 12l7-7 3 3M16 7l2 2"/></svg>Access Keys</button>
+      <button data-tab="logs" data-perm="logs">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h9l5 5v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v6h6M9 13h6M9 17h6"/></svg>Audit Logs</button>
+    </div>
+
+    <div class="nav-spacer"></div>
+    <div class="nav-user">
+      <div class="avatar" id="navAvatar">A</div>
+      <div class="who">
+        <b id="navUserName">Panel</b>
+        <small id="navUserRole">—</small>
+      </div>
+    </div>
+    <button class="ghost" id="logoutBtn" style="margin-top:.5rem;justify-content:flex-start;gap:.5rem">
+      <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 12H4M8 8l-4 4 4 4M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4"/></svg>Log out</button>
     <div class="nav-foot" id="navMeta">—</div>
-    <button class="ghost" id="logoutBtn" style="margin-top:.75rem">Log out</button>
   </aside>
   <main class="main">
     <div class="topbar">
-      <h2 id="pageTitle">Overview</h2>
+      <div class="title-wrap">
+        <h2 id="pageTitle">Overview</h2>
+        <p class="page-sub" id="pageSub">Live server health and quick controls</p>
+      </div>
       <div class="pills" id="statusPills"></div>
     </div>
     <section id="view"></section>
@@ -524,8 +668,12 @@ async function boot() {
     stopLoginScene();
     state.session = session;
     applyNavPermissions();
-    document.getElementById("navMeta").textContent =
-      `${session.label || "Panel"} · ${session.role === "owner" ? "OWNER" : "STAFF"}`;
+    const label = session.label || "Panel";
+    const roleTxt = session.role === "owner" ? "OWNER" : "STAFF";
+    document.getElementById("navMeta").textContent = `${label} · ${roleTxt}`;
+    document.getElementById("navUserName").textContent = label;
+    document.getElementById("navUserRole").textContent = roleTxt;
+    document.getElementById("navAvatar").textContent = (label[0] || "A").toUpperCase();
     if (can("overview")) await refreshOverview().catch(() => {});
     setTab(state.tab);
     setInterval(() => {
@@ -565,7 +713,21 @@ function setTab(tab) {
     warps: "Warps / Teleports", links: "Account Links", automsg: "Auto Messages", schedule: "Auto Commands",
     kits: "Kits", keys: "Access Keys", logs: "Audit Logs",
   };
+  const subs = {
+    overview: "Live server health and quick controls",
+    players: "Everyone currently connected to the server",
+    console: "Send raw RCON commands and see responses",
+    stats: "Leaderboards and per-player lookups",
+    warps: "Manage public warps and force teleports",
+    links: "Discord ↔ in-game account connections",
+    automsg: "Recurring in-game broadcast messages",
+    schedule: "Timed RCON commands that run automatically",
+    kits: "Build item bundles and hand them to players",
+    keys: "Create and manage staff access keys",
+    logs: "Every action taken through this panel",
+  };
   document.getElementById("pageTitle").textContent = titles[tab] || tab;
+  document.getElementById("pageSub").textContent = subs[tab] || "";
   render();
 }
 
@@ -589,49 +751,108 @@ async function render() {
   }
 }
 
+function statCard(value, label) {
+  return `<div class="card stat"><div class="metric">${value}<small>${label}</small></div></div>`;
+}
+
 function renderOverview() {
-  const o = state.overview || { server: null, onlinePlayers: [], stats: {}, bot: {}, wipe: {} };
+  const o = state.overview || { server: null, onlinePlayers: [], stats: {}, bot: {}, wipe: {}, rcon: {} };
   const s = o.server || {};
+  const r = o.rcon || {};
   const wipeAt = o.wipe?.wipeAt;
-  const wipeLabel = wipeAt
-    ? new Date(wipeAt).toLocaleString()
-    : "Not set";
+  const wipeLabel = wipeAt ? new Date(wipeAt).toLocaleString() : "Not set";
+  const online = o.onlinePlayers || [];
+
+  const rconPill = r.connected
+    ? `<span class="pill ok">Connected</span>`
+    : `<span class="pill bad">Offline</span>`;
+  const botPill = o.bot?.ready
+    ? `<span class="pill ok">Ready</span>`
+    : `<span class="pill bad">Down</span>`;
+  const connectedSince = r.connectedAt
+    ? esc(new Date(r.connectedAt).toLocaleString())
+    : "—";
+
+  const onlineRows = online.slice(0, 8).map((p) => `
+    <tr>
+      <td><strong>${esc(p.ign)}</strong></td>
+      <td>${esc(p.platform || "—")}</td>
+      <td>${p.ping ?? "—"}${p.ping != null ? " ms" : ""}</td>
+    </tr>`).join("") || `<tr><td colspan="3"><div class="empty">Nobody online right now</div></td></tr>`;
+
   return `
     <div class="grid stats">
-      <div class="card"><div class="metric">${s.players ?? "—"}<small>Players / ${s.maxPlayers ?? "?"}</small></div></div>
-      <div class="card"><div class="metric">${s.queued ?? 0}<small>Queued</small></div></div>
-      <div class="card"><div class="metric">${s.fps ?? "—"}<small>FPS</small></div></div>
-      <div class="card"><div class="metric">${fmtUptime(s.uptime)}<small>Uptime</small></div></div>
-      <div class="card"><div class="metric">${o.stats?.trackedPlayers ?? 0}<small>Tracked players</small></div></div>
-      <div class="card"><div class="metric">${o.stats?.totalKills ?? 0}<small>Total kills</small></div></div>
+      ${statCard(`${s.players ?? "—"}<span style="color:var(--faint);font-size:1rem"> / ${s.maxPlayers ?? "?"}</span>`, "Players online")}
+      ${statCard(s.queued ?? 0, "In queue")}
+      ${statCard(s.fps ?? "—", "Server FPS")}
+      ${statCard(fmtUptime(s.uptime), "Server uptime")}
+      ${statCard(o.stats?.trackedPlayers ?? 0, "Tracked players")}
+      ${statCard(o.stats?.totalKills ?? 0, "Total kills")}
     </div>
+
     <div class="split" style="margin-top:1rem">
-      <div class="card">
-        <h3>Server</h3>
-        <table class="table">
-          <tr><th>Hostname</th><td>${esc(s.hostname || "—")}</td></tr>
-          <tr><th>Map</th><td>${esc(s.map || "—")}</td></tr>
-          <tr><th>Game time</th><td>${esc(s.gameTime || "—")}</td></tr>
-          <tr><th>Entities</th><td>${s.entities ?? "—"}</td></tr>
-          <tr><th>Wipe label</th><td>${esc(o.stats?.wipe || "—")}</td></tr>
-          <tr><th>Next wipe</th><td>${esc(wipeLabel)}</td></tr>
-        </table>
-      </div>
-      <div class="card">
-        <h3>Quick broadcast</h3>
-        ${can("broadcast") ? `
-        <div class="form-row">
-          <input id="broadcastMsg" placeholder="Message to say in-game" />
-          <button class="primary" data-action="broadcast">Send</button>
-        </div>` : `<p class="muted" style="font-family:var(--mono);font-size:.75rem">No broadcast permission</p>`}
-        <h3 style="margin-top:1.25rem">Wipe countdown</h3>
-        <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:0 0 .6rem">Updates Discord voice channel + website board</p>
-        <div class="form-row">
-          <input id="wipeAtInput" type="datetime-local" value="${esc(o.wipe?.localInput || "")}" />
-          <button class="primary" data-action="saveWipe">Save</button>
-          <button data-action="clearWipe">Clear</button>
+      <div style="display:grid;gap:1rem">
+        <div class="card">
+          <div class="card-head"><h3>Server details</h3>
+            <span class="pill ${s.restarting ? "warn" : "info"} plain">${s.restarting ? "Restarting" : esc(s.map || "Map ?")}</span>
+          </div>
+          <table class="table">
+            <tbody>
+              <tr><td style="color:var(--muted);width:38%">Hostname</td><td>${esc(s.hostname || "—")}</td></tr>
+              <tr><td style="color:var(--muted)">Map</td><td>${esc(s.map || "—")}</td></tr>
+              <tr><td style="color:var(--muted)">Game time</td><td>${esc(s.gameTime || "—")}</td></tr>
+              <tr><td style="color:var(--muted)">Entities</td><td>${s.entities ?? "—"}</td></tr>
+              <tr><td style="color:var(--muted)">Joining</td><td>${s.joining ?? 0}</td></tr>
+              <tr><td style="color:var(--muted)">Wipe label</td><td>${esc(o.stats?.wipe || "—")}</td></tr>
+              <tr><td style="color:var(--muted)">Next wipe</td><td>${esc(wipeLabel)}</td></tr>
+            </tbody>
+          </table>
         </div>
-        <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:.75rem 0 0">Bot uptime ${fmtUptime(o.bot?.uptimeSeconds)}</p>
+
+        <div class="card">
+          <h3>Online players (${online.length})</h3>
+          <table class="table">
+            <thead><tr><th>IGN</th><th>Platform</th><th>Ping</th></tr></thead>
+            <tbody>${onlineRows}</tbody>
+          </table>
+          ${online.length > 8 ? `<p class="hint" style="margin:.6rem 0 0">+${online.length - 8} more — see the Players tab</p>` : ""}
+        </div>
+      </div>
+
+      <div style="display:grid;gap:1rem">
+        <div class="card">
+          <h3>Connections</h3>
+          <table class="table">
+            <tbody>
+              <tr><td style="color:var(--muted);width:42%">RCON</td><td>${rconPill}</td></tr>
+              <tr><td style="color:var(--muted)">Since</td><td>${connectedSince}</td></tr>
+              <tr><td style="color:var(--muted)">Discord bot</td><td>${botPill}</td></tr>
+              <tr><td style="color:var(--muted)">Bot uptime</td><td>${fmtUptime(o.bot?.uptimeSeconds)}</td></tr>
+              ${r.lastError ? `<tr><td style="color:var(--muted)">Last error</td><td style="color:var(--bad)">${esc(String(r.lastError).slice(0, 60))}</td></tr>` : ""}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="card">
+          <h3>Quick broadcast</h3>
+          <p class="card-desc">Say a message to everyone in-game right now.</p>
+          ${can("broadcast") ? `
+          <div class="form-row">
+            <input id="broadcastMsg" placeholder="Message to broadcast…" />
+            <button class="primary" data-action="broadcast">Send</button>
+          </div>` : `<p class="hint">You don't have broadcast permission.</p>`}
+        </div>
+
+        <div class="card">
+          <h3>Wipe countdown</h3>
+          <p class="card-desc">Updates the Discord voice channel and website board.</p>
+          <div class="form-row">
+            <input id="wipeAtInput" type="datetime-local" value="${esc(o.wipe?.localInput || "")}" />
+            <button class="primary" data-action="saveWipe">Save</button>
+            <button data-action="clearWipe">Clear</button>
+          </div>
+          <p class="hint" style="margin:.7rem 0 0">Current: ${esc(wipeLabel)}</p>
+        </div>
       </div>
     </div>
   `;
@@ -649,10 +870,14 @@ async function renderPlayers() {
         ${can("kick") ? `<button data-action="kick" data-ign="${esc(p.ign)}">Kick</button>` : ""}
         ${can("ban") ? `<button class="danger" data-action="ban" data-ign="${esc(p.ign)}">Ban</button>` : ""}
       </td>
-    </tr>`).join("") || `<tr><td colspan="5" class="muted">Nobody online</td></tr>`;
+    </tr>`).join("") || `<tr><td colspan="5"><div class="empty">Nobody online right now</div></td></tr>`;
   return `
     <div class="card">
-      <h3>Online now (${data.online.length})</h3>
+      <div class="card-head">
+        <h3>Online now</h3>
+        <span class="pill info">${data.online.length} connected</span>
+      </div>
+      <p class="card-desc">Live list refreshes automatically every 15 seconds.</p>
       <table class="table">
         <thead><tr><th>IGN</th><th>Platform</th><th>Ping</th><th>Link</th><th></th></tr></thead>
         <tbody>${rows}</tbody>
@@ -666,7 +891,11 @@ function renderConsole() {
   ).join("") || `<div class="muted">Ready. Type any RCON command below.</div>`;
   return `
     <div class="card">
-      <h3>Live RCON</h3>
+      <div class="card-head">
+        <h3>Live RCON</h3>
+        <span class="pill ${state.overview?.rcon?.connected ? "ok" : "bad"}">${state.overview?.rcon?.connected ? "Connected" : "Offline"}</span>
+      </div>
+      <p class="card-desc">Commands run directly on the Rust server. Be careful — this is raw access.</p>
       <div class="console" id="consoleOut">${log}</div>
       <div class="form-row">
         <input id="rconCmd" placeholder='e.g. say hello  |  teleportpos (0,0,0) "Player"' />
@@ -685,12 +914,12 @@ async function renderStats() {
   const data = await api("/stats?category=kills");
   const rows = data.rows.map((r) =>
     `<tr><td>#${r.rank}</td><td>${esc(r.name)}</td><td>${esc(r.value)}</td></tr>`
-  ).join("") || `<tr><td colspan="3" class="muted">No stats yet</td></tr>`;
+  ).join("") || `<tr><td colspan="3"><div class="empty">No stats tracked yet</div></td></tr>`;
   return `
     <div class="split">
       <div class="card">
-        <h3>Top kills</h3>
-        <table class="table"><thead><tr><th>#</th><th>Player</th><th>Value</th></tr></thead><tbody>${rows}</tbody></table>
+        <div class="card-head"><h3>Top kills</h3><span class="pill info">${data.summary?.trackedPlayers || 0} players</span></div>
+        <table class="table"><thead><tr><th>#</th><th>Player</th><th>Kills</th></tr></thead><tbody>${rows}</tbody></table>
       </div>
       <div class="card">
         <h3>Actions</h3>
