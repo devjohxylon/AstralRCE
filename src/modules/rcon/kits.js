@@ -1,5 +1,5 @@
 import { getKits, saveKits } from "../../data/store.js";
-import { sendGameCommand } from "./client.js";
+import { getServer, sendGameCommand } from "./client.js";
 
 const GIVE_DELAY_MS = 120;
 
@@ -28,11 +28,56 @@ function sanitizeItems(items) {
     .filter((row) => row.item && /^[a-z0-9._-]+$/.test(row.item));
 }
 
+function parseKitList(raw) {
+  if (!raw || typeof raw !== "string") return [];
+  return raw
+    .replaceAll("\\n", "\n")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith("[KITMANAGER]") && !/^kits?:/i.test(line))
+    .map((line) => {
+      // Formats like: "vip", "- vip", "vip (Cooldown: 60)", "Kit: vip"
+      const cleaned = line
+        .replace(/^[-*•]\s*/, "")
+        .replace(/^kit[s]?:\s*/i, "")
+        .replace(/\s*\(.*\)\s*$/, "")
+        .trim();
+      return cleaned;
+    })
+    .filter((name) => name && /^[a-zA-Z0-9._-]+$/.test(name));
+}
+
+function parseKitInfoItems(raw) {
+  if (!raw || typeof raw !== "string") return [];
+  const cleaned = raw.replaceAll("\\n", "\n");
+  const items = [];
+  const itemRegex =
+    /Shortname:\s*(\S+)\s+Amount:\s*\[(\d+)\](?:\s+Condition:\s*\[(\d+)\])?(?:\s+Container:\s*\[(Main|Belt|Wear)\])?/gi;
+  let match;
+  while ((match = itemRegex.exec(cleaned)) !== null) {
+    items.push({
+      item: match[1],
+      amount: Number(match[2]) || 1,
+      condition: match[3] != null ? Number(match[3]) : null,
+      container: match[4] || null,
+    });
+  }
+  // Fallback: "wood x1000" / "wood 1000"
+  if (!items.length) {
+    for (const line of cleaned.split("\n").map((l) => l.trim()).filter(Boolean)) {
+      const m = line.match(/^([a-z0-9._-]+)\s*[x×]\s*(\d+)$/i) || line.match(/^([a-z0-9._-]+)\s+(\d+)$/i);
+      if (m) items.push({ item: m[1].toLowerCase(), amount: Number(m[2]) || 1 });
+    }
+  }
+  return items;
+}
+
 export async function listKits() {
   const data = await getKits();
   return Object.entries(data.kits || {}).map(([id, kit]) => ({
     id,
     label: kit.label || id,
+    source: "panel",
     cooldownMinutes: Number(kit.cooldownMinutes) || 0,
     items: Array.isArray(kit.items) ? kit.items : [],
     updatedAt: kit.updatedAt || null,
@@ -48,10 +93,70 @@ export async function getKit(id) {
   return {
     id: key,
     label: kit.label || key,
+    source: "panel",
     cooldownMinutes: Number(kit.cooldownMinutes) || 0,
     items: Array.isArray(kit.items) ? kit.items : [],
     updatedAt: kit.updatedAt || null,
   };
+}
+
+/**
+ * Fetch kits defined on the Rust server (KitManager / Oxide kits).
+ * Uses cached rce.js list when available, then refreshes via `kit list`.
+ */
+export async function listServerKits({ refresh = true, detail = false } = {}) {
+  const cached = getServer()?.kits;
+  let names = Array.isArray(cached) ? cached.map((k) => k.name).filter(Boolean) : [];
+
+  if (refresh || !names.length) {
+    try {
+      const raw = await sendGameCommand("kit list");
+      names = parseKitList(raw);
+      const server = getServer();
+      if (server && names.length) {
+        server.kits = names.map((name) => {
+          const existing = (cached || []).find((k) => k.name === name);
+          return existing || { name, items: [] };
+        });
+      }
+    } catch (error) {
+      if (!names.length) {
+        return { ok: false, error: error.message, kits: [] };
+      }
+    }
+  }
+
+  const kits = [];
+  for (const name of names) {
+    const fromCache = (getServer()?.kits || cached || []).find((k) => k.name === name);
+    let items = Array.isArray(fromCache?.items)
+      ? fromCache.items.map((i) => ({
+          item: i.shortName || i.item,
+          amount: i.quantity ?? i.amount ?? 1,
+        })).filter((i) => i.item)
+      : [];
+
+    if (detail && !items.length) {
+      try {
+        const info = await sendGameCommand(`kit info "${name}"`);
+        items = parseKitInfoItems(info);
+        await sleep(80);
+      } catch {
+        /* info optional */
+      }
+    }
+
+    kits.push({
+      id: name,
+      label: name,
+      source: "server",
+      cooldownMinutes: 0,
+      items,
+      updatedAt: null,
+    });
+  }
+
+  return { ok: true, kits };
 }
 
 export async function upsertKit({ id, label, items, cooldownMinutes } = {}) {
@@ -82,16 +187,54 @@ export async function deleteKit(id) {
   return { ok: true };
 }
 
-/** Give every item in a kit to an online player via inventory.giveto */
-export async function giveKit(ign, kitId, { bypassCooldown = true } = {}) {
+/** Give a KitManager / Oxide kit already defined on the game server. */
+export async function giveServerKit(ign, kitName) {
+  const name = String(ign ?? "").trim();
+  const kit = String(kitName ?? "").trim();
+  if (!name) return { ok: false, error: "Missing player name" };
+  if (!kit) return { ok: false, error: "Missing kit name" };
+
+  // KitManager: kit "name" "player"  |  some forks: kit give "player" "name"
+  const cmd = `kit "${kit}" "${name}"`;
+  try {
+    const result = await sendGameCommand(cmd);
+    return {
+      ok: true,
+      kitId: kit,
+      ign: name,
+      source: "server",
+      command: cmd,
+      given: 1,
+      result: result || "",
+    };
+  } catch (error) {
+    return { ok: false, error: error.message, kitId: kit, ign: name, command: cmd };
+  }
+}
+
+/**
+ * Give a panel-built kit via inventory.giveto.
+ * If the kit isn't in the panel store, fall back to the in-game kit command.
+ */
+export async function giveKit(ign, kitId, { bypassCooldown = true, source = "auto" } = {}) {
   const name = String(ign ?? "").trim();
   if (!name) return { ok: false, error: "Missing player name" };
 
-  const kit = await getKit(kitId);
-  if (!kit) return { ok: false, error: `Kit \`${kitId}\` not found` };
-  if (!kit.items.length) return { ok: false, error: "Kit has no items" };
+  void bypassCooldown;
 
-  void bypassCooldown; // reserved for player self-redeem later
+  if (source === "server") {
+    return giveServerKit(name, kitId);
+  }
+
+  const kit = await getKit(kitId);
+  if (!kit) {
+    if (source === "panel") {
+      return { ok: false, error: `Panel kit \`${kitId}\` not found` };
+    }
+    // Auto: try in-game KitManager kit with the same name
+    return giveServerKit(name, kitId);
+  }
+  if (!kit.items.length) return { ok: false, error: "Kit has no items" };
 
   const results = [];
   for (const row of kit.items) {
@@ -110,6 +253,7 @@ export async function giveKit(ign, kitId, { bypassCooldown = true } = {}) {
     ok: failed.length === 0,
     kitId: kit.id,
     ign: name,
+    source: "panel",
     given: results.filter((r) => r.ok).length,
     failed: failed.length,
     results,

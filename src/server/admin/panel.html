@@ -1250,8 +1250,8 @@ async function renderServerCommands() {
   ).join("") || `<option value="">No one online</option>`;
 
   const kitOpts = (data.kits || []).map((k) =>
-    `<option value="${esc(k.id)}">${esc(k.label)} (${esc(k.id)})</option>`
-  ).join("") || `<option value="">No kits — create one in Kits tab</option>`;
+    `<option value="${esc(k.id)}" data-source="${esc(k.source || "auto")}">${esc(k.optLabel || k.label)}</option>`
+  ).join("") || `<option value="">No kits found</option>`;
 
   const eventBtns = (data.events || []).map((e) =>
     `<button data-action="runEvent" data-id="${esc(e.id)}" title="${esc(e.command)}">${esc(e.label)}</button>`
@@ -1319,38 +1319,65 @@ async function renderServerCommands() {
 }
 
 async function renderKits() {
-  const data = await api("/kits");
-  const rows = data.kits.map((k) => `
+  const data = await api("/kits?refresh=1");
+  const panelRows = (data.kits || []).map((k) => `
     <tr>
-      <td><strong>${esc(k.label)}</strong><div class="muted"><code>${esc(k.id)}</code></div></td>
+      <td><strong>${esc(k.label)}</strong><div class="muted"><code>${esc(k.id)}</code> · panel</div></td>
       <td>${(k.items || []).map((i) => `${esc(i.item)}×${i.amount}`).join(", ") || "—"}</td>
       <td>${k.cooldownMinutes || 0}m</td>
       <td class="actions">
         <button data-action="editKit" data-id="${esc(k.id)}">Edit</button>
-        <button data-action="giveKit" data-id="${esc(k.id)}">Give</button>
+        <button data-action="giveKit" data-id="${esc(k.id)}" data-source="panel">Give</button>
         <button class="danger" data-action="delKit" data-id="${esc(k.id)}">Delete</button>
       </td>
-    </tr>`).join("") || `<tr><td colspan="4" class="muted">No kits yet — create <code>vip</code> for ROLE_VIP sync</td></tr>`;
+    </tr>`).join("") || `<tr><td colspan="4"><div class="empty">No panel kits yet — build one on the right, or use server kits below</div></td></tr>`;
+
+  const serverRows = (data.serverKits || []).map((k) => `
+    <tr>
+      <td><strong>${esc(k.label)}</strong><div class="muted"><code>${esc(k.id)}</code> · server</div></td>
+      <td>${(k.items || []).slice(0, 8).map((i) => `${esc(i.item)}×${i.amount}`).join(", ") || "<span class=\"muted\">—</span>"}${(k.items || []).length > 8 ? "…" : ""}</td>
+      <td class="actions">
+        <button class="primary" data-action="giveKit" data-id="${esc(k.id)}" data-source="server">Give</button>
+      </td>
+    </tr>`).join("") || `<tr><td colspan="3"><div class="empty">${data.serverError ? esc(data.serverError) : "No in-game kits returned from RCON (kit list). Make sure KitManager is installed and RCON is online."}</div></td></tr>`;
+
   return `
+    <div class="card" style="margin-bottom:.9rem">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:.75rem;flex-wrap:wrap">
+        <div>
+          <h3 style="margin:0">In-game kits (server)</h3>
+          <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:.35rem 0 0">
+            Pulled live from your Rust kits via <code>kit list</code>. Give runs <code>kit "name" "player"</code>.
+          </p>
+        </div>
+        <button data-action="refreshServerKits">Refresh</button>
+      </div>
+      <table class="table" style="margin-top:.75rem"><thead><tr><th>Kit</th><th>Items</th><th></th></tr></thead><tbody>${serverRows}</tbody></table>
+    </div>
     <div class="split">
       <div class="card">
-        <h3>Kit bundles</h3>
-        <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:0 0 .75rem">Granted via <code>inventory.giveto</code>. VIP sync uses kit id from <code>VIP_KIT_ID</code> (default <code>vip</code>).</p>
-        <table class="table"><thead><tr><th>Kit</th><th>Items</th><th>CD</th><th></th></tr></thead><tbody>${rows}</tbody></table>
+        <h3>Panel kit bundles</h3>
+        <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:0 0 .75rem">
+          Custom bundles granted item-by-item with <code>inventory.giveto</code>. Optional — use these if you don’t want KitManager kits.
+        </p>
+        <table class="table"><thead><tr><th>Kit</th><th>Items</th><th>CD</th><th></th></tr></thead><tbody>${panelRows}</tbody></table>
       </div>
       <div class="card">
-        <h3>Create / update kit</h3>
+        <h3>Create / update panel kit</h3>
         <input id="kitId" placeholder="id e.g. vip" />
         <input id="kitLabel" placeholder="Label e.g. VIP Starter" style="margin-top:.6rem" />
         <input id="kitCooldown" type="number" min="0" value="0" placeholder="Cooldown minutes" style="margin-top:.6rem" />
         <textarea id="kitItems" rows="6" style="margin-top:.6rem" placeholder="One per line: shortname amount&#10;wood 1000&#10;stones 1000&#10;metal.fragments 500"></textarea>
         <button class="primary" style="margin-top:.75rem" data-action="saveKit">Save kit</button>
-        <h3 style="margin-top:1.5rem">Give kit to player</h3>
+        <h3 style="margin-top:1.5rem">Give any kit</h3>
         <div class="form-row">
           <input id="kitGiveIgn" placeholder="Online player IGN" />
-          <input id="kitGiveId" placeholder="Kit id" />
+          <input id="kitGiveId" placeholder="Kit name / id" />
           <button data-action="giveKitForm">Give</button>
         </div>
+        <p class="muted" style="font-family:var(--mono);font-size:.68rem;margin:.55rem 0 0">
+          Tries panel kit first, then in-game <code>kit "id" "player"</code>.
+        </p>
       </div>
     </div>`;
 }
@@ -1429,6 +1456,29 @@ function bindView() {
     el.onclick = async () => {
       const a = el.dataset.action;
       try {
+        if (a === "refreshServerKits") {
+          toast("Refreshing server kits…");
+          render();
+        }
+        if (a === "cmdGiveKit") {
+          const ign = document.getElementById("cmdKitIgn")?.value?.trim();
+          const sel = document.getElementById("cmdKitId");
+          const id = sel?.value;
+          const source = sel?.selectedOptions?.[0]?.dataset?.source || "auto";
+          if (!ign || !id) { toast("Need kit + player IGN", true); return; }
+          const r = await api(`/kits/${encodeURIComponent(id)}/give`, { method: "POST", body: { ign, source } });
+          toast(r.ok ? (r.command ? `Ran ${r.command}` : `Gave ${r.given} item(s) to ${ign}`) : (r.error || "Failed"), !r.ok);
+        }
+        if (a === "giveKit" || a === "giveKitForm") {
+          const id = a === "giveKit" ? el.dataset.id : document.getElementById("kitGiveId").value;
+          const source = a === "giveKit" ? (el.dataset.source || "auto") : "auto";
+          const ign = a === "giveKit"
+            ? prompt("Online player IGN")
+            : document.getElementById("kitGiveIgn").value;
+          if (!ign || !id) { toast("Need kit id + IGN", true); return; }
+          const r = await api(`/kits/${encodeURIComponent(id)}/give`, { method: "POST", body: { ign, source } });
+          toast(r.ok ? (r.command ? `Ran ${r.command}` : `Gave ${r.given} item(s) to ${ign}`) : (r.error || "Partial fail"), !r.ok);
+        }
         if (a === "saveChannels") {
           const channels = {};
           document.querySelectorAll("[data-channel-key]").forEach((sel) => {
@@ -1440,13 +1490,6 @@ function bindView() {
           await api("/channels", { method: "POST", body: { channels } });
           toast("Channels saved");
           render();
-        }
-        if (a === "cmdGiveKit") {
-          const ign = document.getElementById("cmdKitIgn")?.value?.trim();
-          const id = document.getElementById("cmdKitId")?.value;
-          if (!ign || !id) { toast("Need kit + player IGN", true); return; }
-          const r = await api(`/kits/${encodeURIComponent(id)}/give`, { method: "POST", body: { ign } });
-          toast(r.ok ? `Gave ${r.given} item(s) to ${ign}` : (r.error || "Failed"), !r.ok);
         }
         if (a === "cmdRankGrant" || a === "cmdRankRevoke") {
           const ign = document.getElementById("cmdRankIgn")?.value?.trim();
@@ -1524,15 +1567,6 @@ function bindView() {
           await api(`/kits/${encodeURIComponent(el.dataset.id)}`, { method: "DELETE" });
           toast("Kit deleted");
           render();
-        }
-        if (a === "giveKit" || a === "giveKitForm") {
-          const id = a === "giveKit" ? el.dataset.id : document.getElementById("kitGiveId").value;
-          const ign = a === "giveKit"
-            ? prompt("Online player IGN")
-            : document.getElementById("kitGiveIgn").value;
-          if (!ign || !id) { toast("Need kit id + IGN", true); return; }
-          const r = await api(`/kits/${encodeURIComponent(id)}/give`, { method: "POST", body: { ign } });
-          toast(r.ok ? `Gave ${r.given} item(s) to ${ign}` : (r.error || "Partial fail"), !r.ok);
         }
         if (a === "kick") {
           await api(`/players/${encodeURIComponent(el.dataset.ign)}/kick`, { method: "POST", body: { reason: "Kicked by admin panel" } });

@@ -40,6 +40,7 @@ import {
   deleteKit,
   giveKit,
   listKits,
+  listServerKits,
   upsertKit,
 } from "../../modules/rcon/kits.js";
 import { getWipeAt, setWipeAt, syncWipeStatus } from "../../modules/rcon/wipe.js";
@@ -448,8 +449,21 @@ export function attachAdminPanel(app, client) {
   });
 
   // ——— Kits ———
-  app.get("/admin/api/kits", requireAuth, requirePerm("kits"), async (_req, res) => {
-    res.json({ ok: true, kits: await listKits() });
+  app.get("/admin/api/kits", requireAuth, requirePerm("kits"), async (req, res) => {
+    const refresh = String(req.query.refresh ?? "1") !== "0";
+    const panel = await listKits();
+    const server = await listServerKits({ refresh }).catch((error) => ({
+      ok: false,
+      error: error.message,
+      kits: [],
+    }));
+    res.json({
+      ok: true,
+      kits: panel,
+      serverKits: server.kits || [],
+      serverOk: server.ok !== false,
+      serverError: server.error || null,
+    });
   });
 
   app.post("/admin/api/kits", requireAuth, requirePerm("kits"), async (req, res) => {
@@ -470,9 +484,15 @@ export function attachAdminPanel(app, client) {
   app.post("/admin/api/kits/:id/give", requireAuth, requirePerm("kits"), async (req, res) => {
     try {
       const ign = String(req.body?.ign ?? "").trim();
+      const source = String(req.body?.source ?? "auto").trim();
       if (!ign) return res.status(400).json({ ok: false, error: "Missing player IGN" });
-      const result = await giveKit(ign, req.params.id);
-      await audit(req, "kit_give", { id: req.params.id, ign, given: result.given });
+      const result = await giveKit(ign, req.params.id, { source });
+      await audit(req, "kit_give", {
+        id: req.params.id,
+        ign,
+        given: result.given,
+        source: result.source || source,
+      });
       if (!result.ok) return res.status(400).json(result);
       res.json(result);
     } catch (error) {
@@ -519,11 +539,17 @@ export function attachAdminPanel(app, client) {
     }
 
     const online = getOnlinePlayers().map((p) => p.ign);
+    const panelKits = await listKits();
+    const server = await listServerKits({ refresh: false }).catch(() => ({ kits: [] }));
+    const allKits = [
+      ...panelKits.map((k) => ({ ...k, optLabel: `${k.label} [panel]` })),
+      ...(server.kits || []).map((k) => ({ ...k, optLabel: `${k.label} [server]` })),
+    ];
     res.json({
       ok: true,
       channels: await getChannelConfig(),
       discordChannels,
-      kits: await listKits(),
+      kits: allKits,
       events: EVENT_PRESETS,
       ranks: RANK_PRESETS.map((r) => ({ id: r.id, label: r.label })),
       onlinePlayers: online,
