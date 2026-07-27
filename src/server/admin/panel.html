@@ -1042,23 +1042,6 @@ function connectWebSocket() {
 
   state.socket.on("players:update", (players) => {
     state.playerPositions = players || [];
-    if (state.tab !== "map") return;
-    drawMap();
-    const tbody = document.getElementById("mapPlayerRows");
-    if (tbody) {
-      tbody.innerHTML = mapPlayerRowsHtml(state.playerPositions);
-      tbody.querySelectorAll("[data-action]").forEach((el) => {
-        el.onclick = async () => {
-          if (el.dataset.action === "viewPlayer") {
-            state.selectedPlayer = el.dataset.ign;
-            state.tab = "players";
-            render();
-          }
-        };
-      });
-    }
-    const count = document.getElementById("mapOnlineCount");
-    if (count) count.textContent = `Online (${state.playerPositions.length})`;
   });
 
   state.socket.on("kill:new", (data) => {
@@ -1121,7 +1104,7 @@ function setTab(tab) {
   const subs = {
     overview: "Server health and quick controls",
     analytics: "Performance metrics and player trends",
-    map: "Real-time player positions",
+    map: "Coming soon",
     players: "Who's online right now",
     commands: "Channels, kits, ranks, events",
     console: "Raw RCON commands",
@@ -2493,71 +2476,11 @@ async function renderAnalytics() {
 }
 
 async function renderMap() {
-  let imageReady = false;
-  let imageStatus = null;
-  let imageMessage = null;
-  let imageSource = null;
-  let mapImageUrl = null;
-
-  try {
-    const live = await api("/map");
-    if (live?.ok) {
-      if (Array.isArray(live.players)) state.playerPositions = live.players;
-      if (state.overview?.server) {
-        if (live.seed) state.overview.server.mapSeed = live.seed;
-        if (live.size) state.overview.server.mapSize = live.size;
-      }
-      imageReady = Boolean(live.imageReady);
-      imageStatus = live.imageStatus;
-      imageMessage = live.imageMessage;
-      imageSource = live.imageSource;
-      mapImageUrl = live.imageUrl || null;
-    }
-  } catch {
-    /* websocket / overview fallback */
-  }
-
-  const players = state.playerPositions || [];
-  const server = state.overview?.server;
-  const mapSeed = server?.mapSeed || 0;
-  const mapSize = server?.mapSize || 4000;
-  const mapName = server?.map || "Unknown";
-  const withCoords = players.filter((p) => p.coords).length;
-
-  const statusHint = imageReady
-    ? `Showing your uploaded map${imageSource ? ` (${esc(imageSource)})` : ""}. Player dots use world coords.`
-    : `Console maps aren't on RustMaps — upload a screenshot of your <strong>in-game map</strong> (flat map with Airfield, etc.) so positions line up.`;
-
   return `
-    <div class="split">
-      <div class="card">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;margin-bottom:.75rem;flex-wrap:wrap">
-          <h3 style="margin:0">Live player positions</h3>
-          <div style="display:flex;gap:.4rem;flex-wrap:wrap">
-            <label class="button" style="padding:.3rem .6rem;font-size:.72rem;cursor:pointer;margin:0">
-              Upload map
-              <input id="mapUploadInput" type="file" accept="image/png,image/jpeg,image/webp" style="display:none" />
-            </label>
-            ${imageReady ? `<button data-action="clearMapImage" style="padding:.3rem .6rem;font-size:.72rem">Clear image</button>` : ""}
-            <button data-action="refreshMap" style="padding:.3rem .6rem;font-size:.72rem">Refresh seed</button>
-          </div>
-        </div>
-        <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:0 0 .75rem">
-          ${mapSeed
-            ? `Map: ${esc(mapName)} · Seed: ${mapSeed} · Size: ${mapSize}m · Tracked: ${withCoords}/${players.length}`
-            : "Waiting for seed/size — click Refresh seed once RCON is up"}
-        </p>
-        <div style="position:relative;max-width:500px;margin:0 auto;aspect-ratio:1;background:#0a0a0a;border:1px solid var(--line)">
-          ${mapImageUrl
-            ? `<img id="mapImage" src="${esc(mapImageUrl)}&t=${Date.now()}" alt="Map" style="width:100%;height:100%;object-fit:contain;display:block" onload="drawMap()" onerror="this.style.display='none';drawMap()" />`
-            : ""}
-          <canvas id="mapCanvas" width="500" height="500" style="position:absolute;inset:0;width:100%;height:100%"></canvas>
-        </div>
-        <p class="hint" style="margin-top:.75rem">${statusHint}${imageMessage && !imageReady ? ` <span class="muted">(${esc(imageMessage)})</span>` : ""}</p>
-      </div>
-      <div class="card">
-        <h3 id="mapOnlineCount">Online (${players.length})</h3>
-        <div class="table-wrap"><table class="table"><thead><tr><th>IGN</th><th>Position</th><th></th></tr></thead><tbody id="mapPlayerRows">${mapPlayerRowsHtml(players)}</tbody></table></div>
+    <div class="card">
+      <div class="empty" style="padding:3.5rem 1.5rem">
+        Coming soon
+        <span class="empty-hint">Live player positions on the map — not ready yet</span>
       </div>
     </div>
   `;
@@ -2568,73 +2491,14 @@ function esc(s) {
 }
 
 function bindView() {
-  // Initialize charts if on analytics tab
   if (state.tab === "analytics" && state.analyticsData) {
     initAnalyticsCharts();
-  }
-  
-  // Draw map if on map tab
-  if (state.tab === "map") {
-    drawMap();
-    const upload = document.getElementById("mapUploadInput");
-    if (upload) {
-      upload.onchange = async () => {
-        const file = upload.files?.[0];
-        if (!file) return;
-        if (file.size > 7 * 1024 * 1024) {
-          toast("Image too large (max ~7MB)");
-          return;
-        }
-        toast("Uploading map…");
-        const reader = new FileReader();
-        reader.onload = async () => {
-          try {
-            const r = await api("/map/image", {
-              method: "POST",
-              body: { image: reader.result, filename: file.name },
-            });
-            if (r.ok) {
-              toast("Map image saved");
-              render();
-            } else {
-              toast(r.error || "Upload failed");
-            }
-          } catch (e) {
-            toast(e.message || "Upload failed");
-          }
-        };
-        reader.readAsDataURL(file);
-      };
-    }
   }
 
   document.querySelectorAll("[data-action]").forEach((el) => {
     el.onclick = async () => {
       const a = el.dataset.action;
       try {
-        if (a === "refreshMap") {
-          const btn = el;
-          btn.disabled = true;
-          btn.textContent = "Refreshing...";
-          const r = await api("/map/refresh", { method: "POST", body: {} });
-          if (r.ok) {
-            toast(`Seed refreshed: ${r.seed} · ${r.size}m${r.imageReady ? " · map image ready" : " · upload a map screenshot"}`);
-            await refreshOverview();
-            render();
-          } else {
-            toast(`Failed to refresh map: ${r.error}`);
-          }
-          btn.disabled = false;
-          btn.textContent = "Refresh seed";
-          return;
-        }
-        if (a === "clearMapImage") {
-          if (!confirm("Remove the uploaded map image?")) return;
-          const r = await api("/map/image", { method: "DELETE", body: {} });
-          toast(r.ok ? "Map image cleared" : (r.error || "Failed"));
-          render();
-          return;
-        }
         if (a === "viewPlayer") {
           const ign = el.dataset.ign;
           state.selectedPlayer = ign;
