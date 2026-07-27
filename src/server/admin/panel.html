@@ -169,7 +169,6 @@ input:focus, textarea:focus, select:focus {
 }
 .login-card input {
   width: 100%; margin-bottom: 1.25rem;
-}
   background: rgba(0,0,0,.55); border-color: rgba(255,255,255,.14);
   letter-spacing: .08em;
 }
@@ -193,7 +192,17 @@ input:focus, textarea:focus, select:focus {
 }
 
 #app { display: grid; grid-template-columns: 220px 1fr; min-height: 100vh; transition: grid-template-columns .2s ease; }
-#app.sidebar-collapsed { grid-template-columns: 70px 1fr; }
+#app.sidebar-collapsed { grid-template-columns: 1fr; }
+#app.sidebar-collapsed .nav { display: none; }
+.desktop-nav-open {
+  display: none;
+  width: 36px; height: 36px; padding: 0;
+  align-items: center; justify-content: center;
+  flex: none; border-radius: 8px;
+  background: rgba(255,255,255,.05);
+}
+#app.sidebar-collapsed .desktop-nav-open { display: inline-flex; }
+.desktop-nav-open:hover { background: rgba(255,255,255,.1); }
 .mobile-bar { display: none; }
 .nav-backdrop {
   display: none; position: fixed; inset: 0; z-index: 40;
@@ -218,8 +227,6 @@ input:focus, textarea:focus, select:focus {
   padding: .85rem .65rem; margin-bottom: .3rem;
   border-bottom: 1px solid var(--line);
 }
-#app.sidebar-collapsed .brand > span { display: none; }
-#app.sidebar-collapsed .brand { justify-content: center; padding: .85rem .35rem; }
 .brand .logo {
   width: 28px; height: 28px; border-radius: 50%; flex: none; object-fit: cover;
   background: #000; border: 1px solid rgba(215,221,230,.28);
@@ -240,10 +247,6 @@ input:focus, textarea:focus, select:focus {
   margin-left: auto;
   transition: all .15s ease;
 }
-#app.sidebar-collapsed .sidebar-toggle {
-  margin-left: 0;
-  margin-top: .5rem;
-}
 .sidebar-toggle:hover {
   background: rgba(255,255,255,.1);
 }
@@ -253,16 +256,12 @@ input:focus, textarea:focus, select:focus {
   font-family: var(--mono); font-size: .55rem; letter-spacing: .18em; text-transform: uppercase;
   color: var(--faint); padding: 0 .45rem .3rem;
 }
-#app.sidebar-collapsed .nav-group-label { display: none; }
 .nav button {
   width: 100%; text-align: left; justify-content: flex-start; margin-bottom: .1rem;
   background: transparent; border-color: transparent; font-weight: 600; color: var(--muted);
   padding: .42rem .5rem; gap: .5rem; border-radius: var(--radius-sm);
   font-size: .82rem; min-height: 36px; white-space: nowrap; overflow: hidden;
 }
-#app.sidebar-collapsed .nav button { justify-content: center; padding: .42rem .25rem; }
-#app.sidebar-collapsed .nav button .ico { margin: 0; }
-#app.sidebar-collapsed .nav button span { display: none; }
 .nav button .ico { width: 14px; height: 14px; flex: none; opacity: .7; }
 .nav button:hover { color: var(--text); background: rgba(255,255,255,.035); box-shadow: none; }
 .nav button.active {
@@ -293,7 +292,10 @@ input:focus, textarea:focus, select:focus {
 
 /* ── Main ── */
 .main { padding: 2.5rem 3rem 4rem; max-width: 1500px; min-width: 0; }
-#view { animation: viewIn .22s ease both; }
+#view {
+  animation: viewIn .22s ease both;
+  margin-top: .25rem;
+}
 @keyframes viewIn {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: none; }
@@ -304,10 +306,10 @@ input:focus, textarea:focus, select:focus {
 button { transition: all .15s ease; }
 .card { transition: all .2s ease; }
 .dropdown-menu { transition: opacity .15s ease, transform .15s ease; }
-}
+
 .topbar {
   display: flex; flex-wrap: wrap; gap: 1.5rem 2rem; align-items: flex-end; justify-content: space-between;
-  margin-bottom: 3rem; padding-bottom: 2rem;
+  margin-bottom: 2.75rem; padding-bottom: 1.75rem;
   border-bottom: 1px solid rgba(255,255,255,.06);
   position: relative;
 }
@@ -318,8 +320,9 @@ button { transition: all .15s ease; }
   color: #fff;
 }
 .page-sub {
-  margin: .5rem 0 0; color: rgba(215,221,230,.5); font-size: .78rem;
+  margin: .55rem 0 0; color: rgba(215,221,230,.5); font-size: .78rem;
   font-family: var(--mono); letter-spacing: .02em; font-weight: 500;
+  line-height: 1.45;
 }
 .pills { display: flex; gap: .6rem; flex-wrap: wrap; }
 .pill {
@@ -613,13 +616,35 @@ button { transition: all .15s ease; }
 .muted { color: rgba(215,221,230,.5); }
 .hint { color: rgba(215,221,230,.4); font-family: var(--mono); font-size: .7rem; line-height: 1.6; }
 .section-stack { display: grid; gap: 1.75rem; }
-.subtabs { display: flex; gap: .5rem; flex-wrap: wrap; margin-bottom: .5rem; }
+.subtabs { display: flex; gap: .5rem; flex-wrap: wrap; margin: 0 0 1.25rem; }
+.subtabs.page-subtabs { margin-top: -.5rem; margin-bottom: 1.75rem; }
+.subtabs.page-subtabs:empty { display: none; margin: 0; }
 .subtabs button {
   padding: .35rem .65rem; font-size: .72rem; min-height: 34px;
 }
 .subtabs button.active {
   color: #050506; background: var(--chrome); border-color: var(--chrome);
 }
+.nav-advanced-toggle {
+  width: 100%; text-align: left; justify-content: flex-start; margin-bottom: .1rem;
+  background: transparent; border-color: transparent; font-weight: 600; color: var(--muted);
+  padding: .42rem .5rem; gap: .5rem; border-radius: var(--radius-sm);
+  font-size: .82rem; min-height: 36px;
+}
+.nav-advanced-toggle:hover { color: var(--text); background: rgba(255,255,255,.035); }
+.nav-advanced-toggle .chev {
+  width: 12px; height: 12px; margin-left: auto; opacity: .55;
+  transition: transform .15s ease;
+}
+.nav-advanced.open .nav-advanced-toggle .chev { transform: rotate(180deg); }
+.nav-advanced-items {
+  display: none;
+  padding: .15rem 0 .25rem .35rem;
+  margin: 0 0 .2rem .35rem;
+  border-left: 1px solid rgba(255,255,255,.08);
+}
+.nav-advanced.open .nav-advanced-items { display: block; }
+.nav-advanced-items button { font-size: .78rem; min-height: 34px; }
 
 * { scrollbar-width: thin; scrollbar-color: rgba(215,221,230,.18) transparent; }
 *::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -631,7 +656,8 @@ button { transition: all .15s ease; }
 @media (max-width: 900px) {
   #app { grid-template-columns: 1fr; }
   #app.sidebar-collapsed { grid-template-columns: 1fr; }
-  .sidebar-toggle { display: none !important; }
+  #app.sidebar-collapsed .nav { display: flex; }
+  .sidebar-toggle, .desktop-nav-open { display: none !important; }
   
   .mobile-bar {
     display: flex; align-items: center; gap: .65rem;
@@ -671,9 +697,10 @@ button { transition: all .15s ease; }
   .nav-user { display: flex; }
   
   .main { padding: 1rem 1rem 5.5rem; max-width: 100%; overflow-x: hidden; }
-  .topbar { margin-bottom: .7rem; padding-bottom: .6rem; gap: .45rem; flex-direction: column; align-items: flex-start; }
+  .topbar { margin-bottom: 1.75rem; padding-bottom: 1.25rem; gap: .55rem; flex-direction: column; align-items: flex-start; }
   .topbar h2 { font-size: 1.15rem; }
-  .page-sub { font-size: .68rem; margin-top: .15rem; }
+  .page-sub { font-size: .68rem; margin-top: .35rem; }
+  #view { margin-top: .15rem; }
   .pills { width: 100%; justify-content: flex-start; flex-wrap: wrap; }
   .pills .pill { font-size: .55rem; padding: .25rem .45rem; }
   
@@ -788,56 +815,48 @@ button { transition: all .15s ease; }
   <aside class="nav" id="sideNav">
     <div class="brand">
       <img class="logo" src="/logo.png" alt="Astral" /><span>ASTRAL <span style="background:linear-gradient(180deg,#fff,#9aa3af);-webkit-background-clip:text;background-clip:text;color:transparent;font-weight:600;letter-spacing:.08em;font-size:.65rem">CTRL</span></span>
-      <button type="button" class="sidebar-toggle ghost" id="sidebarToggle" aria-label="Toggle sidebar" title="Toggle sidebar">
+      <button type="button" class="sidebar-toggle ghost" id="sidebarToggle" aria-label="Close menu" title="Close menu">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
       </button>
       <button type="button" class="nav-close ghost" id="navClose" aria-label="Close menu">✕</button>
     </div>
 
     <div class="nav-group">
-      <div class="nav-group-label">Server</div>
-      <button data-tab="overview" class="active" data-perm="overview">
-        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Overview</button>
-      <button data-tab="analytics" data-perm="overview">
-        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M18 17l-3-3-4 4-5-5"/></svg>Analytics</button>
-      <button data-tab="map" data-perm="players">
-        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3z"/><path d="M9 3v15M15 6v15"/></svg>Live Map</button>
-      <button data-tab="players" data-perm="players">
+      <div class="nav-group-label">Main</div>
+      <button type="button" data-nav="home" class="active">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Home</button>
+      <button type="button" data-nav="players">
         <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><path d="M17 5a3 3 0 0 1 0 6M21 20c0-2.5-1.5-4.7-3.7-5.6"/></svg>Players</button>
-      <button data-tab="commands" data-perm="serverCommands">
-        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l2.2 4.5L19 8.3l-3.5 3.4.8 4.8L12 14.2 7.7 16.5l.8-4.8L5 8.3l4.8-.8L12 3z"/><path d="M5 20h14"/></svg>Commands</button>
-      <button data-tab="console" data-perm="rcon">
-        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3M13 15h4"/></svg>RCON</button>
-      <button data-tab="stats" data-perm="stats">
-        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Stats</button>
-      <button data-tab="warps" data-perm="warps">
-        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s7-6.5 7-11a7 7 0 1 0-14 0c0 4.5 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>Warps</button>
-    </div>
-
-    <div class="nav-group">
-      <div class="nav-group-label">Community</div>
-      <button data-tab="links" data-perm="links">
-        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 15l6-6M8.5 7.5l1-1a4 4 0 0 1 6 6l-1 1M15.5 16.5l-1 1a4 4 0 0 1-6-6l1-1"/></svg>Links</button>
-      <button data-tab="kits" data-perm="kits">
+      <button type="button" data-nav="kits">
         <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8h18v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><path d="M3 8l2-4h14l2 4M12 4v16"/></svg>Kits</button>
-      <button data-tab="reports" data-perm="reports">
-        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l2 4h4l-3 3 1 4-4-2-4 2 1-4-3-3h4z"/><circle cx="12" cy="12" r="9"/></svg>Reports</button>
-      <button data-tab="automation" data-perm="automation">
-        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Automation</button>
-      <button data-tab="events" data-perm="schedule">
-        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 2v4M16 2v4M3 10h18"/></svg>Events</button>
-      <button data-tab="bans" data-perm="ban">
-        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M5 19L19 5"/></svg>Bans</button>
+      <button type="button" data-nav="community">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 15l6-6M8.5 7.5l1-1a4 4 0 0 1 6 6l-1 1M15.5 16.5l-1 1a4 4 0 0 1-6-6l1-1"/></svg>Community</button>
+      <button type="button" data-nav="server">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Server</button>
     </div>
 
-    <div class="nav-group">
-      <div class="nav-group-label">Admin</div>
-      <button data-tab="audit" data-perm="logs">
-        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M20 17l-4-4M20 17l-4 4"/></svg>Audit</button>
-      <button data-tab="keys" data-perm="keys">
-        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="15" r="4"/><path d="M11 12l7-7 3 3M16 7l2 2"/></svg>Keys</button>
-      <button data-tab="logs" data-perm="logs">
-        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h9l5 5v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v6h6M9 13h6M9 17h6"/></svg>Logs</button>
+    <div class="nav-group nav-advanced" id="navAdvanced">
+      <button type="button" class="nav-advanced-toggle" id="advancedToggle" aria-expanded="false">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+        Advanced
+        <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+      <div class="nav-advanced-items" id="advancedItems">
+        <button type="button" data-tab="console" data-perm="rcon">
+          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3M13 15h4"/></svg>RCON</button>
+        <button type="button" data-tab="commands" data-perm="serverCommands">
+          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l2.2 4.5L19 8.3l-3.5 3.4.8 4.8L12 14.2 7.7 16.5l.8-4.8L5 8.3l4.8-.8L12 3z"/><path d="M5 20h14"/></svg>Commands</button>
+        <button type="button" data-tab="warps" data-perm="warps">
+          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s7-6.5 7-11a7 7 0 1 0-14 0c0 4.5 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>Warps</button>
+        <button type="button" data-tab="analytics" data-perm="overview">
+          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M18 17l-3-3-4 4-5-5"/></svg>Analytics</button>
+        <button type="button" data-tab="audit" data-perm="logs">
+          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M20 17l-4-4M20 17l-4 4"/></svg>Audit</button>
+        <button type="button" data-tab="keys" data-perm="keys">
+          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="15" r="4"/><path d="M11 12l7-7 3 3M16 7l2 2"/></svg>Keys</button>
+        <button type="button" data-tab="logs" data-perm="logs">
+          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h9l5 5v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v6h6M9 13h6M9 17h6"/></svg>Logs</button>
+      </div>
     </div>
 
     <div class="nav-spacer"></div>
@@ -854,12 +873,18 @@ button { transition: all .15s ease; }
   </aside>
   <main class="main">
     <div class="topbar">
-      <div class="title-wrap">
-        <h2 id="pageTitle">Overview</h2>
-        <p class="page-sub" id="pageSub">Live server health and quick controls</p>
+      <div class="title-wrap" style="display:flex;align-items:flex-start;gap:.75rem">
+        <button type="button" class="desktop-nav-open ghost" id="desktopNavOpen" aria-label="Open menu" title="Open menu">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+        </button>
+        <div>
+          <h2 id="pageTitle">Home</h2>
+          <p class="page-sub" id="pageSub">Server health and quick controls</p>
+        </div>
       </div>
       <div class="pills" id="statusPills"></div>
     </div>
+    <div class="subtabs page-subtabs" id="pageSubtabs"></div>
     <section id="view"></section>
   </main>
 </div>
@@ -890,6 +915,109 @@ const state = {
   analyticsData: null,
 };
 
+const NAV_SECTIONS = {
+  home: {
+    title: "Home",
+    sub: "Server health and quick controls",
+    tabs: [
+      { id: "overview", label: "Overview", perm: "overview" },
+      { id: "map", label: "Map", perm: "players" },
+    ],
+  },
+  players: {
+    title: "Players",
+    sub: "Online players, bans, and reports",
+    tabs: [
+      { id: "players", label: "Online", perm: "players" },
+      { id: "bans", label: "Bans", perm: "ban" },
+      { id: "reports", label: "Reports", perm: "reports" },
+    ],
+  },
+  kits: {
+    title: "Kits",
+    sub: "Server kits + panel builder",
+    tabs: [{ id: "kits", label: "Kits", perm: "kits" }],
+  },
+  community: {
+    title: "Community",
+    sub: "Links, automation, and events",
+    tabs: [
+      { id: "links", label: "Links", perm: "links" },
+      { id: "automation", label: "Automation", perm: "automation" },
+      { id: "events", label: "Events", perm: "schedule" },
+    ],
+  },
+  server: {
+    title: "Server",
+    sub: "Leaderboards and lookups",
+    tabs: [{ id: "stats", label: "Stats", perm: "stats" }],
+  },
+};
+
+const ADVANCED_TABS = [
+  { id: "console", label: "RCON", perm: "rcon", title: "RCON", sub: "Raw RCON commands" },
+  { id: "commands", label: "Commands", perm: "serverCommands", title: "Commands", sub: "Channels, kits, ranks, events" },
+  { id: "warps", label: "Warps", perm: "warps", title: "Warps", sub: "Warps and force teleports" },
+  { id: "analytics", label: "Analytics", perm: "overview", title: "Analytics", sub: "Performance metrics and player trends" },
+  { id: "audit", label: "Audit", perm: "logs", title: "Audit Log", sub: "Complete history of all admin actions" },
+  { id: "keys", label: "Keys", perm: "keys", title: "Keys", sub: "Staff access keys" },
+  { id: "logs", label: "Logs", perm: "logs", title: "Logs", sub: "Panel audit trail" },
+];
+
+const TAB_META = {
+  overview: { title: "Home", sub: "Server health and quick controls", perm: "overview" },
+  map: { title: "Home", sub: "Coming soon", perm: "players" },
+  players: { title: "Players", sub: "Who's online right now", perm: "players" },
+  bans: { title: "Players", sub: "Manage player bans", perm: "ban" },
+  reports: { title: "Players", sub: "Combat log and trio group alerts", perm: "reports" },
+  kits: { title: "Kits", sub: "Server kits + panel builder", perm: "kits" },
+  links: { title: "Community", sub: "Discord ↔ IGN links", perm: "links" },
+  automation: { title: "Community", sub: "Auto messages and scheduled commands", perm: "automation" },
+  events: { title: "Community", sub: "Automate RCON commands on a schedule", perm: "schedule" },
+  stats: { title: "Server", sub: "Leaderboards and lookups", perm: "stats" },
+};
+
+for (const t of ADVANCED_TABS) {
+  TAB_META[t.id] = { title: t.title, sub: t.sub, perm: t.perm };
+}
+
+function normalizeTab(tab) {
+  if (tab === "automsg" || tab === "schedule") return "automation";
+  return tab;
+}
+
+function tabPerm(tab) {
+  return TAB_META[tab]?.perm || tab;
+}
+
+function sectionForTab(tab) {
+  tab = normalizeTab(tab);
+  for (const [id, section] of Object.entries(NAV_SECTIONS)) {
+    if (section.tabs.some((t) => t.id === tab)) return id;
+  }
+  if (ADVANCED_TABS.some((t) => t.id === tab)) return "advanced";
+  return null;
+}
+
+function allowedTabs(tabs) {
+  return tabs.filter((t) => can(t.perm));
+}
+
+function defaultTabForSection(sectionId) {
+  const section = NAV_SECTIONS[sectionId];
+  if (!section) return null;
+  return allowedTabs(section.tabs)[0]?.id || null;
+}
+
+function firstAllowedTab() {
+  for (const id of Object.keys(NAV_SECTIONS)) {
+    const tab = defaultTabForSection(id);
+    if (tab) return tab;
+  }
+  const adv = ADVANCED_TABS.find((t) => can(t.perm));
+  return adv?.id || "overview";
+}
+
 function can(perm) {
   if (!state.session) return false;
   if (state.session.role === "owner") return true;
@@ -897,18 +1025,63 @@ function can(perm) {
   return Boolean(state.session.permissions?.[perm]);
 }
 
+function setAdvancedOpen(open) {
+  const root = document.getElementById("navAdvanced");
+  const toggle = document.getElementById("advancedToggle");
+  if (!root || !toggle) return;
+  root.classList.toggle("open", open);
+  toggle.setAttribute("aria-expanded", open ? "true" : "false");
+  localStorage.setItem("advancedNavOpen", open ? "true" : "false");
+}
+
 function applyNavPermissions() {
   document.querySelectorAll(".nav [data-tab][data-perm]").forEach((btn) => {
     const allowed = can(btn.dataset.perm);
     btn.classList.toggle("hidden", !allowed);
   });
-  const visible = [...document.querySelectorAll(".nav [data-tab][data-perm]")]
-    .filter((b) => !b.classList.contains("hidden"))
-    .map((b) => b.dataset.tab);
-  if (state.tab === "automsg" || state.tab === "schedule") state.tab = "automation";
-  if (!visible.includes(state.tab)) {
-    state.tab = visible[0] || "overview";
+
+  for (const [id, section] of Object.entries(NAV_SECTIONS)) {
+    const btn = document.querySelector(`.nav [data-nav="${id}"]`);
+    if (!btn) continue;
+    btn.classList.toggle("hidden", allowedTabs(section.tabs).length === 0);
   }
+
+  const advVisible = ADVANCED_TABS.some((t) => can(t.perm));
+  document.getElementById("navAdvanced")?.classList.toggle("hidden", !advVisible);
+
+  state.tab = normalizeTab(state.tab);
+  if (!can(tabPerm(state.tab))) {
+    state.tab = firstAllowedTab();
+  }
+}
+
+function syncNavActive() {
+  const section = sectionForTab(state.tab);
+  document.querySelectorAll(".nav [data-nav]").forEach((b) => {
+    b.classList.toggle("active", b.dataset.nav === section);
+  });
+  document.querySelectorAll(".nav [data-tab]").forEach((b) => {
+    b.classList.toggle("active", b.dataset.tab === state.tab);
+  });
+  if (section === "advanced") setAdvancedOpen(true);
+}
+
+function renderPageSubtabs() {
+  const el = document.getElementById("pageSubtabs");
+  if (!el) return;
+  const sectionId = sectionForTab(state.tab);
+  const section = sectionId ? NAV_SECTIONS[sectionId] : null;
+  const tabs = section ? allowedTabs(section.tabs) : [];
+  if (tabs.length <= 1) {
+    el.innerHTML = "";
+    return;
+  }
+  el.innerHTML = tabs
+    .map(
+      (t) =>
+        `<button type="button" data-action="pageSub" data-tab="${t.id}" class="${t.id === state.tab ? "active" : ""}">${esc(t.label)}</button>`,
+    )
+    .join("");
 }
 
 function setNavOpen(open) {
@@ -972,6 +1145,7 @@ async function boot() {
     stopLoginScene();
     state.session = session;
     applyNavPermissions();
+    setAdvancedOpen(localStorage.getItem("advancedNavOpen") === "true");
     const label = session.label || "Panel";
     const roleTxt = session.role === "owner" ? "OWNER" : "STAFF";
     document.getElementById("navMeta").textContent = `${label} · ${roleTxt}`;
@@ -981,13 +1155,19 @@ async function boot() {
     
     connectWebSocket();
 
-    document.getElementById("sidebarToggle")?.addEventListener("click", () => {
+    function setSidebarCollapsed(collapsed) {
       const app = document.getElementById("app");
-      app.classList.toggle("sidebar-collapsed");
-      localStorage.setItem("sidebarCollapsed", app.classList.contains("sidebar-collapsed"));
+      app.classList.toggle("sidebar-collapsed", collapsed);
+      localStorage.setItem("sidebarCollapsed", collapsed ? "true" : "false");
+    }
+    document.getElementById("sidebarToggle")?.addEventListener("click", () => {
+      setSidebarCollapsed(true);
+    });
+    document.getElementById("desktopNavOpen")?.addEventListener("click", () => {
+      setSidebarCollapsed(false);
     });
     if (localStorage.getItem("sidebarCollapsed") === "true") {
-      document.getElementById("app").classList.add("sidebar-collapsed");
+      setSidebarCollapsed(true);
     }
 
     document.addEventListener("keydown", (e) => {
@@ -1087,41 +1267,18 @@ async function refreshOverview() {
 }
 
 function setTab(tab) {
-  if (tab === "automsg" || tab === "schedule") tab = "automation";
-  if (!can(document.querySelector(`.nav [data-tab="${tab}"]`)?.dataset.perm || tab)) {
-    const first = document.querySelector(".nav [data-tab][data-perm]:not(.hidden)");
-    tab = first?.dataset.tab || "overview";
+  tab = normalizeTab(tab);
+  if (!can(tabPerm(tab))) {
+    tab = firstAllowedTab();
   }
   state.tab = tab;
-  document.querySelectorAll(".nav [data-tab]").forEach((b) => b.classList.toggle("active", b.dataset.tab === tab));
-  const titles = {
-    overview: "Overview", analytics: "Analytics", map: "Live Map", players: "Players", 
-    commands: "Commands", console: "RCON", stats: "Stats",
-    warps: "Warps", links: "Links", kits: "Kits", reports: "Reports", automation: "Automation",
-    audit: "Audit Log", bans: "Ban Management", events: "Scheduled Events",
-    keys: "Keys", logs: "Logs",
-  };
-  const subs = {
-    overview: "Server health and quick controls",
-    analytics: "Performance metrics and player trends",
-    map: "Coming soon",
-    players: "Who's online right now",
-    commands: "Channels, kits, ranks, events",
-    console: "Raw RCON commands",
-    stats: "Leaderboards and lookups",
-    warps: "Warps and force teleports",
-    links: "Discord ↔ IGN links",
-    kits: "Server kits + panel builder",
-    reports: "Combat log and trio group alerts",
-    automation: "Auto messages and scheduled commands",
-    audit: "Complete history of all admin actions",
-    bans: "Manage player bans - temporary and permanent",
-    events: "Automate RCON commands on a schedule",
-    keys: "Staff access keys",
-    logs: "Panel audit trail",
-  };
-  document.getElementById("pageTitle").textContent = titles[tab] || tab;
-  document.getElementById("pageSub").textContent = subs[tab] || "";
+  syncNavActive();
+  const meta = TAB_META[tab] || { title: tab, sub: "" };
+  const sectionId = sectionForTab(tab);
+  const section = sectionId && sectionId !== "advanced" ? NAV_SECTIONS[sectionId] : null;
+  document.getElementById("pageTitle").textContent = section?.title || meta.title || tab;
+  document.getElementById("pageSub").textContent = meta.sub || section?.sub || "";
+  renderPageSubtabs();
   setNavOpen(false);
   render();
 }
@@ -2499,11 +2656,14 @@ function bindView() {
     el.onclick = async () => {
       const a = el.dataset.action;
       try {
+        if (a === "pageSub") {
+          setTab(el.dataset.tab || "overview");
+          return;
+        }
         if (a === "viewPlayer") {
           const ign = el.dataset.ign;
           state.selectedPlayer = ign;
-          state.tab = "players";
-          render();
+          setTab("players");
           return;
         }
         if (a === "autoSub") {
@@ -2972,7 +3132,19 @@ document.getElementById("logoutBtn").onclick = async () => {
   await api("/logout", { method: "POST", body: {} });
   location.reload();
 };
-document.querySelectorAll(".nav [data-tab]").forEach((b) => b.onclick = () => setTab(b.dataset.tab));
+document.querySelectorAll(".nav [data-tab]").forEach((b) => {
+  b.onclick = () => setTab(b.dataset.tab);
+});
+document.querySelectorAll(".nav [data-nav]").forEach((b) => {
+  b.onclick = () => {
+    const tab = defaultTabForSection(b.dataset.nav);
+    if (tab) setTab(tab);
+  };
+});
+document.getElementById("advancedToggle")?.addEventListener("click", () => {
+  const root = document.getElementById("navAdvanced");
+  setAdvancedOpen(!root?.classList.contains("open"));
+});
 
 document.getElementById("navToggle")?.addEventListener("click", () => setNavOpen(true));
 document.getElementById("navClose")?.addEventListener("click", () => setNavOpen(false));

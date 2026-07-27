@@ -1,7 +1,7 @@
 import { readFileSync } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import { isConsoleKitItem } from "./console-items.js";
+import { consoleKitExtras, isConsoleKitItem } from "./console-items.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CATALOG = JSON.parse(
@@ -9,7 +9,16 @@ const CATALOG = JSON.parse(
 );
 
 const RAW = Array.isArray(CATALOG.items) ? CATALOG.items : [];
-const ITEMS = RAW.filter(isConsoleKitItem);
+const byId = new Map();
+for (const item of RAW.filter(isConsoleKitItem)) {
+  byId.set(item.id, item);
+}
+for (const item of consoleKitExtras()) {
+  if (!byId.has(item.id)) byId.set(item.id, item);
+}
+const ITEMS = [...byId.values()].sort((a, b) =>
+  a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
+);
 const CATEGORIES = [...new Set(ITEMS.map((i) => i.category).filter(Boolean))].sort();
 
 export function listRustItems({ q = "", category = "" } = {}) {
