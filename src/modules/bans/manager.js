@@ -184,10 +184,12 @@ export async function getAllBans({ includeInactive = true, limit = 200 } = {}) {
 
 /**
  * Parse banlistex / banlist RCON output into { ign, steamId, reason } rows.
- * Formats seen:
- *   1 7656119... "Name" "reason"
- *   7656119... "Name" "reason"
- *   Name was banned
+ * Console Edition uses gamertags/PSN IDs (not Steam64). Formats seen:
+ *   1 "GamerTag" "reason"
+ *   1 GamerTag reason
+ *   1 7656119... "Name" "reason"   (PC)
+ *   "Player Name" "reason"
+ *   GamerTag
  */
 export function parseBanlistOutput(raw) {
   const text = String(raw ?? "").trim();
@@ -196,42 +198,72 @@ export function parseBanlistOutput(raw) {
   const rows = [];
   const seen = new Set();
 
+  const skipLine = (line) =>
+    !line ||
+    /^banned users/i.test(line) ||
+    /^there are no/i.test(line) ||
+    /^no banned/i.test(line) ||
+    /^id\b/i.test(line) ||
+    /^#/.test(line) ||
+    /^----/.test(line);
+
   for (const line of text.split(/\r?\n/)) {
     const trimmed = line.trim();
-    if (!trimmed || /^banned users/i.test(trimmed) || /^id\b/i.test(trimmed)) continue;
-
-    let match =
-      trimmed.match(
-        /^(?:\d+\s+)?(\d{15,20})\s+"([^"]+)"\s*(?:"([^"]*)")?/,
-      ) ||
-      trimmed.match(/^(?:\d+\s+)?(\d{15,20})\s+(\S+)\s*(?:"([^"]*)")?/) ||
-      trimmed.match(/^"([^"]+)"\s*(?:"([^"]*)")?/) ||
-      trimmed.match(/^(\S+)\s+(?:was )?banned(?:\s*[-:]\s*(.+))?$/i);
-
-    if (!match) continue;
+    if (skipLine(trimmed)) continue;
 
     let steamId = null;
     let ign = null;
     let reason = "Banned";
 
-    if (match[1] && /^\d{15,20}$/.test(match[1])) {
-      steamId = match[1];
-      ign = match[2];
-      reason = match[3] || "Banned";
-    } else if (match[1] && !/^\d{15,20}$/.test(match[1])) {
-      ign = match[1];
-      reason = match[2] || "Banned";
+    // 1 7656119... "Name" "reason"  OR  7656119... Name reason
+    let m = trimmed.match(
+      /^(?:\d+[.)]?\s+)?(\d{15,20})\s+(?:"([^"]+)"|(\S+))\s*(?:"([^"]*)"|(.+))?$/i,
+    );
+    if (m) {
+      steamId = m[1];
+      ign = m[2] || m[3];
+      reason = (m[4] ?? m[5] ?? "Banned").trim() || "Banned";
+    }
+
+    // 1 "Gamer Tag" "reason"  OR  1 GamerTag reason-here
+    if (!ign) {
+      m = trimmed.match(
+        /^(?:\d+[.)]?\s+)?(?:"([^"]+)"|([A-Za-z0-9][A-Za-z0-9_.\-]{0,30}))\s*(?:"([^"]*)"|[-–:]\s*(.+)|(.+))?$/i,
+      );
+      if (m) {
+        ign = m[1] || m[2];
+        const rest = (m[3] ?? m[4] ?? m[5] ?? "").trim();
+        if (ign && !/^\d+$/.test(ign)) {
+          reason = rest && rest !== '""' ? rest : "Banned";
+        } else {
+          ign = null;
+        }
+      }
+    }
+
+    // Fallback: first quoted string on the line is the name
+    if (!ign) {
+      m = trimmed.match(/"([^"]{2,})"/);
+      if (m) {
+        ign = m[1];
+        const rest = trimmed.replace(m[0], "").match(/"([^"]*)"/);
+        reason = rest?.[1]?.trim() || "Banned";
+      }
     }
 
     ign = String(ign || "").replace(/^"|"$/g, "").trim();
-    if (!ign || ign.length < 2) continue;
+    if (!ign || ign.length < 2 || /^\d+$/.test(ign)) continue;
+
+    // Drop obvious non-name tokens
+    if (/^(banned|users|user|reason|name|steam|id)$/i.test(ign)) continue;
+
     const key = ign.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
     rows.push({
       ign,
       steamId,
-      reason: String(reason || "Banned").trim() || "Banned",
+      reason: String(reason || "Banned").replace(/^"|"$/g, "").trim() || "Banned",
     });
   }
 

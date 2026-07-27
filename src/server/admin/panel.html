@@ -2920,8 +2920,19 @@ function bindView() {
         if (a === "syncBans") {
           const r = await api("/bans/sync", { method: "POST", body: {} });
           if (r.ok) {
-            const added = (r.sync?.added || 0) + (r.fromLogs?.added || 0);
-            toast(added ? `Synced ${added} ban(s)` : "Ban list up to date");
+            if (r.sync?.ok === false) {
+              toast(r.sync.error || "Sync failed — check RCON");
+            } else {
+              const added = (r.sync?.added || 0) + (r.fromLogs?.added || 0);
+              const parsed = r.sync?.parsed || 0;
+              toast(
+                added
+                  ? `Synced ${added} new ban(s) (${parsed} on server)`
+                  : parsed
+                    ? `Server list matched (${parsed} bans)`
+                    : "No bans found in server response",
+              );
+            }
             render();
           } else {
             toast(r.error || "Sync failed");

@@ -987,31 +987,55 @@ export async function attachAdminPanel(app, client) {
   } = await import("../../modules/bans/manager.js");
 
   async function fetchServerBanlist() {
-    const commands = ["banlistex", "global.banlistex", "banlist", "global.banlist", "bans"];
+    const commands = [
+      "banlistex",
+      "global.banlistex",
+      "banlist",
+      "global.banlist",
+      "bans",
+      "global.bans",
+      "listid",
+      "global.listid",
+    ];
+    const attempts = [];
     for (const cmd of commands) {
       try {
         const raw = await sendGameCommand(cmd);
-        if (raw && String(raw).trim()) return String(raw);
-      } catch {
-        /* try next */
+        const text = String(raw ?? "").trim();
+        attempts.push({ cmd, bytes: text.length, preview: text.slice(0, 240) });
+        if (text) return { raw: text, cmd, attempts };
+      } catch (error) {
+        attempts.push({ cmd, error: error.message });
       }
     }
-    return null;
+    return { raw: null, cmd: null, attempts };
   }
 
   app.get("/admin/api/bans", requireAuth, requirePerm("ban"), async (req, res) => {
     try {
-      // Recover bans that only hit RCON + panel logs before the store existed
       await backfillBansFromPanelLogs().catch(() => null);
 
       let sync = null;
       if (req.query.sync !== "0") {
-        const raw = await fetchServerBanlist().catch(() => null);
-        if (raw) {
-          sync = await syncBansFromServer(raw).catch((e) => ({
+        const fetched = await fetchServerBanlist().catch((e) => ({
+          raw: null,
+          attempts: [{ error: e.message }],
+        }));
+        if (fetched.raw) {
+          sync = await syncBansFromServer(fetched.raw).catch((e) => ({
             ok: false,
             error: e.message,
           }));
+          if (sync && typeof sync === "object") {
+            sync.command = fetched.cmd;
+            sync.rawPreview = fetched.raw.slice(0, 400);
+          }
+        } else {
+          sync = {
+            ok: false,
+            error: "Empty banlist response from RCON",
+            attempts: fetched.attempts,
+          };
         }
       }
 
@@ -1028,17 +1052,31 @@ export async function attachAdminPanel(app, client) {
   app.post("/admin/api/bans/sync", requireAuth, requirePerm("ban"), async (req, res) => {
     try {
       const fromLogs = await backfillBansFromPanelLogs();
-      const raw = await fetchServerBanlist();
-      if (!raw) {
+      const fetched = await fetchServerBanlist();
+      if (!fetched.raw) {
+        console.warn("Ban sync: empty RCON banlist", fetched.attempts);
         return res.json({
           ok: true,
           fromLogs,
-          sync: { ok: false, error: "Could not read banlist from server" },
+          sync: {
+            ok: false,
+            error: "Could not read banlist from server (empty RCON response)",
+            attempts: fetched.attempts,
+          },
           bans: await getAllActiveBans(),
         });
       }
-      const sync = await syncBansFromServer(raw);
-      await audit(req, "bans_sync", { added: sync.added, parsed: sync.parsed });
+      console.log(
+        `Ban sync via ${fetched.cmd}: ${fetched.raw.length} chars\n${fetched.raw.slice(0, 500)}`,
+      );
+      const sync = await syncBansFromServer(fetched.raw);
+      sync.command = fetched.cmd;
+      sync.rawPreview = fetched.raw.slice(0, 400);
+      await audit(req, "bans_sync", {
+        added: sync.added,
+        parsed: sync.parsed,
+        command: fetched.cmd,
+      });
       res.json({ ok: true, fromLogs, sync, bans: await getAllActiveBans() });
     } catch (error) {
       res.status(500).json({ ok: false, error: error.message });
