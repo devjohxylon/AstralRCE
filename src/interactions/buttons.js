@@ -5,6 +5,7 @@ import {
 import { openTicket, closeTicket } from "../modules/tickets/manager.js";
 import { handleVerifyButton } from "../modules/welcome/handlers.js";
 import { handleLinkPanelButton } from "../modules/panels/link-panel.js";
+import { handleStatsPanelButton } from "../modules/panels/stats-panel.js";
 import { requireStaff, isStaff } from "../lib/permissions.js";
 import { findTicketByChannel } from "../modules/tickets/manager.js";
 
@@ -13,6 +14,10 @@ export async function handleButton(interaction, client) {
 
   if (namespace === "link" && (action === "open" || action === "status")) {
     return handleLinkPanelButton(interaction);
+  }
+
+  if (namespace === "stats" && action === "mine") {
+    return handleStatsPanelButton(interaction);
   }
 
   if (namespace === "giveaway" && action === "enter") {

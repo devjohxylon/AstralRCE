@@ -27,7 +27,7 @@ export const COMMAND_SETTING_DEFS = [
     group: "Rust",
     key: "stats",
     name: "/stats",
-    description: "Show a player's in-game stats",
+    description: "me · player · panel — wipe stats card",
     access: "public",
     fields: [toggle("enabled", "Enabled", true)],
   },

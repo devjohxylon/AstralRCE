@@ -14,6 +14,8 @@ import {
   getPlayerCard,
   resetStats,
 } from "../modules/rcon/stats.js";
+import { getLinkByDiscord } from "../modules/rcon/linking.js";
+import { postStatsPanel, replyWithPlayerStats } from "../modules/panels/stats-panel.js";
 
 const CATEGORY_LABELS = {
   kills: "Top Kills",
@@ -90,30 +92,64 @@ export async function handlePlayersCommand(interaction) {
 }
 
 export async function handleStatsCommand(interaction) {
-  const name = interaction.options.getString("player", true);
-  const card = await getPlayerCard(name);
+  const sub = interaction.options.getSubcommand(false) || "player";
 
-  if (!card) {
+  if (sub === "panel") {
+    if (!(await requireStaff(interaction))) return;
+    await postStatsPanel(interaction.channel);
+    return interaction.reply({ ephemeral: true, content: "Stats panel posted." });
+  }
+
+  if (sub === "me") {
+    await interaction.deferReply({ ephemeral: true });
+    const link = await getLinkByDiscord(interaction.user.id);
+    if (!link) {
+      return interaction.editReply(
+        "You're not linked. Use the **Link Account** panel, then `/stats me` or **View My Stats**.",
+      );
+    }
+    try {
+      return await replyWithPlayerStats(interaction, link.ign);
+    } catch (error) {
+      return interaction.editReply(`Couldn't render stats: ${error.message}`);
+    }
+  }
+
+  // player lookup
+  const name =
+    interaction.options.getString("ign") ||
+    interaction.options.getString("player");
+  if (!name) {
     return interaction.reply({
       ephemeral: true,
-      content: `No tracked stats for \`${name}\` yet. Stats start counting once they play while the bot is connected.`,
+      content: "Provide an IGN with `/stats player`, or use `/stats me`.",
     });
   }
 
-  const embed = new EmbedBuilder()
-    .setTitle(`📊 ${card.name}`)
-    .setColor(0x9b59b6)
-    .addFields(
-      { name: "Kills", value: String(card.kills), inline: true },
-      { name: "Deaths", value: String(card.deaths), inline: true },
-      { name: "K/D", value: card.kd, inline: true },
-      { name: "NPC kills", value: String(card.npcKills), inline: true },
-      { name: "Suicides", value: String(card.suicides), inline: true },
-      { name: "Playtime", value: formatPlaytime(card.playtimeMs), inline: true },
-    )
-    .setFooter({ text: `Last seen ${new Date(card.lastSeen).toLocaleString()}` });
-
-  return interaction.reply({ embeds: [embed] });
+  await interaction.deferReply({ ephemeral: true });
+  try {
+    return await replyWithPlayerStats(interaction, name);
+  } catch (error) {
+    const card = await getPlayerCard(name);
+    if (!card) {
+      return interaction.editReply(
+        `No tracked stats for \`${name}\` yet. Stats start counting once they play while the bot is connected.`,
+      );
+    }
+    const embed = new EmbedBuilder()
+      .setTitle(`📊 ${card.name}`)
+      .setColor(0xd7dde6)
+      .addFields(
+        { name: "Kills", value: String(card.kills), inline: true },
+        { name: "Deaths", value: String(card.deaths), inline: true },
+        { name: "K/D", value: card.kd, inline: true },
+        { name: "NPC kills", value: String(card.npcKills), inline: true },
+        { name: "Suicides", value: String(card.suicides), inline: true },
+        { name: "Playtime", value: formatPlaytime(card.playtimeMs), inline: true },
+      )
+      .setFooter({ text: `Image failed · ${error.message}` });
+    return interaction.editReply({ embeds: [embed] });
+  }
 }
 
 export async function handleLeaderboardCommand(interaction) {

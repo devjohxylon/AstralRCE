@@ -39,9 +39,22 @@ export const commandDefinitions = [
     .setDescription("List players currently online"),
   new SlashCommandBuilder()
     .setName("stats")
-    .setDescription("Show a player's in-game stats")
-    .addStringOption((o) =>
-      o.setName("player").setDescription("In-game name (IGN)").setRequired(true),
+    .setDescription("Wipe stats")
+    .addSubcommand((sub) =>
+      sub.setName("me").setDescription("Show your linked wipe stats card"),
+    )
+    .addSubcommand((sub) =>
+      sub
+        .setName("player")
+        .setDescription("Look up a player's wipe stats")
+        .addStringOption((o) =>
+          o.setName("ign").setDescription("In-game name (IGN)").setRequired(true),
+        ),
+    )
+    .addSubcommand((sub) =>
+      sub
+        .setName("panel")
+        .setDescription("Staff: post the View My Stats panel in this channel"),
     ),
   new SlashCommandBuilder()
     .setName("leaderboard")
