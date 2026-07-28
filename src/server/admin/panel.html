@@ -450,6 +450,33 @@ button { transition: all .15s ease; }
 
 /* ── Tables ── */
 .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 0; }
+.log-detail {
+  max-width: min(420px, 36vw);
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.45;
+  font-size: .68rem;
+}
+.log-chips { display: flex; flex-wrap: wrap; gap: .3rem; }
+.log-chip {
+  display: inline-block;
+  padding: .12rem .4rem;
+  border-radius: 3px;
+  border: 1px solid rgba(255,255,255,.08);
+  background: rgba(255,255,255,.03);
+  color: var(--chrome-dim);
+  font-family: var(--mono);
+  font-size: .62rem;
+}
+.log-kv { display: inline-block; margin: 0 .55rem .2rem 0; }
+.log-kv .log-k { color: var(--faint); margin-right: .25rem; }
+.log-source {
+  font-family: var(--mono); font-size: .58rem; text-transform: uppercase;
+  letter-spacing: .04em; color: var(--faint);
+  border: 1px solid rgba(255,255,255,.08); padding: .1rem .35rem; border-radius: 999px;
+}
+.log-source.panel { color: var(--chrome-dim); }
+.log-source.system { color: var(--info); }
 .table { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: .8rem; border-spacing: 0; }
 .table thead th {
   position: sticky; top: 0; color: rgba(215,221,230,.5); font-weight: 600; text-transform: uppercase;
@@ -1050,8 +1077,6 @@ button { transition: all .15s ease; }
           <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l2.2 4.5L19 8.3l-3.5 3.4.8 4.8L12 14.2 7.7 16.5l.8-4.8L5 8.3l4.8-.8L12 3z"/><path d="M5 20h14"/></svg>Commands</button>
         <button type="button" data-tab="warps" data-perm="warps">
           <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s7-6.5 7-11a7 7 0 1 0-14 0c0 4.5 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>Warps</button>
-        <button type="button" data-tab="audit" data-perm="logs">
-          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M20 17l-4-4M20 17l-4 4"/></svg>Audit</button>
         <button type="button" data-tab="keys" data-perm="keys">
           <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="15" r="4"/><path d="M11 12l7-7 3 3M16 7l2 2"/></svg>Keys</button>
         <button type="button" data-tab="logs" data-perm="logs">
@@ -1170,9 +1195,8 @@ const ADVANCED_TABS = [
   { id: "discord", label: "Discord", perm: "serverCommands", title: "Discord", sub: "Feed channels and Discord wiring" },
   { id: "commands", label: "Commands", perm: "serverCommands", title: "Commands", sub: "Give kits, ranks, and trigger events" },
   { id: "warps", label: "Warps", perm: "warps", title: "Warps", sub: "Warps and force teleports" },
-  { id: "audit", label: "Audit", perm: "logs", title: "Audit Log", sub: "Complete history of all admin actions" },
   { id: "keys", label: "Keys", perm: "keys", title: "Keys", sub: "Staff access keys" },
-  { id: "logs", label: "Logs", perm: "logs", title: "Logs", sub: "Panel audit trail" },
+  { id: "logs", label: "Logs", perm: "logs", title: "Logs", sub: "Panel actions and system audit trail" },
 ];
 
 const TAB_META = {
@@ -1197,6 +1221,7 @@ for (const t of ADVANCED_TABS) {
 function normalizeTab(tab) {
   if (tab === "automsg" || tab === "schedule") return "automation";
   if (tab === "analytics") return "status";
+  if (tab === "audit") return "logs";
   return tab;
 }
 
@@ -1517,7 +1542,6 @@ async function render() {
     if (state.tab === "automation") view.innerHTML = await renderAutomation();
     if (state.tab === "kits") view.innerHTML = await renderKits();
     if (state.tab === "reports") view.innerHTML = await renderReports();
-    if (state.tab === "audit") view.innerHTML = await renderAudit();
     if (state.tab === "bans") view.innerHTML = await renderBans();
     if (state.tab === "events") view.innerHTML = await renderEvents();
     if (state.tab === "keys") view.innerHTML = await renderKeys();
@@ -3145,43 +3169,78 @@ async function renderReports() {
     </div>`;
 }
 
-async function renderLogs() {
-  const data = await api("/logs?limit=150");
-  const rows = data.entries.map((e) => `
-    <tr>
-      <td class="muted">${new Date(e.at).toLocaleString()}</td>
-      <td><strong>${esc(e.by)}</strong> <span class="muted">${esc(e.role)}</span></td>
-      <td>${esc(e.action)}</td>
-      <td class="muted" style="font-size:.7rem">${esc(JSON.stringify(e.detail || {}))}</td>
-    </tr>`).join("") || `<tr><td colspan="4" class="muted">No activity yet</td></tr>`;
-  return `
-    <div class="card">
-      <h3>Panel audit log</h3>
-      <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:0 0 .75rem">Owner only — staff keys cannot see this.</p>
-      <table class="table"><thead><tr><th>When</th><th>Who</th><th>Action</th><th>Detail</th></tr></thead><tbody>${rows}</tbody></table>
-    </div>`;
+function formatLogDetail(detail) {
+  if (detail == null || detail === "") return "—";
+  if (typeof detail !== "object") return esc(String(detail));
+  const keys = Object.keys(detail);
+  if (!keys.length) return "—";
+
+  if (Array.isArray(detail.keys) && keys.length === 1) {
+    return `<div class="log-chips">${detail.keys.map((k) =>
+      `<span class="log-chip">${esc(k)}</span>`
+    ).join("")}</div>`;
+  }
+
+  return keys.map((k) => {
+    const raw = detail[k];
+    let val;
+    if (raw == null) val = "—";
+    else if (typeof raw === "object") val = JSON.stringify(raw);
+    else val = String(raw);
+    if (val.length > 90) val = `${val.slice(0, 87)}…`;
+    return `<span class="log-kv"><span class="log-k">${esc(k)}</span>${esc(val)}</span>`;
+  }).join("");
 }
 
-async function renderAudit() {
-  const data = await api("/audit?limit=200");
-  const rows = (data.entries || []).map((e) => `
+async function renderLogs() {
+  const [panel, system] = await Promise.all([
+    api("/logs?limit=150").catch(() => ({ entries: [] })),
+    api("/audit?limit=150").catch(() => ({ entries: [] })),
+  ]);
+
+  const merged = [
+    ...(panel.entries || []).map((e) => ({
+      at: e.at,
+      who: e.by || "—",
+      role: e.role || "",
+      action: e.action,
+      detail: e.detail,
+      source: "panel",
+    })),
+    ...(system.entries || []).map((e) => ({
+      at: e.timestamp,
+      who: e.admin || "System",
+      role: "",
+      action: e.action,
+      detail: e.details || (e.target ? { target: e.target } : null),
+      source: "system",
+    })),
+  ]
+    .filter((e) => e.at)
+    .sort((a, b) => new Date(b.at) - new Date(a.at))
+    .slice(0, 200);
+
+  const rows = merged.map((e) => `
     <tr>
-      <td data-label="Time" class="muted">${new Date(e.timestamp).toLocaleString()}</td>
-      <td data-label="Admin"><strong>${esc(e.admin)}</strong></td>
+      <td data-label="When" class="muted">${new Date(e.at).toLocaleString()}</td>
+      <td data-label="Who">
+        <strong>${esc(e.who)}</strong>
+        ${e.role ? `<div class="muted" style="font-size:.65rem">${esc(e.role)}</div>` : ""}
+      </td>
       <td data-label="Action"><code>${esc(e.action)}</code></td>
-      <td data-label="Target">${e.target ? esc(e.target) : "—"}</td>
-      <td data-label="Details" class="muted" style="font-size:.7rem">${e.details ? esc(JSON.stringify(e.details)) : "—"}</td>
-    </tr>`).join("") || `<tr><td colspan="5"><div class="empty">No audit entries yet<span class="empty-hint">Admin actions will be logged here</span></div></td></tr>`;
-  
+      <td data-label="Source"><span class="log-source ${esc(e.source)}">${esc(e.source)}</span></td>
+      <td data-label="Detail" class="log-detail muted">${formatLogDetail(e.detail)}</td>
+    </tr>`).join("") || `<tr><td colspan="5"><div class="empty">No log entries yet<span class="empty-hint">Panel actions and system events will show here</span></div></td></tr>`;
+
   return `
     <div class="card">
       <div class="card-head">
-        <h3>Audit Log</h3>
-        <span class="pill info">${(data.entries || []).length} entries</span>
+        <h3>Logs</h3>
+        <span class="pill info">${merged.length} entries</span>
       </div>
-      <p class="card-desc">Complete history of all admin actions - kicks, bans, commands, and more.</p>
+      <p class="card-desc">Panel actions and system audit in one place. Detail chips stay wrapped so the table doesn’t blow out.</p>
       <div class="table-wrap"><table class="table">
-        <thead><tr><th>Time</th><th>Admin</th><th>Action</th><th>Target</th><th>Details</th></tr></thead>
+        <thead><tr><th>When</th><th>Who</th><th>Action</th><th>Source</th><th>Detail</th></tr></thead>
         <tbody>${rows}</tbody>
       </table></div>
     </div>`;
