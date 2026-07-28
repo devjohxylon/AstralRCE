@@ -150,18 +150,42 @@ export async function openTicket(guild, member, type, panelChannel = null) {
   return { ok: true, channel, ticket };
 }
 
-export async function closeTicket(guild, ticketId, closedById) {
+export async function closeTicket(guild, ticketId, closedById, { channelId = null } = {}) {
   const data = await getTickets();
-  const ticket = data.open.find((t) => t.id === ticketId);
+  let ticket =
+    (ticketId && data.open.find((t) => t.id === ticketId)) ||
+    (channelId && data.open.find((t) => t.channelId === channelId)) ||
+    null;
+
+  // Channel still exists but the store lost the record (redeploy / volume wipe)
+  if (!ticket && channelId) {
+    const channel =
+      guild.channels.cache.get(channelId) ||
+      (await guild.channels.fetch(channelId).catch(() => null));
+    if (channel?.isTextBased()) {
+      await channel
+        .send(`🔒 Ticket closed by <@${closedById}>. Channel will delete in 15s.`)
+        .catch(() => {});
+      setTimeout(() => channel.delete().catch(() => {}), 15_000);
+      return {
+        ok: true,
+        ticket: { id: ticketId || "orphan", channelId, userId: null, orphan: true },
+      };
+    }
+    return { ok: false, error: "Ticket not found." };
+  }
+
   if (!ticket) return { ok: false, error: "Ticket not found." };
 
   ticket.status = "closed";
   ticket.closedAt = new Date().toISOString();
   ticket.closedBy = closedById;
-  data.open = data.open.filter((t) => t.id !== ticketId);
+  data.open = data.open.filter((t) => t.id !== ticket.id);
   await saveTickets(data);
 
-  const channel = guild.channels.cache.get(ticket.channelId);
+  const channel =
+    guild.channels.cache.get(ticket.channelId) ||
+    (await guild.channels.fetch(ticket.channelId).catch(() => null));
   if (channel?.isTextBased()) {
     await logTicketClosed(guild, { ticket, closedById });
     await sendTicketTranscript(guild, ticket, closedById).catch((error) =>

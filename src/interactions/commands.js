@@ -2,7 +2,7 @@ import { EmbedBuilder } from "discord.js";
 import { getBotStatus } from "../services/discordPublish.js";
 import { backfillChannel, syncLatestLeaderboard } from "../services/website.js";
 import { config } from "../config.js";
-import { requireStaff } from "../lib/permissions.js";
+import { requireStaff, isStaff } from "../lib/permissions.js";
 import { getCasesForUser } from "../data/store.js";
 import {
   warnMember,
@@ -214,11 +214,31 @@ export async function handleTicketCommand(interaction) {
 
   if (sub === "close") {
     const ticket = await findTicketByChannel(interaction.channelId);
-    if (!ticket) {
+    const canClose = ticket
+      ? isStaff(interaction.member) || ticket.userId === interaction.user.id
+      : isStaff(interaction.member);
+
+    if (!ticket && !canClose) {
       return interaction.reply({ ephemeral: true, content: "This is not a ticket channel." });
     }
-    await closeTicket(interaction.guild, ticket.id, interaction.user.id);
-    return interaction.reply({ ephemeral: true, content: "Closing ticket…" });
+    if (ticket && !canClose) {
+      return interaction.reply({
+        ephemeral: true,
+        content: "Only staff or the ticket owner can close this.",
+      });
+    }
+
+    await interaction.deferReply({ ephemeral: true });
+    const result = await closeTicket(
+      interaction.guild,
+      ticket?.id,
+      interaction.user.id,
+      { channelId: interaction.channelId },
+    );
+    if (!result.ok) {
+      return interaction.editReply(result.error);
+    }
+    return interaction.editReply("Closing ticket…");
   }
 }
 
