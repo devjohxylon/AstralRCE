@@ -873,6 +873,8 @@ button { transition: all .15s ease; }
       <div class="nav-advanced-items" id="advancedItems">
         <button type="button" data-tab="console" data-perm="rcon">
           <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3M13 15h4"/></svg>RCON</button>
+        <button type="button" data-tab="discord" data-perm="serverCommands">
+          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 10h.01M12 10h.01M16 10h.01M7 16c1.5 1.2 3.2 1.8 5 1.8s3.5-.6 5-1.8"/><path d="M6.5 6.5C8 5 10 4.2 12 4.2s4 0.8 5.5 2.3c1.6 1.6 2.6 3.8 2.8 6.2.1 1.5-.2 3-.8 4.3L20 20l-3.7-1.2c-1.3.5-2.8.8-4.3.8-2 0-4-.8-5.5-2.3C5 15.7 4 13.5 3.8 11.1c-.1-1.5.2-3 .8-4.3L6.5 6.5z"/></svg>Discord</button>
         <button type="button" data-tab="commands" data-perm="serverCommands">
           <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l2.2 4.5L19 8.3l-3.5 3.4.8 4.8L12 14.2 7.7 16.5l.8-4.8L5 8.3l4.8-.8L12 3z"/><path d="M5 20h14"/></svg>Commands</button>
         <button type="button" data-tab="warps" data-perm="warps">
@@ -945,6 +947,7 @@ const state = {
   socket: null,
   playerPositions: [],
   selectedPlayer: null,
+  profileQuery: "",
   analyticsData: null,
 };
 
@@ -959,9 +962,10 @@ const NAV_SECTIONS = {
   },
   players: {
     title: "Players",
-    sub: "Online players, bans, and reports",
+    sub: "Online players, profiles, bans, and reports",
     tabs: [
       { id: "players", label: "Online", perm: "players" },
+      { id: "profiles", label: "Profiles", perm: "players" },
       { id: "bans", label: "Bans", perm: "ban" },
       { id: "reports", label: "Reports", perm: "reports" },
     ],
@@ -989,7 +993,8 @@ const NAV_SECTIONS = {
 
 const ADVANCED_TABS = [
   { id: "console", label: "RCON", perm: "rcon", title: "RCON", sub: "Raw RCON commands" },
-  { id: "commands", label: "Commands", perm: "serverCommands", title: "Commands", sub: "Channels, kits, ranks, events" },
+  { id: "discord", label: "Discord", perm: "serverCommands", title: "Discord", sub: "Feed channels and Discord wiring" },
+  { id: "commands", label: "Commands", perm: "serverCommands", title: "Commands", sub: "Give kits, ranks, and trigger events" },
   { id: "warps", label: "Warps", perm: "warps", title: "Warps", sub: "Warps and force teleports" },
   { id: "analytics", label: "Analytics", perm: "overview", title: "Analytics", sub: "Performance metrics and player trends" },
   { id: "audit", label: "Audit", perm: "logs", title: "Audit Log", sub: "Complete history of all admin actions" },
@@ -1001,6 +1006,7 @@ const TAB_META = {
   overview: { title: "Home", sub: "Server health and quick controls", perm: "overview" },
   map: { title: "Home", sub: "Coming soon", perm: "players" },
   players: { title: "Players", sub: "Who's online right now", perm: "players" },
+  profiles: { title: "Players", sub: "Staff dossiers — stats, notes, actions", perm: "players" },
   bans: { title: "Players", sub: "Manage player bans", perm: "ban" },
   reports: { title: "Players", sub: "Combat log and trio group alerts", perm: "reports" },
   kits: { title: "Kits", sub: "Server kits + panel builder", perm: "kits" },
@@ -1326,7 +1332,9 @@ async function render() {
     if (state.tab === "analytics") view.innerHTML = await renderAnalytics();
     if (state.tab === "map") view.innerHTML = await renderMap();
     if (state.tab === "players") view.innerHTML = await renderPlayers();
+    if (state.tab === "profiles") view.innerHTML = await renderProfiles();
     if (state.tab === "commands") view.innerHTML = await renderServerCommands();
+    if (state.tab === "discord") view.innerHTML = await renderDiscordChannels();
     if (state.tab === "console") view.innerHTML = renderConsole();
     if (state.tab === "stats") view.innerHTML = await renderStats();
     if (state.tab === "warps") view.innerHTML = await renderWarps();
@@ -1383,7 +1391,6 @@ function renderOverview() {
       ${statCard(s.queued ?? 0, "In queue")}
       ${statCard(s.fps ?? "—", "Server FPS")}
       ${statCard(fmtUptime(s.uptime), "Server uptime")}
-      ${statCard(o.stats?.trackedPlayers ?? 0, "Stats this wipe")}
       ${statCard(o.stats?.totalKills ?? 0, "Total kills")}
     </div>
 
@@ -1522,7 +1529,7 @@ async function renderStats() {
   return `
     <div class="split">
       <div class="card">
-        <div class="card-head"><h3>Top kills</h3><span class="pill info">${data.summary?.trackedPlayers || 0} in stats</span></div>
+        <div class="card-head"><h3>Top kills</h3></div>
         <table class="table"><thead><tr><th>#</th><th>Player</th><th>Kills</th></tr></thead><tbody>${rows}</tbody></table>
       </div>
       <div class="card">
@@ -1531,7 +1538,7 @@ async function renderStats() {
           <button class="primary" data-action="pushStats">Push to website</button>
           ${can("statsReset") ? `<button class="danger" data-action="resetStats">Reset wipe stats</button>` : ""}
         </div>
-        <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin-top:.75rem">Wipe label: ${esc(data.summary?.wipe || "—")} · ${data.summary?.trackedPlayers || 0} names in stats DB (not Discord links). Reset wipe stats when you change servers or wipe.</p>
+        <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin-top:.75rem">Wipe: ${esc(data.summary?.wipe || "—")}</p>
         <h3 style="margin-top:1.25rem">Lookup</h3>
         <div class="form-row">
           <input id="lookupName" placeholder="Player IGN" />
@@ -1686,9 +1693,8 @@ async function renderAutomation() {
     </div>`;
 }
 
-async function renderServerCommands() {
-  const data = await api("/server-commands");
-  state.serverCommands = data;
+async function renderDiscordChannels() {
+  const data = await api("/channels");
   const groups = {};
   for (const ch of data.channels || []) {
     (groups[ch.group] ||= []).push(ch);
@@ -1713,7 +1719,23 @@ async function renderServerCommands() {
           </div>`;
         }).join("")}
       </div>
-    </div>`).join("");
+    </div>`).join("") || `<div class="card"><div class="empty">No channel slots configured</div></div>`;
+
+  return `
+    <div class="card" style="margin-bottom:.75rem">
+      <h3>Discord feed channels</h3>
+      <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:0 0 .85rem">
+        Pick a channel from the dropdown or paste an ID. Saved here overrides <code>.env</code> until cleared.
+        Killfeed is <code>CHANNEL_KILLFEED</code> — set it below to start posting kills.
+      </p>
+    </div>
+    ${channelBlocksClean}
+    <button class="primary" data-action="saveChannels">Save channels</button>`;
+}
+
+async function renderServerCommands() {
+  const data = await api("/server-commands");
+  state.serverCommands = data;
 
   const onlineOpts = (data.onlinePlayers || []).map((n) =>
     `<option value="${esc(n)}">${esc(n)}</option>`
@@ -1744,31 +1766,21 @@ async function renderServerCommands() {
 
   return `
     <div class="split">
-      <div>
-        <div class="card" style="margin-bottom:.75rem">
-          <h3>Discord feed channels</h3>
-          <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:0 0 .85rem">
-            Pick a channel from the dropdown or paste an ID. Saved here overrides <code>.env</code> until cleared.
-            Killfeed is <code>CHANNEL_KILLFEED</code> — set it below to start posting kills.
-          </p>
-          ${channelBlocksClean}
-          <button class="primary" data-action="saveChannels" style="margin-top:.35rem">Save channels</button>
-        </div>
+      <div class="card" style="margin-bottom:.75rem">
+        <h3>Give kit</h3>
+        <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:0 0 .6rem">
+          ${rconOk ? `<span class="pill ok">RCON online</span>` : `<span class="pill bad">RCON offline</span>`}
+          In-game kit grant for an online player.
+        </p>
+        <label class="muted" style="font-size:.7rem">Player</label>
+        <input id="cmdKitIgn" list="cmdOnlineList" placeholder="Online IGN" />
+        <datalist id="cmdOnlineList">${onlineOpts}</datalist>
+        <label class="muted" style="font-size:.7rem;display:block;margin-top:.55rem">Kit</label>
+        <select id="cmdKitId">${kitOpts}</select>
+        <button class="primary" style="margin-top:.7rem;width:100%" data-action="cmdGiveKit">Give kit</button>
       </div>
-      <div>
-        <div class="card" style="margin-bottom:.75rem">
-          <h3>Give kit</h3>
-          <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:0 0 .6rem">
-            ${rconOk ? `<span class="pill ok">RCON online</span>` : `<span class="pill bad">RCON offline</span>`}
-          </p>
-          <label class="muted" style="font-size:.7rem">Player</label>
-          <input id="cmdKitIgn" list="cmdOnlineList" placeholder="Online IGN" />
-          <datalist id="cmdOnlineList">${onlineOpts}</datalist>
-          <label class="muted" style="font-size:.7rem;display:block;margin-top:.55rem">Kit</label>
-          <select id="cmdKitId">${kitOpts}</select>
-          <button class="primary" style="margin-top:.7rem;width:100%" data-action="cmdGiveKit">Give kit</button>
-        </div>
 
+      <div>
         <div class="card" style="margin-bottom:.75rem">
           <h3>In-game ranks</h3>
           <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:0 0 .6rem">
@@ -1792,6 +1804,179 @@ async function renderServerCommands() {
           </p>
           <div class="cmd-actions">${eventBtns}</div>
           ${customRconRow}
+        </div>
+      </div>
+    </div>`;
+}
+
+function fmtPlaytimeMs(ms) {
+  const n = Number(ms) || 0;
+  if (n <= 0) return "0m";
+  const totalMin = Math.floor(n / 60000);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  if (h <= 0) return `${m}m`;
+  return `${h}h ${m}m`;
+}
+
+async function renderProfiles() {
+  if (state.selectedPlayer) {
+    return renderPlayerDossier(state.selectedPlayer);
+  }
+
+  const q = state.profileQuery || "";
+  const data = await api(`/profiles${q ? `?q=${encodeURIComponent(q)}` : ""}`);
+  const rows = (data.profiles || []).map((p) => `
+    <tr>
+      <td data-label="IGN"><strong>${esc(p.ign)}</strong></td>
+      <td data-label="Tags">${(p.tags || []).map((t) => `<span class="pill">${esc(t)}</span>`).join(" ") || "—"}</td>
+      <td data-label="Notes">${p.noteCount || 0}</td>
+      <td data-label="Warnings">${p.warningCount || 0}</td>
+      <td data-label="Actions" class="actions">
+        <button data-action="viewPlayer" data-ign="${esc(p.ign)}">Open</button>
+      </td>
+    </tr>`).join("") || `<tr><td colspan="5"><div class="empty">No dossiers yet<span class="empty-hint">Open a player from Online, or search an IGN below</span></div></td></tr>`;
+
+  return `
+    <div class="card">
+      <div class="card-head">
+        <h3>Player dossiers</h3>
+        <span class="pill info">${(data.profiles || []).length}</span>
+      </div>
+      <p class="card-desc">Search staff notes by IGN, tag, or note text. Open anyone online from the Online tab.</p>
+      <div class="form-row" style="margin-bottom:.85rem">
+        <input id="profileSearch" placeholder="Search IGN / tag / note…" value="${esc(q)}" />
+        <button class="primary" data-action="searchProfiles">Search</button>
+        <button data-action="clearProfileSearch">Clear</button>
+      </div>
+      <div class="form-row" style="margin-bottom:1rem">
+        <input id="profileOpenIgn" placeholder="Open dossier by exact IGN" />
+        <button data-action="openProfileIgn">Open</button>
+      </div>
+      <table class="table">
+        <thead><tr><th>IGN</th><th>Tags</th><th>Notes</th><th>Warnings</th><th></th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+}
+
+async function renderPlayerDossier(ign) {
+  const data = await api(`/profiles/${encodeURIComponent(ign)}`);
+  const p = data.profile || {};
+  const stats = p.stats || {};
+  const history = data.banHistory || [];
+  const online = p.online;
+  const link = p.link;
+
+  const tags = (p.tags || []).map((t) =>
+    `<span class="pill">${esc(t)} <button class="ghost" style="padding:0;margin-left:.25rem;font-size:.7rem" data-action="delProfileTag" data-ign="${esc(p.ign)}" data-tag="${esc(t)}">×</button></span>`
+  ).join(" ") || `<span class="muted">No tags</span>`;
+
+  const notes = (p.notes || []).slice().reverse().map((n) => `
+    <div style="padding:.65rem 0;border-bottom:1px solid rgba(255,255,255,.06)">
+      <div style="display:flex;justify-content:space-between;gap:.75rem;align-items:flex-start">
+        <div>
+          <div>${esc(n.text)}</div>
+          <div class="muted" style="font-family:var(--mono);font-size:.68rem;margin-top:.35rem">${esc(n.author || "staff")} · ${esc(new Date(n.timestamp).toLocaleString())}</div>
+        </div>
+        <button class="danger" data-action="delProfileNote" data-ign="${esc(p.ign)}" data-id="${esc(n.id)}">Delete</button>
+      </div>
+    </div>`).join("") || `<div class="empty">No notes yet</div>`;
+
+  const warnings = (p.warnings || []).slice().reverse().map((w) => `
+    <tr>
+      <td data-label="Reason">${esc(w.reason)}</td>
+      <td data-label="By">${esc(w.author || "—")}</td>
+      <td data-label="When">${esc(new Date(w.timestamp).toLocaleString())}</td>
+    </tr>`).join("") || `<tr><td colspan="3"><div class="empty">No warnings</div></td></tr>`;
+
+  const banRows = history.slice(0, 12).map((b) => `
+    <tr>
+      <td data-label="Reason">${esc(b.reason || "—")}</td>
+      <td data-label="By">${esc(b.admin || b.bannedBy || "—")}</td>
+      <td data-label="When">${esc(b.bannedAt ? new Date(b.bannedAt).toLocaleString() : "—")}</td>
+      <td data-label="Status">${b.active ? `<span class="pill bad">active</span>` : `<span class="pill">ended</span>`}</td>
+    </tr>`).join("") || `<tr><td colspan="4"><div class="empty">No ban history</div></td></tr>`;
+
+  return `
+    <div class="card" style="margin-bottom:.9rem">
+      <div class="card-head">
+        <div>
+          <button data-action="closeProfile" style="margin-bottom:.55rem">← Back</button>
+          <h3 style="margin:0">${esc(p.ign || ign)}</h3>
+          <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:.35rem 0 0">
+            ${online ? `<span class="pill ok">Online</span> ${online.platform || ""} · ping ${online.ping ?? "—"}` : `<span class="pill">Offline</span>`}
+            ${link ? ` · Discord <code>${esc(link.discordId)}</code>` : " · not linked"}
+          </p>
+        </div>
+        <div class="actions">
+          ${can("kick") && online ? `<button data-action="kick" data-ign="${esc(p.ign)}">Kick</button>` : ""}
+          ${can("ban") ? `<button class="danger" data-action="ban" data-ign="${esc(p.ign)}">Ban</button>` : ""}
+        </div>
+      </div>
+      <div class="grid stats" style="margin-top:.85rem">
+        ${statCard(stats.kills ?? 0, "Kills")}
+        ${statCard(stats.deaths ?? 0, "Deaths")}
+        ${statCard(stats.kd ?? "—", "K/D")}
+        ${statCard(fmtPlaytimeMs(stats.playtimeMs), "Playtime")}
+      </div>
+    </div>
+
+    <div class="split">
+      <div style="display:grid;gap:1rem">
+        <div class="card">
+          <h3>Staff notes</h3>
+          <div class="form-row">
+            <input id="profileNote" placeholder="Add a note…" />
+            <button class="primary" data-action="addProfileNote" data-ign="${esc(p.ign)}">Add</button>
+          </div>
+          <div style="margin-top:.75rem">${notes}</div>
+        </div>
+
+        <div class="card">
+          <h3>Warnings</h3>
+          <div class="form-row">
+            <input id="profileWarning" placeholder="Warning reason…" />
+            <button class="danger" data-action="addProfileWarning" data-ign="${esc(p.ign)}">Warn</button>
+          </div>
+          <table class="table" style="margin-top:.75rem">
+            <thead><tr><th>Reason</th><th>By</th><th>When</th></tr></thead>
+            <tbody>${warnings}</tbody>
+          </table>
+        </div>
+      </div>
+
+      <div style="display:grid;gap:1rem">
+        <div class="card">
+          <h3>Tags</h3>
+          <div style="margin-bottom:.75rem">${tags}</div>
+          <div class="form-row">
+            <input id="profileTag" placeholder="e.g. toxic, vip, watch" />
+            <button data-action="addProfileTag" data-ign="${esc(p.ign)}">Add tag</button>
+          </div>
+        </div>
+
+        ${can("teleport") && online ? `
+        <div class="card">
+          <h3>Teleport</h3>
+          <div class="form-grid">
+            <input id="profileTpTo" placeholder="To player IGN" />
+          </div>
+          <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:.55rem 0">Or coords:</p>
+          <div class="form-grid">
+            <input id="profileTpX" placeholder="X" />
+            <input id="profileTpY" placeholder="Y" />
+            <input id="profileTpZ" placeholder="Z" />
+          </div>
+          <button class="primary" style="margin-top:.7rem;width:100%" data-action="profileTeleport" data-ign="${esc(p.ign)}">Teleport</button>
+        </div>` : ""}
+
+        <div class="card">
+          <h3>Ban history</h3>
+          <table class="table">
+            <thead><tr><th>Reason</th><th>By</th><th>When</th><th></th></tr></thead>
+            <tbody>${banRows}</tbody>
+          </table>
         </div>
       </div>
     </div>`;
@@ -2242,7 +2427,7 @@ function bindKitBuilderEvents() {
 }
 
 async function renderKits() {
-  const data = await api("/kits?refresh=1");
+  const data = await api("/kits?refresh=0");
   const catalog = await ensureItemCatalog();
   const panelRows = (data.kits || []).map((k) => `
     <tr>
@@ -2263,7 +2448,7 @@ async function renderKits() {
       <td data-label="Actions" class="actions">
         <button class="primary" data-action="giveKit" data-id="${esc(k.id)}" data-source="server">Give</button>
       </td>
-    </tr>`).join("") || `<tr><td colspan="3"><div class="empty">${data.serverError ? esc(data.serverError) : "No in-game kits returned from RCON (kit list). Make sure KitManager is installed and RCON is online."}</div></td></tr>`;
+    </tr>`).join("") || `<tr><td colspan="3"><div class="empty">${data.serverError ? esc(data.serverError) : "No in-game kits returned from RCON (kit list). Make sure KitManager is installed and RCON is online."}${data.serverRaw ? `<span class="empty-hint">Raw: ${esc(data.serverRaw)}</span>` : ""}</div></td></tr>`;
 
   const cats = (catalog.categories || ["All"]).map((c) =>
     `<button type="button" data-action="kitCategory" data-cat="${esc(c)}" class="${state.kitDraft.category === c ? "active" : ""}">${esc(c)}</button>`
@@ -2286,7 +2471,7 @@ async function renderKits() {
             Panel bundles below are separate and stay on Astral.
           </p>
         </div>
-        <button data-action="refreshServerKits">Refresh</button>
+        <button data-action="refreshServerKits">Resync from server</button>
       </div>
       <table class="table" style="margin-top:.75rem"><thead><tr><th>Kit</th><th>Items</th><th></th></tr></thead><tbody>${serverRows}</tbody></table>
     </div>
@@ -2711,7 +2896,81 @@ function bindView() {
         if (a === "viewPlayer") {
           const ign = el.dataset.ign;
           state.selectedPlayer = ign;
-          setTab("players");
+          setTab("profiles");
+          return;
+        }
+        if (a === "closeProfile") {
+          state.selectedPlayer = null;
+          render();
+          return;
+        }
+        if (a === "searchProfiles") {
+          state.profileQuery = document.getElementById("profileSearch")?.value?.trim() || "";
+          state.selectedPlayer = null;
+          render();
+          return;
+        }
+        if (a === "clearProfileSearch") {
+          state.profileQuery = "";
+          state.selectedPlayer = null;
+          render();
+          return;
+        }
+        if (a === "openProfileIgn") {
+          const ign = document.getElementById("profileOpenIgn")?.value?.trim();
+          if (!ign) { toast("Enter an IGN", true); return; }
+          state.selectedPlayer = ign;
+          render();
+          return;
+        }
+        if (a === "addProfileNote") {
+          const text = document.getElementById("profileNote")?.value?.trim();
+          if (!text) { toast("Enter a note", true); return; }
+          await api(`/profiles/${encodeURIComponent(el.dataset.ign)}/notes`, { method: "POST", body: { text } });
+          toast("Note added");
+          render();
+          return;
+        }
+        if (a === "delProfileNote") {
+          await api(`/profiles/${encodeURIComponent(el.dataset.ign)}/notes/${encodeURIComponent(el.dataset.id)}`, { method: "DELETE" });
+          toast("Note deleted");
+          render();
+          return;
+        }
+        if (a === "addProfileTag") {
+          const tag = document.getElementById("profileTag")?.value?.trim();
+          if (!tag) { toast("Enter a tag", true); return; }
+          await api(`/profiles/${encodeURIComponent(el.dataset.ign)}/tags`, { method: "POST", body: { tag } });
+          toast("Tag added");
+          render();
+          return;
+        }
+        if (a === "delProfileTag") {
+          await api(`/profiles/${encodeURIComponent(el.dataset.ign)}/tags/${encodeURIComponent(el.dataset.tag)}`, { method: "DELETE" });
+          toast("Tag removed");
+          render();
+          return;
+        }
+        if (a === "addProfileWarning") {
+          const reason = document.getElementById("profileWarning")?.value?.trim();
+          if (!reason) { toast("Enter a reason", true); return; }
+          await api(`/profiles/${encodeURIComponent(el.dataset.ign)}/warnings`, { method: "POST", body: { reason } });
+          toast("Warning added");
+          render();
+          return;
+        }
+        if (a === "profileTeleport") {
+          const ign = el.dataset.ign;
+          const toPlayer = document.getElementById("profileTpTo")?.value?.trim();
+          const body = toPlayer
+            ? { toPlayer }
+            : {
+                x: Number(document.getElementById("profileTpX")?.value),
+                y: Number(document.getElementById("profileTpY")?.value),
+                z: Number(document.getElementById("profileTpZ")?.value),
+              };
+          await api(`/players/${encodeURIComponent(ign)}/teleport`, { method: "POST", body });
+          toast("Teleport sent");
           return;
         }
         if (a === "autoSub") {
@@ -2731,8 +2990,19 @@ function bindView() {
           return;
         }
         if (a === "refreshServerKits") {
-          toast("Refreshing server kits…");
+          try {
+            const r = await api("/kits/resync", { method: "POST", body: {} });
+            const where = r.host && r.port ? `${r.host}:${r.port}` : "RCON";
+            if (!r.ok) {
+              toast(r.error || "Resync failed", true);
+            } else {
+              toast(`Resynced ${r.count || 0} kit(s) from ${where}`);
+            }
+          } catch (e) {
+            toast(e.message || "Resync failed", true);
+          }
           render();
+          return;
         }
         if (a === "cmdGiveKit") {
           const ign = document.getElementById("cmdKitIgn")?.value?.trim();

@@ -53,6 +53,7 @@ import {
   giveKit,
   listKits,
   listServerKits,
+  resyncServerKits,
   upsertKit,
 } from "../../modules/rcon/kits.js";
 import { getWipeAt, setWipeAt, syncWipeStatus } from "../../modules/rcon/wipe.js";
@@ -695,14 +696,16 @@ export async function attachAdminPanel(app, client) {
 
   app.get("/admin/api/kits", requireAuth, requirePerm("kits"), async (req, res) => {
     const refresh = String(req.query.refresh ?? "1") !== "0";
+    const force = String(req.query.force ?? "0") === "1";
     const panel = await listKits();
-    const server = await listServerKits({ refresh }).catch((error) => ({
+    const server = await listServerKits({ refresh: refresh || force, force }).catch((error) => ({
       ok: false,
       error: error.message,
       kits: [],
       host: null,
       port: null,
       endpointKey: null,
+      rawPreview: null,
     }));
     res.json({
       ok: true,
@@ -713,7 +716,31 @@ export async function attachAdminPanel(app, client) {
       serverHost: server.host || null,
       serverPort: server.port || null,
       serverEndpoint: server.endpointKey || null,
+      serverRaw: server.rawPreview || null,
     });
+  });
+
+  app.post("/admin/api/kits/resync", requireAuth, requirePerm("kits"), async (req, res) => {
+    try {
+      const server = await resyncServerKits();
+      await audit(req, "kits_resync", {
+        count: server.kits?.length || 0,
+        host: server.host,
+        port: server.port,
+      });
+      res.json({
+        ok: server.ok !== false,
+        kits: server.kits || [],
+        count: server.kits?.length || 0,
+        host: server.host || null,
+        port: server.port || null,
+        endpointKey: server.endpointKey || null,
+        error: server.error || null,
+        rawPreview: server.rawPreview || null,
+      });
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error.message, kits: [], count: 0 });
+    }
   });
 
   app.post("/admin/api/kits", requireAuth, requirePerm("kits"), async (req, res) => {
@@ -765,8 +792,8 @@ export async function attachAdminPanel(app, client) {
     res.json(result);
   });
 
-  // ——— Server Commands: channels / ranks / events ———
-  app.get("/admin/api/server-commands", requireAuth, requirePerm("serverCommands"), async (req, res) => {
+  // ——— Discord channels + Server Commands (kits / ranks / events) ———
+  async function loadDiscordChannelPicker() {
     const { config } = await import("../../config.js");
     const guild = config.discord.guildId
       ? await client.guilds.fetch(config.discord.guildId).catch(() => null)
@@ -787,7 +814,21 @@ export async function attachAdminPanel(app, client) {
           .sort((a, b) => a.name.localeCompare(b.name));
       }
     }
+    return {
+      channels: await getChannelConfig(),
+      discordChannels,
+    };
+  }
 
+  app.get("/admin/api/channels", requireAuth, requirePerm("serverCommands"), async (_req, res) => {
+    try {
+      res.json({ ok: true, ...(await loadDiscordChannelPicker()) });
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  app.get("/admin/api/server-commands", requireAuth, requirePerm("serverCommands"), async (req, res) => {
     const online = getOnlinePlayers().map((p) => p.ign);
     const panelKits = await listKits();
     const server = await listServerKits({ refresh: false }).catch(() => ({ kits: [] }));
@@ -801,8 +842,6 @@ export async function attachAdminPanel(app, client) {
       .map((r) => ({ id: r.id, label: r.label }));
     res.json({
       ok: true,
-      channels: await getChannelConfig(),
-      discordChannels,
       kits: allKits,
       events: EVENT_PRESETS,
       ranks,
@@ -986,7 +1025,9 @@ export async function attachAdminPanel(app, client) {
   app.get("/admin/api/profiles/:ign", requireAuth, requirePerm("players"), async (req, res) => {
     try {
       const profile = await getPlayerProfile(req.params.ign);
-      res.json({ ok: true, profile });
+      const { getBanHistory } = await import("../../modules/bans/manager.js");
+      const banHistory = await getBanHistory(req.params.ign).catch(() => []);
+      res.json({ ok: true, profile, banHistory });
     } catch (error) {
       res.status(500).json({ ok: false, error: error.message });
     }

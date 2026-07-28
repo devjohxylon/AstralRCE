@@ -33,21 +33,27 @@ function sanitizeItems(items) {
 
 function parseKitList(raw) {
   if (!raw || typeof raw !== "string") return [];
-  return raw
-    .replaceAll("\\n", "\n")
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line && !line.startsWith("[KITMANAGER]") && !/^kits?:/i.test(line))
-    .map((line) => {
-      // Formats like: "vip", "- vip", "vip (Cooldown: 60)", "Kit: vip"
-      const cleaned = line
-        .replace(/^[-*•]\s*/, "")
-        .replace(/^kit[s]?:\s*/i, "")
-        .replace(/\s*\(.*\)\s*$/, "")
-        .trim();
-      return cleaned;
-    })
-    .filter((name) => name && /^[a-zA-Z0-9._-]+$/.test(name));
+  return [
+    ...new Set(
+      raw
+        .replaceAll("\\n", "\n")
+        .replace(/\u001b\[[0-9;]*m/g, "")
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((line) => line && !line.startsWith("[KITMANAGER]") && !/^kits?:/i.test(line))
+        .map((line) => {
+          // Formats like: "vip", "- vip", "vip (Cooldown: 60)", "Kit: vip"
+          const cleaned = line
+            .replace(/^[-*•]\s*/, "")
+            .replace(/^kit[s]?:\s*/i, "")
+            .replace(/\s*\(.*\)\s*$/, "")
+            .replace(/^\d+[\).:\s-]+/, "")
+            .trim();
+          return cleaned;
+        })
+        .filter((name) => name && /^[a-zA-Z0-9._-]+$/.test(name) && name.length <= 48),
+    ),
+  ];
 }
 
 function parseKitInfoItems(raw) {
@@ -107,33 +113,41 @@ export async function getKit(id) {
  * Fetch kits defined on the Rust server (KitManager / Oxide kits).
  * Never reuse kits from a different RCON endpoint after a server switch.
  */
-export async function listServerKits({ refresh = true, detail = false } = {}) {
+export async function listServerKits({ refresh = true, detail = false, force = false } = {}) {
   const endpointKey = getRconEndpointKey();
   const server = getServer();
 
-  if (kitsEndpointKey && endpointKey && kitsEndpointKey !== endpointKey) {
+  if (force || (kitsEndpointKey && endpointKey && kitsEndpointKey !== endpointKey)) {
     clearServerKitCache();
     kitsEndpointKey = null;
   }
 
-  const cached = server?.kits;
   let names = [];
+  let rawPreview = null;
 
-  if (!refresh && kitsEndpointKey === endpointKey && Array.isArray(cached) && cached.length) {
-    names = cached.map((k) => k.name).filter(Boolean);
+  if (!refresh && !force && kitsEndpointKey === endpointKey && Array.isArray(server?.kits)) {
+    names = server.kits.map((k) => k.name).filter(Boolean);
   } else {
     try {
+      clearServerKitCache();
+      kitsEndpointKey = null;
       const raw = await sendGameCommand("kit list");
+      rawPreview = String(raw || "").slice(0, 400);
       names = parseKitList(raw);
       kitsEndpointKey = endpointKey;
       if (server) {
-        // Always replace — including empty — so old-server kits never stick around
         server.kits = names.map((name) => ({ name, items: [] }));
       }
     } catch (error) {
       clearServerKitCache();
       kitsEndpointKey = null;
-      return { ok: false, error: error.message, kits: [], endpointKey };
+      return {
+        ok: false,
+        error: error.message,
+        kits: [],
+        endpointKey,
+        rawPreview: null,
+      };
     }
   }
 
@@ -141,10 +155,12 @@ export async function listServerKits({ refresh = true, detail = false } = {}) {
   for (const name of names) {
     const fromCache = (getServer()?.kits || []).find((k) => k.name === name);
     let items = Array.isArray(fromCache?.items)
-      ? fromCache.items.map((i) => ({
-          item: i.shortName || i.item,
-          amount: i.quantity ?? i.amount ?? 1,
-        })).filter((i) => i.item)
+      ? fromCache.items
+          .map((i) => ({
+            item: i.shortName || i.item,
+            amount: i.quantity ?? i.amount ?? 1,
+          }))
+          .filter((i) => i.item)
       : [];
 
     if (detail && !items.length) {
@@ -175,7 +191,15 @@ export async function listServerKits({ refresh = true, detail = false } = {}) {
     endpointKey,
     host: status.host,
     port: status.port,
+    rawPreview,
   };
+}
+
+/** Hard clear + re-fetch kit list from the current RCON server. */
+export async function resyncServerKits() {
+  clearServerKitCache();
+  kitsEndpointKey = null;
+  return listServerKits({ refresh: true, force: true, detail: false });
 }
 
 export async function upsertKit({ id, label, items, cooldownMinutes } = {}) {

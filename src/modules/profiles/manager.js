@@ -1,6 +1,8 @@
 import { getPlayerProfiles, savePlayerProfiles } from "../../data/store.js";
 import { getPlayerCard } from "../rcon/stats.js";
 import { getPlayerActivityData } from "../analytics/tracker.js";
+import { getLinkByIgn } from "../rcon/linking.js";
+import { getOnlinePlayers } from "../rcon/client.js";
 
 let cache = null;
 let dirty = false;
@@ -23,13 +25,16 @@ setInterval(() => persist().catch(() => {}), 45000);
 
 export async function getPlayerProfile(ign) {
   const data = await load();
-  const key = ign.toLowerCase();
-  
-  const stats = await getPlayerCard(ign).catch(() => null);
-  const activity = await getPlayerActivityData(ign).catch(() => null);
-  
+  const key = String(ign || "").toLowerCase();
+  const displayIgn = String(ign || "").trim();
+
+  const stats = await getPlayerCard(displayIgn).catch(() => null);
+  const activity = await getPlayerActivityData(displayIgn).catch(() => null);
+  const link = await getLinkByIgn(displayIgn).catch(() => null);
+  const online = getOnlinePlayers().find((p) => p.ign.toLowerCase() === key) || null;
+
   const profile = data.profiles[key] || {
-    ign,
+    ign: stats?.name || displayIgn,
     notes: [],
     tags: [],
     warnings: [],
@@ -38,8 +43,13 @@ export async function getPlayerProfile(ign) {
 
   return {
     ...profile,
+    ign: profile.ign || stats?.name || displayIgn,
     stats,
     activity,
+    link,
+    online: online
+      ? { ign: online.ign, ping: online.ping ?? null, platform: online.platform ?? null }
+      : null,
   };
 }
 
