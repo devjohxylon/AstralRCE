@@ -537,64 +537,104 @@ button { transition: all .15s ease; }
 }
 .kit-modal-backdrop {
   position: fixed; inset: 0; z-index: 9000;
-  background: rgba(0,0,0,.72); backdrop-filter: blur(10px);
+  background: rgba(0,0,0,.7);
+  backdrop-filter: blur(6px);
   display: flex; align-items: center; justify-content: center;
-  padding: 1.25rem; animation: fadeIn .18s ease;
+  padding: 1.25rem;
+  animation: fadeIn .18s ease;
 }
 .kit-modal {
-  width: min(820px, 100%); max-height: min(88vh, 920px);
-  overflow: auto; border-radius: 12px;
-  background: linear-gradient(180deg, #141820 0%, #0c0e14 100%);
-  border: 1px solid rgba(255,255,255,.12);
-  box-shadow: 0 30px 80px rgba(0,0,0,.65);
-  padding: 1.15rem 1.25rem 1.35rem;
+  position: relative;
+  width: min(780px, 100%);
+  max-height: min(88vh, 900px);
+  overflow: auto;
+  border-radius: var(--radius);
+  padding: 1.5rem 1.5rem 1.35rem;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.03), transparent 40%),
+    rgba(12,13,16,.94);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(10px);
 }
+.kit-modal::before, .kit-modal::after {
+  content: ""; position: absolute; width: 12px; height: 12px;
+  border-color: var(--hud); border-style: solid; opacity: .75; pointer-events: none;
+}
+.kit-modal::before { top: -1px; left: -1px; border-width: 2px 0 0 2px; }
+.kit-modal::after { bottom: -1px; right: -1px; border-width: 0 2px 2px 0; }
 .kit-modal-head {
   display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem;
-  margin-bottom: 1rem; padding-bottom: .9rem;
-  border-bottom: 1px solid rgba(255,255,255,.08);
+  margin-bottom: 1.15rem; padding-bottom: 1rem;
+  border-bottom: 1px solid rgba(255,255,255,.06);
 }
-.kit-modal-head h3 { margin: 0; font-size: 1.25rem; letter-spacing: -.02em; }
+.kit-modal-eyebrow {
+  margin: 0 0 .4rem;
+  font-family: var(--mono); font-size: .62rem; font-weight: 600;
+  letter-spacing: .14em; text-transform: uppercase; color: rgba(215,221,230,.45);
+}
+.kit-modal-head h3 {
+  margin: 0; font-size: 1.35rem; font-weight: 700; letter-spacing: -.02em;
+  background: linear-gradient(180deg, #fff, #9aa3af);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.kit-modal-head .actions { flex-wrap: wrap; justify-content: flex-end; }
 .kit-modal-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
-  gap: .75rem;
+  grid-template-columns: repeat(auto-fill, minmax(124px, 1fr));
+  gap: .65rem;
 }
 .kit-tile {
   position: relative;
-  display: flex; flex-direction: column; align-items: center; gap: .45rem;
-  padding: .85rem .6rem .75rem;
-  border-radius: 10px;
-  background: rgba(255,255,255,.03);
-  border: 1px solid rgba(255,255,255,.07);
+  display: flex; flex-direction: column; align-items: center; gap: .4rem;
+  padding: .85rem .55rem .7rem;
+  border-radius: var(--radius-sm);
+  background: rgba(0,0,0,.35);
+  border: 1px solid rgba(255,255,255,.06);
   text-align: center;
-  min-height: 148px;
+  min-height: 142px;
+  transition: border-color .15s ease, background .15s ease;
+}
+.kit-tile:hover {
+  border-color: rgba(215,221,230,.18);
+  background: rgba(255,255,255,.03);
 }
 .kit-tile img {
-  width: 56px; height: 56px; object-fit: contain;
-  border-radius: 8px; background: rgba(0,0,0,.45); padding: 6px;
+  width: 52px; height: 52px; object-fit: contain;
+  border-radius: var(--radius-sm);
+  background: rgba(0,0,0,.55);
+  border: 1px solid rgba(255,255,255,.06);
+  padding: 5px;
 }
 .kit-tile strong {
-  font-size: .78rem; line-height: 1.25;
+  font-size: .76rem; line-height: 1.25; font-weight: 600; color: var(--text);
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
 .kit-tile .meta {
-  font-family: var(--mono); font-size: .62rem; color: var(--muted);
+  font-family: var(--mono); font-size: .58rem; letter-spacing: .02em; color: var(--faint);
 }
 .kit-tile .qty {
-  position: absolute; top: .45rem; right: .45rem;
-  font-family: var(--mono); font-size: .68rem; font-weight: 700;
-  padding: .15rem .4rem; border-radius: 999px;
-  background: rgba(126,184,232,.18); color: #b7d9f5;
-  border: 1px solid rgba(126,184,232,.28);
+  position: absolute; top: .4rem; right: .4rem;
+  font-family: var(--mono); font-size: .62rem; font-weight: 600;
+  letter-spacing: .04em;
+  padding: .18rem .4rem; border-radius: var(--radius-sm);
+  color: var(--chrome);
+  background: rgba(215,221,230,.08);
+  border: 1px solid rgba(215,221,230,.16);
 }
 .kit-tile .rm {
-  position: absolute; top: .4rem; left: .4rem;
-  padding: .15rem .4rem; font-size: .7rem; line-height: 1;
+  position: absolute; top: .35rem; left: .35rem;
+  padding: .12rem .38rem; font-size: .68rem; line-height: 1;
+  border-radius: var(--radius-sm);
 }
 .kit-modal-add {
-  margin-top: 1.1rem; padding-top: 1rem;
-  border-top: 1px solid rgba(255,255,255,.08);
+  margin-top: 1.15rem; padding-top: 1rem;
+  border-top: 1px solid rgba(255,255,255,.06);
+}
+.kit-modal-add-label {
+  margin: 0 0 .65rem;
+  font-family: var(--mono); font-size: .62rem; font-weight: 600;
+  letter-spacing: .12em; text-transform: uppercase; color: rgba(215,221,230,.45);
 }
 .kit-item {
   display: flex; gap: .75rem; align-items: center;
@@ -2561,21 +2601,22 @@ async function renderKits() {
         <div class="kit-modal" data-kit-modal>
           <div class="kit-modal-head">
             <div>
+              <p class="kit-modal-eyebrow">In-game kit</p>
               <h3>${esc(state.editingServerKit)}</h3>
-              <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:.35rem 0 0">
-                ${items.length} item${items.length === 1 ? "" : "s"} · in-game KitManager
+              <p class="muted" style="font-family:var(--mono);font-size:.68rem;margin:.45rem 0 0">
+                ${items.length} item${items.length === 1 ? "" : "s"} · KitManager
               </p>
             </div>
             <div class="actions">
               <button data-action="refreshServerKit" data-id="${esc(state.editingServerKit)}">Reload</button>
               <button data-action="giveKit" data-id="${esc(state.editingServerKit)}" data-source="server">Give</button>
               <button class="danger" data-action="delServerKit" data-id="${esc(state.editingServerKit)}">Delete</button>
-              <button data-action="closeServerKit">Close</button>
+              <button class="ghost" data-action="closeServerKit">Close</button>
             </div>
           </div>
           <div class="kit-modal-grid">${tiles}</div>
           <div class="kit-modal-add">
-            <div class="muted" style="font-family:var(--mono);font-size:.68rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;margin-bottom:.65rem">Add item</div>
+            <p class="kit-modal-add-label">Add item</p>
             <div class="form-grid" style="grid-template-columns: 1.4fr 90px 90px 110px auto">
               <input id="srvKitItem" placeholder="shortname (e.g. wood)" />
               <input id="srvKitAmount" type="number" min="1" value="1" placeholder="Amt" />
