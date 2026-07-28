@@ -49,11 +49,14 @@ import {
 import { pushLeaderboardToWebsite } from "../../modules/rcon/index.js";
 import { listRustItems } from "../../data/rust-items.js";
 import {
+  addServerKitItem,
   deleteKit,
   deleteServerKit,
+  getServerKitDetails,
   giveKit,
   listKits,
   listServerKits,
+  removeServerKitItem,
   resyncServerKits,
   upsertKit,
 } from "../../modules/rcon/kits.js";
@@ -723,11 +726,13 @@ export async function attachAdminPanel(app, client) {
 
   app.post("/admin/api/kits/resync", requireAuth, requirePerm("kits"), async (req, res) => {
     try {
-      const server = await resyncServerKits();
+      const detail = Boolean(req.body?.detail);
+      const server = await resyncServerKits({ detail });
       await audit(req, "kits_resync", {
         count: server.kits?.length || 0,
         host: server.host,
         port: server.port,
+        detail,
       });
       res.json({
         ok: server.ok !== false,
@@ -741,6 +746,40 @@ export async function attachAdminPanel(app, client) {
       });
     } catch (error) {
       res.status(500).json({ ok: false, error: error.message, kits: [], count: 0 });
+    }
+  });
+
+  app.get("/admin/api/kits/server/:name", requireAuth, requirePerm("kits"), async (req, res) => {
+    try {
+      const result = await getServerKitDetails(req.params.name);
+      if (!result.ok) return res.status(400).json(result);
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error.message, items: [] });
+    }
+  });
+
+  app.post("/admin/api/kits/server/item", requireAuth, requirePerm("kits"), async (req, res) => {
+    try {
+      const { kit, item, amount, condition, container } = req.body ?? {};
+      const result = await addServerKitItem(kit, { item, amount, condition, container });
+      if (!result.ok) return res.status(400).json(result);
+      await audit(req, "kit_server_item_add", { kit, item, amount });
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  app.post("/admin/api/kits/server/item/remove", requireAuth, requirePerm("kits"), async (req, res) => {
+    try {
+      const { kit, itemId } = req.body ?? {};
+      const result = await removeServerKitItem(kit, itemId);
+      if (!result.ok) return res.status(400).json(result);
+      await audit(req, "kit_server_item_remove", { kit, itemId });
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error.message });
     }
   });
 

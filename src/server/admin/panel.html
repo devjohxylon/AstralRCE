@@ -948,6 +948,8 @@ const state = {
   playerPositions: [],
   selectedPlayer: null,
   profileQuery: "",
+  editingServerKit: null,
+  editingServerKitData: null,
   analyticsData: null,
 };
 
@@ -2441,15 +2443,22 @@ async function renderKits() {
       </td>
     </tr>`).join("") || `<tr><td colspan="4"><div class="empty">No panel kits yet<span class="empty-hint">Build one on the right, or use server kits below</span></div></td></tr>`;
 
-  const serverRows = (data.serverKits || []).map((k) => `
+  const serverRows = (data.serverKits || []).map((k) => {
+    const itemPreview = (k.items || []).length
+      ? (k.items || []).slice(0, 6).map((i) => `${esc(i.item)}×${i.amount}`).join(", ") + ((k.items || []).length > 6 ? "…" : "")
+      : `<span class="muted">Open to load items</span>`;
+    const active = state.editingServerKit === k.id;
+    return `
     <tr>
       <td data-label="Kit"><strong>${esc(k.label)}</strong><div class="muted"><code>${esc(k.id)}</code> · server</div></td>
-      <td data-label="Items">${(k.items || []).slice(0, 8).map((i) => `${esc(i.item)}×${i.amount}`).join(", ") || '<span class="muted">—</span>'}${(k.items || []).length > 8 ? "…" : ""}</td>
+      <td data-label="Items">${itemPreview}</td>
       <td data-label="Actions" class="actions">
-        <button class="primary" data-action="giveKit" data-id="${esc(k.id)}" data-source="server">Give</button>
+        <button class="${active ? "primary" : ""}" data-action="viewServerKit" data-id="${esc(k.id)}">${active ? "Viewing" : "View / Edit"}</button>
+        <button data-action="giveKit" data-id="${esc(k.id)}" data-source="server">Give</button>
         <button class="danger" data-action="delServerKit" data-id="${esc(k.id)}">Delete</button>
       </td>
-    </tr>`).join("") || `<tr><td colspan="3"><div class="empty">${data.serverError ? esc(data.serverError) : "No in-game kits returned from RCON (kit list). Make sure KitManager is installed and RCON is online."}${data.serverRaw ? `<span class="empty-hint">Raw: ${esc(data.serverRaw)}</span>` : ""}</div></td></tr>`;
+    </tr>`;
+  }).join("") || `<tr><td colspan="3"><div class="empty">${data.serverError ? esc(data.serverError) : "No in-game kits returned from RCON (kit list). Make sure KitManager is installed and RCON is online."}${data.serverRaw ? `<span class="empty-hint">Raw: ${esc(data.serverRaw)}</span>` : ""}</div></td></tr>`;
 
   const cats = (catalog.categories || ["All"]).map((c) =>
     `<button type="button" data-action="kitCategory" data-cat="${esc(c)}" class="${state.kitDraft.category === c ? "active" : ""}">${esc(c)}</button>`
@@ -2466,6 +2475,54 @@ async function renderKits() {
     ? `<pre class="muted" style="font-family:var(--mono);font-size:.68rem;white-space:pre-wrap;margin:.75rem 0 0;padding:.65rem;background:rgba(0,0,0,.35);border:1px solid var(--line);max-height:140px;overflow:auto">kit list raw:\n${esc(data.serverRaw)}</pre>`
     : "";
 
+  let editorBlock = "";
+  if (state.editingServerKit) {
+    const detail = state.editingServerKitData;
+    const items = detail?.items || [];
+    const itemRows = items.map((i) => `
+      <tr>
+        <td data-label="ID"><code>${esc(i.id ?? "—")}</code></td>
+        <td data-label="Item"><code>${esc(i.item)}</code></td>
+        <td data-label="Amount">${esc(i.amount)}</td>
+        <td data-label="Slot">${esc(i.container || "—")}</td>
+        <td data-label="Actions" class="actions">
+          ${i.id != null ? `<button class="danger" data-action="removeServerKitItem" data-kit="${esc(state.editingServerKit)}" data-id="${esc(i.id)}">Remove</button>` : `<span class="muted">no id</span>`}
+        </td>
+      </tr>`).join("") || `<tr><td colspan="5"><div class="empty">No items returned from <code>kit info</code></div></td></tr>`;
+
+    editorBlock = `
+      <div class="card" style="margin-bottom:.9rem">
+        <div class="card-head">
+          <div>
+            <h3 style="margin:0">Edit in-game kit</h3>
+            <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:.35rem 0 0"><code>${esc(state.editingServerKit)}</code></p>
+          </div>
+          <div class="actions">
+            <button data-action="refreshServerKit" data-id="${esc(state.editingServerKit)}">Reload items</button>
+            <button data-action="closeServerKit">Close</button>
+          </div>
+        </div>
+        <p class="card-desc">Uses Console KitManager: <code>kit info</code>, <code>kit add</code>, <code>kit remove</code>. Prefer editing one system at a time (panel vs in-game UI).</p>
+        <table class="table">
+          <thead><tr><th>ID</th><th>Item</th><th>Amt</th><th>Slot</th><th></th></tr></thead>
+          <tbody>${itemRows}</tbody>
+        </table>
+        <h3 style="margin-top:1.1rem">Add item</h3>
+        <div class="form-grid" style="grid-template-columns: 1.4fr 90px 90px 110px auto">
+          <input id="srvKitItem" placeholder="shortname (e.g. wood)" />
+          <input id="srvKitAmount" type="number" min="1" value="1" placeholder="Amt" />
+          <input id="srvKitCond" type="number" min="0" max="1" step="0.01" value="1" placeholder="Cond" />
+          <select id="srvKitSlot">
+            <option value="Main">Main</option>
+            <option value="Belt">Belt</option>
+            <option value="Wear">Wear</option>
+          </select>
+          <button class="primary" data-action="addServerKitItem" data-kit="${esc(state.editingServerKit)}">Add</button>
+        </div>
+        ${detail?.rawPreview ? `<pre class="muted" style="font-family:var(--mono);font-size:.68rem;white-space:pre-wrap;margin:.75rem 0 0;padding:.65rem;background:rgba(0,0,0,.35);border:1px solid var(--line);max-height:160px;overflow:auto">kit info raw:\n${esc(detail.rawPreview)}</pre>` : ""}
+      </div>`;
+  }
+
   return `
     <div class="card" style="margin-bottom:.9rem">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:.75rem;flex-wrap:wrap">
@@ -2473,7 +2530,7 @@ async function renderKits() {
           <h3 style="margin:0">In-game kits (server)</h3>
           <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:.35rem 0 0">
             Live list from RCON <code>${esc(serverEndpoint)}</code> (<code>kit list</code>).
-            Resync re-reads that server — it does not invent kits. Delete runs <code>kit delete</code> on the game server.
+            Resync re-reads that server. View / Edit loads items with <code>kit info</code>.
           </p>
         </div>
         <button data-action="refreshServerKits">Resync from server</button>
@@ -2481,6 +2538,7 @@ async function renderKits() {
       <table class="table" style="margin-top:.75rem"><thead><tr><th>Kit</th><th>Items</th><th></th></tr></thead><tbody>${serverRows}</tbody></table>
       ${rawBlock}
     </div>
+    ${editorBlock}
     <div class="split">
       <div class="card">
         <h3>Panel kit bundles</h3>
@@ -2997,6 +3055,7 @@ function bindView() {
         }
         if (a === "refreshServerKits") {
           try {
+            toast("Resyncing kit list…");
             const r = await api("/kits/resync", { method: "POST", body: {} });
             const where = r.host && r.port ? `${r.host}:${r.port}` : "RCON";
             if (!r.ok) {
@@ -3010,13 +3069,78 @@ function bindView() {
           render();
           return;
         }
+        if (a === "viewServerKit" || a === "refreshServerKit") {
+          const id = el.dataset.id;
+          try {
+            toast(`Loading kit info for ${id}…`);
+            const r = await api(`/kits/server/${encodeURIComponent(id)}`);
+            if (!r.ok) { toast(r.error || "Failed to load kit", true); return; }
+            state.editingServerKit = id;
+            state.editingServerKitData = r;
+            toast(`${id}: ${(r.items || []).length} item(s)`);
+          } catch (e) {
+            toast(e.message || "Failed to load kit", true);
+          }
+          render();
+          return;
+        }
+        if (a === "closeServerKit") {
+          state.editingServerKit = null;
+          state.editingServerKitData = null;
+          render();
+          return;
+        }
+        if (a === "addServerKitItem") {
+          const kit = el.dataset.kit;
+          const item = document.getElementById("srvKitItem")?.value?.trim().toLowerCase();
+          const amount = Number(document.getElementById("srvKitAmount")?.value) || 1;
+          const condition = Number(document.getElementById("srvKitCond")?.value);
+          const container = document.getElementById("srvKitSlot")?.value || "Main";
+          if (!item) { toast("Enter item shortname", true); return; }
+          try {
+            const r = await api("/kits/server/item", {
+              method: "POST",
+              body: { kit, item, amount, condition: Number.isFinite(condition) ? condition : 1, container },
+            });
+            if (!r.ok) { toast(r.error || "Add failed", true); return; }
+            state.editingServerKit = kit;
+            state.editingServerKitData = r;
+            toast(`Added ${item} to ${kit}`);
+          } catch (e) {
+            toast(e.message || "Add failed", true);
+          }
+          render();
+          return;
+        }
+        if (a === "removeServerKitItem") {
+          const kit = el.dataset.kit;
+          const itemId = el.dataset.id;
+          if (!confirm(`Remove item id ${itemId} from "${kit}"?`)) return;
+          try {
+            const r = await api("/kits/server/item/remove", { method: "POST", body: { kit, itemId } });
+            if (!r.ok) { toast(r.error || "Remove failed", true); return; }
+            state.editingServerKit = kit;
+            state.editingServerKitData = r;
+            toast("Item removed");
+          } catch (e) {
+            toast(e.message || "Remove failed", true);
+          }
+          render();
+          return;
+        }
         if (a === "delServerKit") {
           const id = el.dataset.id;
           if (!confirm(`Delete in-game kit "${id}" on the Rust server? (kit delete)`)) return;
           try {
             const r = await api("/kits/server/delete", { method: "POST", body: { id } });
             if (!r.ok) toast(r.error || "Delete failed", true);
-            else toast(`Deleted ${id} · now ${(r.kits || []).length} kit(s)`);
+            else {
+              if (state.editingServerKit === id) {
+                state.editingServerKit = null;
+                state.editingServerKitData = null;
+              }
+              toast(`Deleted ${id} · now ${(r.kits || []).length} kit(s)`);
+            }
           } catch (e) {
             toast(e.message || "Delete failed", true);
           }
