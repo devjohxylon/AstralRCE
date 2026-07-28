@@ -1,6 +1,7 @@
 import { RCEEvent } from "rce.js";
 import { config } from "../../config.js";
 import { sendToWebsite } from "../../services/website.js";
+import { formatPopChannelName, getStatusSettingsSync } from "../admin/status-settings.js";
 import {
   connectRcon,
   getOnlinePlayers,
@@ -195,8 +196,10 @@ async function updateStatusChannel(client, info, force = false) {
   const channelId = config.channels.popStatus;
   if (!channelId || !client) return;
 
-  const queued = info.Queued ? ` 🕑${info.Queued}` : "";
-  const name = `🌐 ${info.Players ?? 0}/${info.MaxPlayers ?? "?"}${queued}`.slice(0, 90);
+  const popSettings = getStatusSettingsSync().popStatus;
+  if (popSettings?.enabled === false) return;
+
+  const name = formatPopChannelName(info, popSettings);
   if (!force && name === lastStatusName) return;
 
   const now = Date.now();

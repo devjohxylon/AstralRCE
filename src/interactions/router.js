@@ -23,6 +23,7 @@ import {
   handleWarpCommand,
 } from "./player-commands.js";
 import { handleLinkModal } from "../modules/panels/link-panel.js";
+import { isCommandEnabled } from "../modules/admin/command-settings.js";
 
 const MOD_COMMANDS = new Set([
   "warn",
@@ -49,11 +50,27 @@ const PLAYER_COMMANDS = {
   automessage: handleAutoMessageCommand,
 };
 
+async function replyDisabled(interaction) {
+  const msg = {
+    content: `\`/${interaction.commandName}\` is disabled in the admin panel.`,
+    ephemeral: true,
+  };
+  if (interaction.replied || interaction.deferred) {
+    await interaction.followUp(msg).catch(() => {});
+  } else {
+    await interaction.reply(msg).catch(() => {});
+  }
+}
+
 export function attachInteractionRouter(client) {
   client.on("interactionCreate", async (interaction) => {
     try {
       if (interaction.isChatInputCommand()) {
         const name = interaction.commandName;
+
+        if (!isCommandEnabled(name)) {
+          return await replyDisabled(interaction);
+        }
 
         if (name === "server") return await handleServerInfoCommand(interaction);
         if (name === "players") return await handlePlayersCommand(interaction);

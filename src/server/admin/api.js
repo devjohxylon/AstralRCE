@@ -67,6 +67,18 @@ import {
   getChannelConfig,
   saveChannelConfig,
 } from "../../modules/admin/channel-settings.js";
+import {
+  getFeedSettingsForPanel,
+  saveFeedSettings,
+} from "../../modules/admin/feed-settings.js";
+import {
+  getCommandSettingsForPanel,
+  saveCommandSettings,
+} from "../../modules/admin/command-settings.js";
+import {
+  getStatusSettingsForPanel,
+  saveStatusSettings,
+} from "../../modules/admin/status-settings.js";
 import { listReports, scanAllTeams, searchCombat } from "../../modules/rcon/reports.js";
 import {
   STAFF_PERMISSIONS,
@@ -869,12 +881,60 @@ export async function attachAdminPanel(app, client) {
     return {
       channels: await getChannelConfig(),
       discordChannels,
+      ...(await getFeedSettingsForPanel()),
+      ...(await getCommandSettingsForPanel()),
+      ...(await getStatusSettingsForPanel()),
     };
   }
 
   app.get("/admin/api/channels", requireAuth, requirePerm("serverCommands"), async (_req, res) => {
     try {
       res.json({ ok: true, ...(await loadDiscordChannelPicker()) });
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  app.post("/admin/api/feeds", requireAuth, requirePerm("serverCommands"), async (req, res) => {
+    const patch = req.body?.feeds ?? req.body ?? {};
+    if (!patch || typeof patch !== "object") {
+      return res.status(400).json({ ok: false, error: "Missing feeds object" });
+    }
+    try {
+      const result = await saveFeedSettings(patch);
+      if (!result.ok) return res.status(400).json(result);
+      await audit(req, "feeds_save", { keys: Object.keys(patch) });
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  app.post("/admin/api/commands", requireAuth, requirePerm("serverCommands"), async (req, res) => {
+    const patch = req.body?.commands ?? req.body ?? {};
+    if (!patch || typeof patch !== "object") {
+      return res.status(400).json({ ok: false, error: "Missing commands object" });
+    }
+    try {
+      const result = await saveCommandSettings(patch);
+      if (!result.ok) return res.status(400).json(result);
+      await audit(req, "commands_save", { keys: Object.keys(patch) });
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  app.post("/admin/api/status-displays", requireAuth, requirePerm("serverCommands"), async (req, res) => {
+    const patch = req.body?.statusDisplays ?? req.body ?? {};
+    if (!patch || typeof patch !== "object") {
+      return res.status(400).json({ ok: false, error: "Missing statusDisplays object" });
+    }
+    try {
+      const result = await saveStatusSettings(patch);
+      if (!result.ok) return res.status(400).json(result);
+      await audit(req, "status_displays_save", { keys: Object.keys(patch) });
+      res.json(result);
     } catch (error) {
       res.status(500).json({ ok: false, error: error.message });
     }

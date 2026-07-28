@@ -1,6 +1,10 @@
 import { config } from "../../config.js";
 import { getSettings, saveSettings } from "../../data/store.js";
 import { sendToWebsite } from "../../services/website.js";
+import {
+  formatWipeChannelName,
+  getStatusSettingsSync,
+} from "../admin/status-settings.js";
 
 let lastWipeName = null;
 let lastWipeRenameAt = 0;
@@ -26,22 +30,13 @@ export async function setWipeAt(isoOrNull) {
 }
 
 export function formatWipeCountdown(wipeAt) {
-  if (!wipeAt) return { label: "Wipe TBA", remainingMs: null, past: false };
+  const wipeSettings = getStatusSettingsSync().wipeStatus;
+  const name = formatWipeChannelName(wipeAt, wipeSettings);
+  if (!wipeAt) return { label: name, remainingMs: null, past: false };
   const target = new Date(wipeAt).getTime();
   const remainingMs = target - Date.now();
-  if (remainingMs <= 0) return { label: "Wiped", remainingMs: 0, past: true };
-
-  const totalMins = Math.floor(remainingMs / 60_000);
-  const days = Math.floor(totalMins / (60 * 24));
-  const hours = Math.floor((totalMins % (60 * 24)) / 60);
-  const mins = totalMins % 60;
-
-  let label = "Wipe ";
-  if (days > 0) label += `${days}d ${hours}h`;
-  else if (hours > 0) label += `${hours}h ${mins}m`;
-  else label += `${mins}m`;
-
-  return { label, remainingMs, past: false };
+  if (remainingMs <= 0) return { label: name, remainingMs: 0, past: true };
+  return { label: name, remainingMs, past: false };
 }
 
 export async function buildWipePayload() {
@@ -62,9 +57,11 @@ async function renameWipeChannel(client, force = false) {
   const channelId = config.channels.wipeStatus;
   if (!channelId || !client) return;
 
+  const wipeSettings = getStatusSettingsSync().wipeStatus;
+  if (wipeSettings?.enabled === false) return;
+
   const wipeAt = await getWipeAt();
   const { label } = formatWipeCountdown(wipeAt);
-  // Discord channel names max 100; keep short for voice
   const name = label.slice(0, 90);
   if (!force && name === lastWipeName) return;
 

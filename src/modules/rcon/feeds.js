@@ -1,10 +1,16 @@
 import { EmbedBuilder } from "discord.js";
 import { config } from "../../config.js";
+import {
+  getFeedSettingsSync,
+  shouldPostKill,
+} from "../admin/feed-settings.js";
 
 const FLUSH_MS = 3000;
 const MAX_CHARS = 1900;
+const MAX_EMBEDS = 10;
 
 const buffers = new Map();
+const embedBuffers = new Map();
 let discordClient = null;
 let wsModule = null;
 let analyticsModule = null;
@@ -19,6 +25,11 @@ export function attachWebSocket(ws) {
 
 export function attachAnalytics(analytics) {
   analyticsModule = analytics;
+}
+
+function feedEnabled(key) {
+  const feeds = getFeedSettingsSync();
+  return feeds[key]?.enabled !== false;
 }
 
 // Batches feed lines per channel — a busy wipe night can produce dozens of
@@ -36,6 +47,22 @@ export function queueFeedLine(channelId, line) {
 
   if (!buffer.timer) {
     buffer.timer = setTimeout(() => flushChannel(channelId), FLUSH_MS);
+  }
+}
+
+function queueFeedEmbed(channelId, embed) {
+  if (!channelId || !discordClient) return;
+
+  let buffer = embedBuffers.get(channelId);
+  if (!buffer) {
+    buffer = { embeds: [], timer: null };
+    embedBuffers.set(channelId, buffer);
+  }
+
+  buffer.embeds.push(embed);
+
+  if (!buffer.timer) {
+    buffer.timer = setTimeout(() => flushEmbedChannel(channelId), FLUSH_MS);
   }
 }
 
@@ -64,8 +91,28 @@ async function flushChannel(channelId) {
   }
 }
 
+async function flushEmbedChannel(channelId) {
+  const buffer = embedBuffers.get(channelId);
+  if (!buffer) return;
+
+  buffer.timer = null;
+  const embeds = buffer.embeds.splice(0, buffer.embeds.length);
+  if (!embeds.length) return;
+
+  const channel = await discordClient.channels.fetch(channelId).catch(() => null);
+  if (!channel?.isTextBased()) return;
+
+  for (let i = 0; i < embeds.length; i += MAX_EMBEDS) {
+    const batch = embeds.slice(i, i + MAX_EMBEDS);
+    await channel.send({ embeds: batch, allowedMentions: { parse: [] } }).catch(() => {});
+  }
+}
+
 export async function flushAllFeeds() {
-  await Promise.all([...buffers.keys()].map((id) => flushChannel(id)));
+  await Promise.all([
+    ...[...buffers.keys()].map((id) => flushChannel(id)),
+    ...[...embedBuffers.keys()].map((id) => flushEmbedChannel(id)),
+  ]);
 }
 
 async function sendEmbed(channelId, embed) {
@@ -82,8 +129,40 @@ function clean(name) {
 const killStreaks = new Map(); // ign -> count
 const STREAK_MILESTONES = new Set([3, 5, 10, 15, 20]);
 
+function killDistance(data) {
+  const raw =
+    data?.distance ??
+    data?.Distance ??
+    data?.dist ??
+    data?.meters ??
+    null;
+  if (raw == null || raw === "") return null;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0) return null;
+  return Math.round(n);
+}
+
+function compactKillEmbed({ line, footerTag, kind = "kill" }) {
+  const tag = String(footerTag || "S2").trim() || "S2";
+  return new EmbedBuilder()
+    .setDescription(line)
+    .setColor(0x111214)
+    .setFooter({ text: `${tag} • ${kind}` })
+    .setTimestamp();
+}
+
+function formatCompactPvp({ victim, killer, distance, kf }) {
+  const death = kf.deathIcon || "💀";
+  const hit = kf.hitIcon || "🎯";
+  // KA0SB0T-style: Victim 💀 Killer 🎯 [distance]
+  let line = `${clean(victim.name)} ${death} ${clean(killer.name)} ${hit}`;
+  if (distance != null) line += ` ${distance}`;
+  return line;
+}
+
 export function feedKill(data) {
   const channelId = config.channels.killfeed;
+  const kf = getFeedSettingsSync().killfeed;
 
   const killer = data?.killer ?? data;
   const victim = data?.victim;
@@ -97,6 +176,7 @@ export function feedKill(data) {
   const headshot =
     Boolean(data?.headshot) ||
     /head/i.test(String(bodyPart ?? ""));
+  const distance = killDistance(data);
 
   const pvp = killer?.type === "Player" && victim?.type === "Player";
   const suicide = pvp && killer.name === victim.name;
@@ -123,11 +203,22 @@ export function feedKill(data) {
     }
   }
 
-  if (!channelId) return;
+  if (!channelId || !shouldPostKill(data, kf)) return;
 
   if (suicide) {
     killStreaks.delete(String(victim.name).toLowerCase());
-    queueFeedLine(channelId, `💀 **${clean(victim.name)}** died`);
+    if (kf.style === "compact") {
+      queueFeedEmbed(
+        channelId,
+        compactKillEmbed({
+          line: `${clean(victim.name)} ${kf.deathIcon || "💀"}`,
+          footerTag: kf.footerTag,
+          kind: "kill",
+        }),
+      );
+    } else {
+      queueFeedLine(channelId, `💀 **${clean(victim.name)}** died`);
+    }
     return;
   }
 
@@ -138,36 +229,81 @@ export function feedKill(data) {
     killStreaks.set(killerKey, streak);
     killStreaks.delete(victimKey);
 
-    const extras = [];
-    if (weapon) extras.push(clean(weapon));
-    if (headshot) extras.push("HS");
-    const suffix = extras.length ? ` *(${extras.join(" · ")})*` : "";
-
-    queueFeedLine(
-      channelId,
-      `🔫 **${clean(killer.name)}** killed **${clean(victim.name)}**${suffix}`,
-    );
-
-    if (STREAK_MILESTONES.has(streak)) {
+    if (kf.style === "compact") {
+      queueFeedEmbed(
+        channelId,
+        compactKillEmbed({
+          line: formatCompactPvp({ victim, killer, distance, kf }),
+          footerTag: kf.footerTag,
+          kind: "kill",
+        }),
+      );
+    } else {
+      const extras = [];
+      if (weapon) extras.push(clean(weapon));
+      if (headshot) extras.push("HS");
+      if (distance != null) extras.push(`${distance}m`);
+      const suffix = extras.length ? ` *(${extras.join(" · ")})*` : "";
       queueFeedLine(
         channelId,
-        `🔥 **${clean(killer.name)}** is on a **${streak}** kill streak`,
+        `🔫 **${clean(killer.name)}** killed **${clean(victim.name)}**${suffix}`,
       );
+    }
+
+    if (kf.showStreaks && STREAK_MILESTONES.has(streak)) {
+      if (kf.style === "compact") {
+        queueFeedEmbed(
+          channelId,
+          compactKillEmbed({
+            line: `🔥 ${clean(killer.name)} · ${streak} streak`,
+            footerTag: kf.footerTag,
+            kind: "streak",
+          }),
+        );
+      } else {
+        queueFeedLine(
+          channelId,
+          `🔥 **${clean(killer.name)}** is on a **${streak}** kill streak`,
+        );
+      }
     }
     return;
   }
 
+  // Non-PvP (only reached when settings allow NPC / animal / entity / natural)
   if (victim?.type === "Player") {
     killStreaks.delete(String(victim.name).toLowerCase());
-    queueFeedLine(
-      channelId,
-      `☠️ **${clean(victim.name)}** was killed by *${clean(killer?.name)}*`,
-    );
+    if (kf.style === "compact") {
+      queueFeedEmbed(
+        channelId,
+        compactKillEmbed({
+          line: `${clean(victim.name)} ${kf.deathIcon || "💀"} ${clean(killer?.name)}`,
+          footerTag: kf.footerTag,
+          kind: "kill",
+        }),
+      );
+    } else {
+      queueFeedLine(
+        channelId,
+        `☠️ **${clean(victim.name)}** was killed by *${clean(killer?.name)}*`,
+      );
+    }
   } else if (killer?.type === "Player") {
-    queueFeedLine(
-      channelId,
-      `🐻 **${clean(killer.name)}** killed *${clean(victim?.name)}*`,
-    );
+    if (kf.style === "compact") {
+      queueFeedEmbed(
+        channelId,
+        compactKillEmbed({
+          line: `${clean(victim?.name)} ${kf.deathIcon || "💀"} ${clean(killer.name)}`,
+          footerTag: kf.footerTag,
+          kind: "kill",
+        }),
+      );
+    } else {
+      queueFeedLine(
+        channelId,
+        `🐻 **${clean(killer.name)}** killed *${clean(victim?.name)}*`,
+      );
+    }
   }
 }
 
@@ -175,6 +311,7 @@ export function feedJoin(player) {
   if (wsModule?.broadcastPlayerJoin) {
     wsModule.broadcastPlayerJoin(player?.ign);
   }
+  if (!feedEnabled("joinLeave")) return;
   queueFeedLine(config.channels.joinLeave, `📥 **${clean(player?.ign)}** joined the server`);
 }
 
@@ -182,10 +319,12 @@ export function feedLeave(player) {
   if (wsModule?.broadcastPlayerLeave) {
     wsModule.broadcastPlayerLeave(player?.ign);
   }
+  if (!feedEnabled("joinLeave")) return;
   queueFeedLine(config.channels.joinLeave, `📤 **${clean(player?.ign)}** left the server`);
 }
 
 export function feedQuickChat({ player, message, type }) {
+  if (!feedEnabled("gameChat")) return;
   const channel = type ? `[${type}] ` : "";
   queueFeedLine(config.channels.gameChat, `💬 ${channel}**${clean(player?.ign)}**: ${clean(message)}`);
 }
@@ -204,6 +343,7 @@ const EVENT_META = {
 };
 
 export async function feedServerEvent({ event, special }) {
+  if (!feedEnabled("gameEvents")) return;
   const meta = EVENT_META[event] ?? { emoji: "🌍", color: 0x95a5a6 };
   const embed = new EmbedBuilder()
     .setTitle(`${meta.emoji} ${event}${special ? " (Special)" : ""}`)
@@ -215,6 +355,7 @@ export async function feedServerEvent({ event, special }) {
 }
 
 export function feedAdminAction(text) {
+  if (!feedEnabled("adminLog")) return;
   queueFeedLine(config.channels.adminLog, text);
 }
 

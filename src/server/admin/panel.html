@@ -497,6 +497,60 @@ button { transition: all .15s ease; }
 .chan-row label { font-size: .82rem; font-weight: 600; }
 .chan-row label small { display: block; color: var(--faint); font-weight: 400; font-family: var(--mono); font-size: .64rem; margin-top: .2rem; }
 .chan-row select, .chan-row input { margin: 0; }
+.feed-settings-grid { display: grid; gap: .75rem; }
+.feed-setting-card h3 { margin-bottom: .2rem; }
+.feed-setting-card .muted { margin: 0 0 .75rem; }
+.feed-field-grid {
+  display: grid; gap: .65rem .9rem;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+}
+.feed-field {
+  display: flex; flex-direction: column; gap: .35rem;
+  padding: .55rem .65rem;
+  border: 1px solid rgba(255,255,255,.06);
+  background: rgba(0,0,0,.22);
+  border-radius: 6px;
+}
+.feed-field label {
+  font-size: .78rem; font-weight: 600;
+  display: flex; align-items: center; gap: .55rem;
+}
+.feed-field label small {
+  display: block; width: 100%;
+  color: var(--faint); font-weight: 400;
+  font-family: var(--mono); font-size: .62rem; margin-top: .15rem;
+}
+.feed-field.toggle label { cursor: pointer; }
+.feed-field input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; flex-shrink: 0; }
+.feed-field select, .feed-field input[type="text"] { margin: 0; width: 100%; }
+.feed-field input[type="number"] { margin: 0; width: 100%; }
+.discord-actions { display: flex; flex-wrap: wrap; gap: .55rem; margin-top: .25rem; }
+.cmd-catalog { display: grid; gap: .75rem; }
+.cmd-group-card h3 { margin-bottom: .35rem; }
+.cmd-row {
+  display: grid; gap: .65rem;
+  padding: .75rem 0;
+  border-bottom: 1px solid var(--line);
+}
+.cmd-row:last-child { border-bottom: none; }
+.cmd-row-head {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: .45rem .7rem;
+}
+.cmd-row-head code {
+  font-size: .85rem; color: var(--chrome);
+  background: rgba(255,255,255,.04); padding: .15rem .4rem; border-radius: 4px;
+}
+.cmd-row-head .cmd-desc {
+  font-family: var(--mono); font-size: .68rem; color: var(--faint); flex: 1; min-width: 160px;
+}
+.cmd-access {
+  font-family: var(--mono); font-size: .58rem; text-transform: uppercase; letter-spacing: .04em;
+  color: rgba(215,221,230,.45); border: 1px solid rgba(255,255,255,.08);
+  padding: .12rem .4rem; border-radius: 999px;
+}
+.cmd-access.staff { color: #fbbf24; border-color: rgba(251,191,36,.25); }
+.cmd-access.admin { color: #f87171; border-color: rgba(248,113,113,.25); }
+.cmd-access.public { color: #4ade80; border-color: rgba(74,222,128,.2); }
 .cmd-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
 .kit-builder { display: grid; gap: 1.5rem; }
 .kit-picked {
@@ -1950,6 +2004,54 @@ async function renderAutomation() {
     </div>`;
 }
 
+function renderSettingField(kind, groupKey, field) {
+  const id = `${kind}-${groupKey}-${field.key}`;
+  const hint = field.hint ? `<small>${esc(field.hint)}</small>` : "";
+  const dataAttrs = `data-${kind}="${esc(groupKey)}" data-${kind}-field="${esc(field.key)}"`;
+  if (field.type === "toggle") {
+    return `
+      <div class="feed-field toggle">
+        <label for="${esc(id)}">
+          <input type="checkbox" id="${esc(id)}" ${dataAttrs} ${field.value ? "checked" : ""} />
+          <span>${esc(field.label)}${hint}</span>
+        </label>
+      </div>`;
+  }
+  if (field.type === "select") {
+    const opts = (field.options || []).map((o) =>
+      `<option value="${esc(o.value)}" ${o.value === field.value ? "selected" : ""}>${esc(o.label)}</option>`
+    ).join("");
+    return `
+      <div class="feed-field">
+        <label for="${esc(id)}">${esc(field.label)}${hint}</label>
+        <select id="${esc(id)}" ${dataAttrs}>${opts}</select>
+      </div>`;
+  }
+  if (field.type === "number") {
+    const min = field.min != null ? ` min="${field.min}"` : "";
+    const max = field.max != null ? ` max="${field.max}"` : "";
+    return `
+      <div class="feed-field">
+        <label for="${esc(id)}">${esc(field.label)}${hint}</label>
+        <input type="number" id="${esc(id)}" ${dataAttrs} value="${esc(field.value ?? "")}"${min}${max} />
+      </div>`;
+  }
+  return `
+    <div class="feed-field">
+      <label for="${esc(id)}">${esc(field.label)}${hint}</label>
+      <input type="text" id="${esc(id)}" ${dataAttrs}
+        value="${esc(field.value ?? "")}" placeholder="${esc(field.placeholder || "")}" />
+    </div>`;
+}
+
+function renderFeedField(feedKey, field) {
+  return renderSettingField("feed", feedKey, field);
+}
+
+function renderCommandField(cmdKey, field) {
+  return renderSettingField("cmd", cmdKey, field);
+}
+
 async function renderDiscordChannels() {
   const data = await api("/channels");
   const groups = {};
@@ -1978,16 +2080,79 @@ async function renderDiscordChannels() {
       </div>
     </div>`).join("") || `<div class="card"><div class="empty">No channel slots configured</div></div>`;
 
+  const feedBlocks = (data.feeds || []).map((feed) => `
+    <div class="card feed-setting-card" style="margin-bottom:.75rem">
+      <h3>${esc(feed.label)}</h3>
+      <p class="muted" style="font-family:var(--mono);font-size:.72rem">${esc(feed.hint || "")}</p>
+      <div class="feed-field-grid">
+        ${(feed.fields || []).map((f) => renderFeedField(feed.key, f)).join("")}
+      </div>
+    </div>`).join("") || `<div class="card"><div class="empty">No feed settings</div></div>`;
+
+  const statusBlocks = (data.statusDisplays || []).map((block) => `
+    <div class="card feed-setting-card" style="margin-bottom:.75rem">
+      <h3>${esc(block.label)}</h3>
+      <p class="muted" style="font-family:var(--mono);font-size:.72rem">${esc(block.hint || "")}</p>
+      <div class="feed-field-grid">
+        ${(block.fields || []).map((f) => renderSettingField("status", block.key, f)).join("")}
+      </div>
+    </div>`).join("") || `<div class="card"><div class="empty">No status display settings</div></div>`;
+
+  const commandBlocks = (data.commandGroups || []).map((g) => `
+    <div class="card cmd-group-card" style="margin-bottom:.75rem">
+      <h3>${esc(g.group)}</h3>
+      ${(g.commands || []).map((cmd) => `
+        <div class="cmd-row">
+          <div class="cmd-row-head">
+            <code>${esc(cmd.name)}</code>
+            <span class="cmd-access ${esc(cmd.access || "public")}">${esc(cmd.access || "public")}</span>
+            <span class="cmd-desc">${esc(cmd.description || "")}</span>
+          </div>
+          <div class="feed-field-grid">
+            ${(cmd.fields || []).map((f) => renderCommandField(cmd.key, f)).join("")}
+          </div>
+        </div>`).join("")}
+    </div>`).join("") || `<div class="card"><div class="empty">No slash commands registered in catalog</div></div>`;
+
   return `
     <div class="card" style="margin-bottom:.75rem">
       <h3>Discord feed channels</h3>
       <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:0 0 .85rem">
         Pick a channel from the dropdown or paste an ID. Saved here overrides <code>.env</code> until cleared.
         Killfeed is <code>CHANNEL_KILLFEED</code> — set it below to start posting kills.
+        Pop / wipe renames need <code>CHANNEL_POP_STATUS</code> / <code>CHANNEL_WIPE_STATUS</code> (voice channels work best).
       </p>
     </div>
     ${channelBlocksClean}
-    <button class="primary" data-action="saveChannels">Save channels</button>`;
+    <div class="card" style="margin-bottom:.75rem">
+      <h3>Status channel displays</h3>
+      <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:0">
+        Pop used to show <code>🌐-12100</code> on text channels because Discord strips <code>/</code> from
+        <code>🌐 12/100</code>. Default is now <code>🌐 12｜100</code> — change emoji, format, queue, wipe labels below.
+      </p>
+    </div>
+    <div class="feed-settings-grid">${statusBlocks}</div>
+    <div class="card" style="margin-bottom:.75rem;margin-top:1rem">
+      <h3>Feed settings</h3>
+      <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:0">
+        Killfeed defaults to compact PvP only (no NPC / animal spam). Toggle extras per feed below.
+      </p>
+    </div>
+    <div class="feed-settings-grid">${feedBlocks}</div>
+    <div class="card" style="margin-bottom:.75rem;margin-top:1rem">
+      <h3>Bot slash commands</h3>
+      <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:0">
+        Every Discord slash command the bot registers. Disable to block usage instantly; extras (homes, TPR timeout, giveaways, auto-mute) apply when saved.
+        Commands stay listed in Discord until you re-run <code>npm run register-commands</code> after removing them from code.
+      </p>
+    </div>
+    <div class="cmd-catalog">${commandBlocks}</div>
+    <div class="discord-actions">
+      <button class="primary" data-action="saveChannels">Save channels</button>
+      <button class="primary" data-action="saveStatusDisplays">Save status displays</button>
+      <button class="primary" data-action="saveFeeds">Save feed settings</button>
+      <button class="primary" data-action="saveCommands">Save command settings</button>
+    </div>`;
 }
 
 async function renderServerCommands() {
@@ -3471,6 +3636,48 @@ function bindView() {
           await api("/channels", { method: "POST", body: { channels } });
           toast("Channels saved");
           render();
+        }
+        if (a === "saveFeeds") {
+          const feeds = {};
+          document.querySelectorAll("[data-feed][data-feed-field]").forEach((el) => {
+            const feed = el.dataset.feed;
+            const field = el.dataset.feedField;
+            (feeds[feed] ||= {});
+            if (el.type === "checkbox") feeds[feed][field] = el.checked;
+            else if (el.type === "number") feeds[feed][field] = Number(el.value);
+            else feeds[feed][field] = el.value;
+          });
+          const r = await api("/feeds", { method: "POST", body: { feeds } });
+          toast(r.ok ? "Feed settings saved" : (r.error || "Failed"), !r.ok);
+          if (r.ok) render();
+        }
+        if (a === "saveCommands") {
+          const commands = {};
+          document.querySelectorAll("[data-cmd][data-cmd-field]").forEach((el) => {
+            const cmd = el.dataset.cmd;
+            const field = el.dataset.cmdField;
+            (commands[cmd] ||= {});
+            if (el.type === "checkbox") commands[cmd][field] = el.checked;
+            else if (el.type === "number") commands[cmd][field] = Number(el.value);
+            else commands[cmd][field] = el.value;
+          });
+          const r = await api("/commands", { method: "POST", body: { commands } });
+          toast(r.ok ? "Command settings saved" : (r.error || "Failed"), !r.ok);
+          if (r.ok) render();
+        }
+        if (a === "saveStatusDisplays") {
+          const statusDisplays = {};
+          document.querySelectorAll("[data-status][data-status-field]").forEach((el) => {
+            const key = el.dataset.status;
+            const field = el.dataset.statusField;
+            (statusDisplays[key] ||= {});
+            if (el.type === "checkbox") statusDisplays[key][field] = el.checked;
+            else if (el.type === "number") statusDisplays[key][field] = Number(el.value);
+            else statusDisplays[key][field] = el.value;
+          });
+          const r = await api("/status-displays", { method: "POST", body: { statusDisplays } });
+          toast(r.ok ? "Status displays saved" : (r.error || "Failed"), !r.ok);
+          if (r.ok) render();
         }
         if (a === "cmdRankGrant" || a === "cmdRankRevoke") {
           const ign = document.getElementById("cmdRankIgn")?.value?.trim();
