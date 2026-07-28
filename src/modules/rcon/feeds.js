@@ -161,12 +161,10 @@ function resolveKillDistance(data, killer, victim) {
   );
 }
 
-function compactKillEmbed({ line, footerTag, kind = "kill" }) {
-  const tag = String(footerTag || "S2").trim() || "S2";
+function compactKillEmbed({ line }) {
   return new EmbedBuilder()
     .setDescription(line)
     .setColor(0x111214)
-    .setFooter({ text: `${tag} • ${kind}` })
     .setTimestamp();
 }
 
@@ -228,8 +226,6 @@ export function feedKill(data) {
         channelId,
         compactKillEmbed({
           line: `${clean(victim.name)} died`,
-          footerTag: kf.footerTag,
-          kind: "kill",
         }),
       );
     } else {
@@ -255,8 +251,6 @@ export function feedKill(data) {
             distance,
             showDistance: kf.showDistance !== false,
           }),
-          footerTag: kf.footerTag,
-          kind: "kill",
         }),
       );
     } else {
@@ -277,8 +271,6 @@ export function feedKill(data) {
           channelId,
           compactKillEmbed({
             line: `🔥 ${clean(killer.name)} · ${streak} streak`,
-            footerTag: kf.footerTag,
-            kind: "streak",
           }),
         );
       } else {
@@ -301,8 +293,6 @@ export function feedKill(data) {
         channelId,
         compactKillEmbed({
           line: `${clean(killer?.name)} killed ${clean(victim.name)}${distSuffix}`,
-          footerTag: kf.footerTag,
-          kind: "kill",
         }),
       );
     } else {
@@ -317,8 +307,6 @@ export function feedKill(data) {
         channelId,
         compactKillEmbed({
           line: `${clean(killer.name)} killed ${clean(victim?.name)}${distSuffix}`,
-          footerTag: kf.footerTag,
-          kind: "kill",
         }),
       );
     } else {

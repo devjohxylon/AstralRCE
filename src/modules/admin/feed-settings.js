@@ -74,14 +74,6 @@ export const FEED_SETTING_DEFS = [
         hint: "Announce 3 / 5 / 10+ streaks",
         default: true,
       },
-      {
-        key: "footerTag",
-        type: "text",
-        label: "Footer tag",
-        hint: "Shown as “S2 • kill” under each line",
-        default: "S2",
-        placeholder: "S2",
-      },
     ],
   },
   {
