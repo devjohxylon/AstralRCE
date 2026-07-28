@@ -700,6 +700,9 @@ export async function attachAdminPanel(app, client) {
       ok: false,
       error: error.message,
       kits: [],
+      host: null,
+      port: null,
+      endpointKey: null,
     }));
     res.json({
       ok: true,
@@ -707,6 +710,9 @@ export async function attachAdminPanel(app, client) {
       serverKits: server.kits || [],
       serverOk: server.ok !== false,
       serverError: server.error || null,
+      serverHost: server.host || null,
+      serverPort: server.port || null,
+      serverEndpoint: server.endpointKey || null,
     });
   });
 

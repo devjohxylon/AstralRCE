@@ -1,7 +1,10 @@
 import { getKits, saveKits } from "../../data/store.js";
-import { getServer, sendGameCommand } from "./client.js";
+import { clearServerKitCache, getRconEndpointKey, getRconStatus, getServer, sendGameCommand } from "./client.js";
 
 const GIVE_DELAY_MS = 120;
+
+/** Last RCON host:port we successfully refreshed kits for */
+let kitsEndpointKey = null;
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -102,33 +105,41 @@ export async function getKit(id) {
 
 /**
  * Fetch kits defined on the Rust server (KitManager / Oxide kits).
- * Uses cached rce.js list when available, then refreshes via `kit list`.
+ * Never reuse kits from a different RCON endpoint after a server switch.
  */
 export async function listServerKits({ refresh = true, detail = false } = {}) {
-  const cached = getServer()?.kits;
-  let names = Array.isArray(cached) ? cached.map((k) => k.name).filter(Boolean) : [];
+  const endpointKey = getRconEndpointKey();
+  const server = getServer();
 
-  if (refresh || !names.length) {
+  if (kitsEndpointKey && endpointKey && kitsEndpointKey !== endpointKey) {
+    clearServerKitCache();
+    kitsEndpointKey = null;
+  }
+
+  const cached = server?.kits;
+  let names = [];
+
+  if (!refresh && kitsEndpointKey === endpointKey && Array.isArray(cached) && cached.length) {
+    names = cached.map((k) => k.name).filter(Boolean);
+  } else {
     try {
       const raw = await sendGameCommand("kit list");
       names = parseKitList(raw);
-      const server = getServer();
-      if (server && names.length) {
-        server.kits = names.map((name) => {
-          const existing = (cached || []).find((k) => k.name === name);
-          return existing || { name, items: [] };
-        });
+      kitsEndpointKey = endpointKey;
+      if (server) {
+        // Always replace — including empty — so old-server kits never stick around
+        server.kits = names.map((name) => ({ name, items: [] }));
       }
     } catch (error) {
-      if (!names.length) {
-        return { ok: false, error: error.message, kits: [] };
-      }
+      clearServerKitCache();
+      kitsEndpointKey = null;
+      return { ok: false, error: error.message, kits: [], endpointKey };
     }
   }
 
   const kits = [];
   for (const name of names) {
-    const fromCache = (getServer()?.kits || cached || []).find((k) => k.name === name);
+    const fromCache = (getServer()?.kits || []).find((k) => k.name === name);
     let items = Array.isArray(fromCache?.items)
       ? fromCache.items.map((i) => ({
           item: i.shortName || i.item,
@@ -140,6 +151,7 @@ export async function listServerKits({ refresh = true, detail = false } = {}) {
       try {
         const info = await sendGameCommand(`kit info "${name}"`);
         items = parseKitInfoItems(info);
+        if (fromCache) fromCache.items = items.map((i) => ({ shortName: i.item, quantity: i.amount }));
         await sleep(80);
       } catch {
         /* info optional */
@@ -156,7 +168,14 @@ export async function listServerKits({ refresh = true, detail = false } = {}) {
     });
   }
 
-  return { ok: true, kits };
+  const status = getRconStatus();
+  return {
+    ok: true,
+    kits,
+    endpointKey,
+    host: status.host,
+    port: status.port,
+  };
 }
 
 export async function upsertKit({ id, label, items, cooldownMinutes } = {}) {

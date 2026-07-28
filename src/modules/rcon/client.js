@@ -7,12 +7,26 @@ let connectedAt = null;
 let watchdog = null;
 let reattaching = false;
 let reconnectAttempts = 0;
+/** host:port fingerprint — used to drop stale kit caches when RCON target changes */
+let activeEndpointKey = null;
 
 const WATCHDOG_MS = 12_000;
 
 export function isRconEnabled() {
   const { enabled, host, port, password } = config.rcon;
   return Boolean(enabled && host && port && password);
+}
+
+export function getRconEndpointKey() {
+  const { host, port } = config.rcon;
+  if (!host || !port) return null;
+  return `${String(host).toLowerCase()}:${Number(port)}`;
+}
+
+/** Clear in-memory KitManager list so a server switch can't show the previous kit list. */
+export function clearServerKitCache() {
+  const server = getServer();
+  if (server) server.kits = [];
 }
 
 function serverOptions() {
@@ -45,6 +59,7 @@ export function getRconStatus() {
     identifier: config.rcon.identifier,
     host: config.rcon.host || null,
     port: config.rcon.port || null,
+    endpointKey: getRconEndpointKey(),
   };
 }
 
@@ -110,6 +125,12 @@ export async function connectRcon() {
     lastError = null;
     connectedAt = new Date();
     reconnectAttempts = 0;
+    const key = getRconEndpointKey();
+    if (activeEndpointKey && key && activeEndpointKey !== key) {
+      clearServerKitCache();
+    }
+    activeEndpointKey = key;
+    clearServerKitCache();
     console.log(`RCON connected to ${config.rcon.host}:${config.rcon.port}`);
   });
 
