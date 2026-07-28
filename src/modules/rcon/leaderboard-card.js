@@ -149,7 +149,7 @@ function drawHeader(ctx, wipeLabel) {
   if (wipeLabel) {
     ctx.fillStyle = T.faint;
     ctx.font = `500 11px ${FONT_MONO}`;
-    ctx.fillText(`wipe · ${wipeLabel}`, PAD, 82);
+    ctx.fillText(`Wipe: ${wipeLabel}`, PAD, 82);
   }
 }
 
@@ -319,11 +319,6 @@ export async function renderLeaderboardCard() {
     })),
     empty: "Waiting for playtime",
   });
-
-  ctx.fillStyle = T.faint;
-  ctx.font = `500 10px ${FONT_MONO}`;
-  const brand = "astral control  ·  live rcon";
-  ctx.fillText(brand, W - PAD - ctx.measureText(brand).width, H - 10);
 
   return canvas.toBuffer("image/png");
 }
