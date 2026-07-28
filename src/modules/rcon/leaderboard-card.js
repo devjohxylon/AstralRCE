@@ -138,7 +138,7 @@ function drawHeader(ctx, wipeLabel) {
   ctx.letterSpacing = "0px";
 
   // Chrome gradient title
-  const title = "Wipe Leaderboard";
+  const title = "Leaderboard";
   ctx.font = `700 30px ${FONT_UI}`;
   const grad = ctx.createLinearGradient(PAD, 40, PAD, 70);
   grad.addColorStop(0, "#ffffff");
