@@ -2427,7 +2427,7 @@ function bindKitBuilderEvents() {
 }
 
 async function renderKits() {
-  const data = await api("/kits?refresh=0");
+  const data = await api("/kits?refresh=1");
   const catalog = await ensureItemCatalog();
   const panelRows = (data.kits || []).map((k) => `
     <tr>
@@ -2447,6 +2447,7 @@ async function renderKits() {
       <td data-label="Items">${(k.items || []).slice(0, 8).map((i) => `${esc(i.item)}×${i.amount}`).join(", ") || '<span class="muted">—</span>'}${(k.items || []).length > 8 ? "…" : ""}</td>
       <td data-label="Actions" class="actions">
         <button class="primary" data-action="giveKit" data-id="${esc(k.id)}" data-source="server">Give</button>
+        <button class="danger" data-action="delServerKit" data-id="${esc(k.id)}">Delete</button>
       </td>
     </tr>`).join("") || `<tr><td colspan="3"><div class="empty">${data.serverError ? esc(data.serverError) : "No in-game kits returned from RCON (kit list). Make sure KitManager is installed and RCON is online."}${data.serverRaw ? `<span class="empty-hint">Raw: ${esc(data.serverRaw)}</span>` : ""}</div></td></tr>`;
 
@@ -2461,19 +2462,24 @@ async function renderKits() {
       ? `${data.serverHost}:${data.serverPort}`
       : data.serverEndpoint || "—";
 
+  const rawBlock = data.serverRaw
+    ? `<pre class="muted" style="font-family:var(--mono);font-size:.68rem;white-space:pre-wrap;margin:.75rem 0 0;padding:.65rem;background:rgba(0,0,0,.35);border:1px solid var(--line);max-height:140px;overflow:auto">kit list raw:\n${esc(data.serverRaw)}</pre>`
+    : "";
+
   return `
     <div class="card" style="margin-bottom:.9rem">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:.75rem;flex-wrap:wrap">
         <div>
           <h3 style="margin:0">In-game kits (server)</h3>
           <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:.35rem 0 0">
-            From current RCON <code>${esc(serverEndpoint)}</code> via <code>kit list</code>.
-            Panel bundles below are separate and stay on Astral.
+            Live list from RCON <code>${esc(serverEndpoint)}</code> (<code>kit list</code>).
+            Resync re-reads that server — it does not invent kits. Delete runs <code>kit delete</code> on the game server.
           </p>
         </div>
         <button data-action="refreshServerKits">Resync from server</button>
       </div>
       <table class="table" style="margin-top:.75rem"><thead><tr><th>Kit</th><th>Items</th><th></th></tr></thead><tbody>${serverRows}</tbody></table>
+      ${rawBlock}
     </div>
     <div class="split">
       <div class="card">
@@ -3000,6 +3006,19 @@ function bindView() {
             }
           } catch (e) {
             toast(e.message || "Resync failed", true);
+          }
+          render();
+          return;
+        }
+        if (a === "delServerKit") {
+          const id = el.dataset.id;
+          if (!confirm(`Delete in-game kit "${id}" on the Rust server? (kit delete)`)) return;
+          try {
+            const r = await api("/kits/server/delete", { method: "POST", body: { id } });
+            if (!r.ok) toast(r.error || "Delete failed", true);
+            else toast(`Deleted ${id} · now ${(r.kits || []).length} kit(s)`);
+          } catch (e) {
+            toast(e.message || "Delete failed", true);
           }
           render();
           return;

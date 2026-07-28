@@ -5,6 +5,8 @@ const GIVE_DELAY_MS = 120;
 
 /** Last RCON host:port we successfully refreshed kits for */
 let kitsEndpointKey = null;
+/** Last raw `kit list` payload (for admin debugging) */
+let lastKitListRaw = null;
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -33,27 +35,54 @@ function sanitizeItems(items) {
 
 function parseKitList(raw) {
   if (!raw || typeof raw !== "string") return [];
-  return [
-    ...new Set(
-      raw
-        .replaceAll("\\n", "\n")
-        .replace(/\u001b\[[0-9;]*m/g, "")
-        .split("\n")
-        .map((line) => line.trim())
-        .filter((line) => line && !line.startsWith("[KITMANAGER]") && !/^kits?:/i.test(line))
-        .map((line) => {
-          // Formats like: "vip", "- vip", "vip (Cooldown: 60)", "Kit: vip"
-          const cleaned = line
-            .replace(/^[-*•]\s*/, "")
-            .replace(/^kit[s]?:\s*/i, "")
-            .replace(/\s*\(.*\)\s*$/, "")
-            .replace(/^\d+[\).:\s-]+/, "")
-            .trim();
-          return cleaned;
-        })
-        .filter((name) => name && /^[a-zA-Z0-9._-]+$/.test(name) && name.length <= 48),
-    ),
-  ];
+
+  const text = raw
+    .replaceAll("\\n", "\n")
+    .replace(/\u001b\[[0-9;]*m/g, "")
+    .trim();
+
+  const names = [];
+  const pushName = (value) => {
+    const name = String(value ?? "")
+      .replace(/^["']|["']$/g, "")
+      .trim();
+    // Console kit names may include spaces; reject only junk / headers
+    if (!name) return;
+    if (/^\[KITMANAGER\]/i.test(name)) return;
+    if (/^kits?\s*:?\s*$/i.test(name)) return;
+    if (/^available kits/i.test(name)) return;
+    if (/^no kits/i.test(name)) return;
+    if (name.length > 64) return;
+    if (!/^[\w .'+-]+$/i.test(name)) return;
+    if (!/[a-z0-9]/i.test(name)) return;
+    names.push(name);
+  };
+
+  // Prefer line-based lists (KitManager console style)
+  for (const line of text.split(/\r?\n/)) {
+    let cleaned = line.trim();
+    if (!cleaned) continue;
+    if (cleaned.startsWith("[KITMANAGER]")) {
+      cleaned = cleaned.replace(/^\[KITMANAGER\]\s*/i, "").trim();
+      if (!cleaned || /^kits?:/i.test(cleaned) || /^available/i.test(cleaned)) continue;
+    }
+    cleaned = cleaned
+      .replace(/^[-*•]\s*/, "")
+      .replace(/^kit[s]?:\s*/i, "")
+      .replace(/^\d+[\).:\s-]+/, "")
+      .replace(/\s+[—–-]\s+.*$/, "") // "vip - description"
+      .replace(/\s*\(.*\)\s*$/, "")
+      .trim();
+
+    // Comma / pipe separated on one line
+    if (/[,|;]/.test(cleaned) && !/^[\w .'+-]+$/i.test(cleaned)) {
+      cleaned.split(/[,|;]+/).forEach((part) => pushName(part));
+      continue;
+    }
+    pushName(cleaned);
+  }
+
+  return [...new Set(names)];
 }
 
 function parseKitInfoItems(raw) {
@@ -120,10 +149,11 @@ export async function listServerKits({ refresh = true, detail = false, force = f
   if (force || (kitsEndpointKey && endpointKey && kitsEndpointKey !== endpointKey)) {
     clearServerKitCache();
     kitsEndpointKey = null;
+    lastKitListRaw = null;
   }
 
   let names = [];
-  let rawPreview = null;
+  let rawPreview = lastKitListRaw;
 
   if (!refresh && !force && kitsEndpointKey === endpointKey && Array.isArray(server?.kits)) {
     names = server.kits.map((k) => k.name).filter(Boolean);
@@ -132,7 +162,8 @@ export async function listServerKits({ refresh = true, detail = false, force = f
       clearServerKitCache();
       kitsEndpointKey = null;
       const raw = await sendGameCommand("kit list");
-      rawPreview = String(raw || "").slice(0, 400);
+      lastKitListRaw = String(raw || "");
+      rawPreview = lastKitListRaw.slice(0, 800);
       names = parseKitList(raw);
       kitsEndpointKey = endpointKey;
       if (server) {
@@ -141,6 +172,7 @@ export async function listServerKits({ refresh = true, detail = false, force = f
     } catch (error) {
       clearServerKitCache();
       kitsEndpointKey = null;
+      lastKitListRaw = null;
       return {
         ok: false,
         error: error.message,
@@ -191,7 +223,7 @@ export async function listServerKits({ refresh = true, detail = false, force = f
     endpointKey,
     host: status.host,
     port: status.port,
-    rawPreview,
+    rawPreview: rawPreview != null ? String(rawPreview).slice(0, 800) : null,
   };
 }
 
@@ -199,7 +231,27 @@ export async function listServerKits({ refresh = true, detail = false, force = f
 export async function resyncServerKits() {
   clearServerKitCache();
   kitsEndpointKey = null;
+  lastKitListRaw = null;
   return listServerKits({ refresh: true, force: true, detail: false });
+}
+
+/** Delete a KitManager kit on the live game server, then resync. */
+export async function deleteServerKit(kitName) {
+  const kit = String(kitName ?? "").trim();
+  if (!kit) return { ok: false, error: "Missing kit name", kits: [] };
+
+  try {
+    const result = await sendGameCommand(`kit delete "${kit}"`);
+    const synced = await resyncServerKits();
+    return {
+      ...synced,
+      ok: synced.ok !== false,
+      deleted: kit,
+      deleteResult: result || "",
+    };
+  } catch (error) {
+    return { ok: false, error: error.message, deleted: kit, kits: [] };
+  }
 }
 
 export async function upsertKit({ id, label, items, cooldownMinutes } = {}) {

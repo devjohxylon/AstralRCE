@@ -50,6 +50,7 @@ import { pushLeaderboardToWebsite } from "../../modules/rcon/index.js";
 import { listRustItems } from "../../data/rust-items.js";
 import {
   deleteKit,
+  deleteServerKit,
   giveKit,
   listKits,
   listServerKits,
@@ -740,6 +741,18 @@ export async function attachAdminPanel(app, client) {
       });
     } catch (error) {
       res.status(500).json({ ok: false, error: error.message, kits: [], count: 0 });
+    }
+  });
+
+  app.post("/admin/api/kits/server/delete", requireAuth, requirePerm("kits"), async (req, res) => {
+    try {
+      const kit = String(req.body?.id ?? req.body?.name ?? "").trim();
+      if (!kit) return res.status(400).json({ ok: false, error: "Missing kit name" });
+      const result = await deleteServerKit(kit);
+      await audit(req, "kit_server_delete", { kit, ok: result.ok !== false });
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error.message, kits: [] });
     }
   });
 
