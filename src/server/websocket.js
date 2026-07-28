@@ -1,5 +1,5 @@
 import { Server } from "socket.io";
-import { getSession } from "../modules/admin/access-keys.js";
+import { resolveSession } from "../modules/admin/access-keys.js";
 import { getOnlinePlayers, getRconStatus, getServerInfo } from "../modules/rcon/client.js";
 import { getPlayersWithPositions } from "../modules/rcon/live-map.js";
 import { statsSummary } from "../modules/rcon/stats.js";
@@ -8,20 +8,27 @@ let io = null;
 const connectedSockets = new Map();
 
 export function createWebSocketServer(httpServer) {
+  const adminOrigin = process.env.ADMIN_PANEL_URL || undefined;
   io = new Server(httpServer, {
     path: "/admin/socket.io",
-    cors: { origin: "*", credentials: true },
+    cors: {
+      origin: adminOrigin || true,
+      credentials: true,
+    },
     transports: ["websocket", "polling"],
   });
 
-  io.use((socket, next) => {
-    const req = socket.request;
-    const session = getSession(req);
-    if (!session) {
-      return next(new Error("Unauthorized"));
+  io.use(async (socket, next) => {
+    try {
+      const session = await resolveSession(socket.request);
+      if (!session) {
+        return next(new Error("Unauthorized"));
+      }
+      socket.session = session;
+      next();
+    } catch (error) {
+      next(error);
     }
-    socket.session = session;
-    next();
   });
 
   io.on("connection", (socket) => {

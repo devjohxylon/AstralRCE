@@ -1727,6 +1727,19 @@ async function renderServerCommands() {
     `<button data-action="runEvent" data-id="${esc(e.id)}" title="${esc(e.command)}">${esc(e.label)}</button>`
   ).join("");
 
+  const rankOpts = [
+    `<option value="vip">VIP (kit)</option>`,
+    ...(data.ranks || []).map((r) => `<option value="${esc(r.id)}">${esc(r.label)}</option>`),
+  ].join("");
+
+  const canCustom = Boolean(data.canCustomRcon || can("rcon"));
+  const customRconRow = canCustom
+    ? `<div class="form-row" style="margin-top:.85rem">
+            <input id="cmdCustomEvent" placeholder="Custom RCON command" />
+            <button data-action="runCustomEvent">Run</button>
+          </div>`
+    : `<p class="hint" style="margin-top:.85rem">Custom RCON is owner-only (requires <code>rcon</code> permission).</p>`;
+
   const rconOk = data.rcon?.connected;
 
   return `
@@ -1759,13 +1772,12 @@ async function renderServerCommands() {
         <div class="card" style="margin-bottom:.75rem">
           <h3>In-game ranks</h3>
           <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:0 0 .6rem">
-            Owner / Moderator use vanilla auth. VIP grants the VIP kit from <code>VIP_KIT_ID</code>.
+            Moderator uses vanilla auth. VIP grants the VIP kit from <code>VIP_KIT_ID</code>.
+            ${state.session?.role === "owner" ? "Owner rank is available to you only." : "In-game Owner can only be granted by the panel owner."}
           </p>
           <input id="cmdRankIgn" list="cmdOnlineList" placeholder="Player IGN" />
           <select id="cmdRank" style="margin-top:.55rem">
-            <option value="vip">VIP (kit)</option>
-            <option value="moderator">Moderator</option>
-            <option value="owner">Owner</option>
+            ${rankOpts}
           </select>
           <div class="cmd-actions" style="margin-top:.7rem">
             <button class="primary" data-action="cmdRankGrant">Grant</button>
@@ -1776,13 +1788,10 @@ async function renderServerCommands() {
         <div class="card">
           <h3>Trigger events</h3>
           <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:0 0 .6rem">
-            Runs RCON on the live server. Some events need plugins / console support.
+            Runs preset RCON on the live server. Some events need plugins / console support.
           </p>
           <div class="cmd-actions">${eventBtns}</div>
-          <div class="form-row" style="margin-top:.85rem">
-            <input id="cmdCustomEvent" placeholder="Custom RCON command" />
-            <button data-action="runCustomEvent">Run</button>
-          </div>
+          ${customRconRow}
         </div>
       </div>
     </div>`;
@@ -2761,13 +2770,13 @@ function bindView() {
           toast(r.command ? `Ran ${r.command}` : (r.ok ? "Done" : r.error), !r.ok);
         }
         if (a === "runEvent") {
-          const r = await api("/events", { method: "POST", body: { id: el.dataset.id } });
+          const r = await api("/events/trigger", { method: "POST", body: { id: el.dataset.id } });
           toast(`Ran ${r.command}`);
         }
         if (a === "runCustomEvent") {
           const command = document.getElementById("cmdCustomEvent")?.value?.trim();
           if (!command) { toast("Enter a command", true); return; }
-          const r = await api("/events", { method: "POST", body: { command } });
+          const r = await api("/events/trigger", { method: "POST", body: { command } });
           toast(`Ran ${r.command}`);
         }
         if (a === "broadcast") {

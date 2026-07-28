@@ -69,10 +69,10 @@ import {
   authenticateAccessKey,
   clearSessionCookie,
   createAccessKey,
-  getSession,
   hasPerm,
   listAccessKeys,
   listPanelLogs,
+  resolveSession,
   revokeAccessKey,
   setSessionCookie,
   updateAccessKey,
@@ -92,11 +92,57 @@ import {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PANEL_HTML = readFileSync(path.join(__dirname, "panel.html"), "utf8");
 
-function requireAuth(req, res, next) {
-  const session = getSession(req);
-  if (!session) return res.status(401).json({ error: "Unauthorized" });
-  req.session = session;
-  return next();
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+const LOGIN_MAX_ATTEMPTS = 5;
+const LOGIN_LOCK_MS = 15 * 60 * 1000;
+const loginAttempts = new Map();
+
+function clientIp(req) {
+  const forwarded = String(req.get("x-forwarded-for") || "")
+    .split(",")[0]
+    .trim();
+  return forwarded || req.socket?.remoteAddress || "unknown";
+}
+
+function checkLoginRate(ip) {
+  const now = Date.now();
+  let row = loginAttempts.get(ip);
+  if (!row || now > row.windowUntil) {
+    row = { count: 0, windowUntil: now + LOGIN_WINDOW_MS, lockedUntil: 0 };
+    loginAttempts.set(ip, row);
+  }
+  if (row.lockedUntil && now < row.lockedUntil) {
+    return { ok: false, retryAfterSec: Math.ceil((row.lockedUntil - now) / 1000) };
+  }
+  return { ok: true, row };
+}
+
+function recordLoginFailure(ip) {
+  const now = Date.now();
+  const check = checkLoginRate(ip);
+  const row = check.row || loginAttempts.get(ip);
+  if (!row) return;
+  row.count += 1;
+  if (row.count >= LOGIN_MAX_ATTEMPTS) {
+    row.lockedUntil = now + LOGIN_LOCK_MS;
+    row.count = 0;
+    row.windowUntil = now + LOGIN_WINDOW_MS;
+  }
+}
+
+function clearLoginFailures(ip) {
+  loginAttempts.delete(ip);
+}
+
+async function requireAuth(req, res, next) {
+  try {
+    const session = await resolveSession(req);
+    if (!session) return res.status(401).json({ error: "Unauthorized" });
+    req.session = session;
+    return next();
+  } catch (error) {
+    return res.status(500).json({ error: error.message || "Auth failed" });
+  }
 }
 
 function requirePerm(perm) {
@@ -132,11 +178,30 @@ export async function attachAdminPanel(app, client) {
   app.get("/admin/", (_req, res) => res.redirect("/admin"));
 
   app.post("/admin/api/login", async (req, res) => {
+    const ip = clientIp(req);
+    const rate = checkLoginRate(ip);
+    if (!rate.ok) {
+      res.setHeader("Retry-After", String(rate.retryAfterSec));
+      return res.status(429).json({
+        ok: false,
+        error: `Too many login attempts. Try again in ${rate.retryAfterSec}s.`,
+      });
+    }
+
     const password = String(req.body?.password ?? "");
     const session = await authenticateAccessKey(password);
     if (!session) {
+      recordLoginFailure(ip);
+      await appendPanelLog({
+        action: "login_failed",
+        by: "unknown",
+        role: "anonymous",
+        detail: { ip },
+      }).catch(() => {});
       return res.status(401).json({ ok: false, error: "Wrong access key" });
     }
+
+    clearLoginFailures(ip);
     setSessionCookie(res, {
       role: session.role,
       label: session.label,
@@ -158,7 +223,7 @@ export async function attachAdminPanel(app, client) {
   });
 
   app.post("/admin/api/logout", async (req, res) => {
-    const session = getSession(req);
+    const session = await resolveSession(req);
     if (session) {
       await appendPanelLog({
         action: "logout",
@@ -171,8 +236,8 @@ export async function attachAdminPanel(app, client) {
     res.json({ ok: true });
   });
 
-  app.get("/admin/api/session", (req, res) => {
-    const session = getSession(req);
+  app.get("/admin/api/session", async (req, res) => {
+    const session = await resolveSession(req);
     if (!session) return res.json({ ok: true, authed: false });
     return res.json({
       ok: true,
@@ -695,7 +760,7 @@ export async function attachAdminPanel(app, client) {
   });
 
   // ——— Server Commands: channels / ranks / events ———
-  app.get("/admin/api/server-commands", requireAuth, requirePerm("serverCommands"), async (_req, res) => {
+  app.get("/admin/api/server-commands", requireAuth, requirePerm("serverCommands"), async (req, res) => {
     const { config } = await import("../../config.js");
     const guild = config.discord.guildId
       ? await client.guilds.fetch(config.discord.guildId).catch(() => null)
@@ -724,13 +789,18 @@ export async function attachAdminPanel(app, client) {
       ...panelKits.map((k) => ({ ...k, optLabel: `${k.label} [panel]` })),
       ...(server.kits || []).map((k) => ({ ...k, optLabel: `${k.label} [server]` })),
     ];
+    const isOwner = req.session?.role === "owner";
+    const ranks = RANK_PRESETS
+      .filter((r) => isOwner || r.id !== "owner")
+      .map((r) => ({ id: r.id, label: r.label }));
     res.json({
       ok: true,
       channels: await getChannelConfig(),
       discordChannels,
       kits: allKits,
       events: EVENT_PRESETS,
-      ranks: RANK_PRESETS.map((r) => ({ id: r.id, label: r.label })),
+      ranks,
+      canCustomRcon: hasPerm(req.session, "rcon"),
       onlinePlayers: online,
       rcon: getRconStatus(),
     });
@@ -753,6 +823,10 @@ export async function attachAdminPanel(app, client) {
       const rank = String(req.body?.rank ?? "").trim().toLowerCase();
       const action = String(req.body?.action ?? "grant").trim().toLowerCase();
       if (!ign) return res.status(400).json({ ok: false, error: "Missing player IGN" });
+
+      if (rank === "owner" && req.session?.role !== "owner") {
+        return res.status(403).json({ ok: false, error: "Only the panel owner can grant/revoke in-game Owner" });
+      }
 
       if (rank === "vip") {
         const { config } = await import("../../config.js");
@@ -798,17 +872,32 @@ export async function attachAdminPanel(app, client) {
     }
   });
 
-  app.post("/admin/api/events", requireAuth, requirePerm("serverCommands"), async (req, res) => {
+  // Preset event triggers (serverCommands). Custom raw RCON requires rcon perm.
+  app.post("/admin/api/events/trigger", requireAuth, requirePerm("serverCommands"), async (req, res) => {
     try {
       const id = String(req.body?.id ?? "").trim();
       const custom = String(req.body?.command ?? "").trim();
-      const preset = EVENT_PRESETS.find((e) => e.id === id);
-      const command = custom || preset?.command;
-      if (!command) return res.status(400).json({ ok: false, error: "Pick an event or enter a command" });
 
-      const result = await sendGameCommand(command);
-      await audit(req, "event_trigger", { id: id || null, command });
-      res.json({ ok: true, result: result ?? "", command });
+      if (custom) {
+        if (!hasPerm(req.session, "rcon")) {
+          return res.status(403).json({
+            ok: false,
+            error: "Custom RCON requires the rcon permission",
+          });
+        }
+        const result = await sendGameCommand(custom);
+        await audit(req, "event_trigger", { id: null, command: custom, custom: true });
+        return res.json({ ok: true, result: result ?? "", command: custom });
+      }
+
+      const preset = EVENT_PRESETS.find((e) => e.id === id);
+      if (!preset?.command) {
+        return res.status(400).json({ ok: false, error: "Pick a preset event" });
+      }
+
+      const result = await sendGameCommand(preset.command);
+      await audit(req, "event_trigger", { id: preset.id, command: preset.command });
+      res.json({ ok: true, result: result ?? "", command: preset.command });
     } catch (error) {
       res.status(500).json({ ok: false, error: error.message });
     }

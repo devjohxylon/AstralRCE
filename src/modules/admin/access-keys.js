@@ -39,7 +39,11 @@ const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const COOKIE = "astral_admin";
 
 function signingSecret() {
-  return config.adminPanel.password || "astral-admin";
+  return (
+    config.adminPanel.sessionSecret ||
+    config.adminPanel.password ||
+    "astral-admin"
+  );
 }
 
 function hashKey(raw) {
@@ -69,7 +73,7 @@ function verify(token) {
 }
 
 export function parseCookies(req) {
-  const header = req.get("cookie") ?? "";
+  const header = req.get?.("cookie") ?? req.headers?.cookie ?? "";
   return Object.fromEntries(
     header
       .split(";")
@@ -82,6 +86,7 @@ export function parseCookies(req) {
   );
 }
 
+/** Sync cookie decode only — prefer resolveSession for API auth. */
 export function getSession(req) {
   const cookies = parseCookies(req);
   const payload = verify(cookies[COOKIE]);
@@ -102,6 +107,39 @@ export function getSession(req) {
       permissions: sanitizeStaffPerms(payload.permissions),
     };
   }
+  return null;
+}
+
+/**
+ * Live session: staff keys re-checked against store (enabled + current perms).
+ * Revoked/disabled keys fail immediately instead of waiting for cookie expiry.
+ */
+export async function resolveSession(req) {
+  const cookies = parseCookies(req);
+  const payload = verify(cookies[COOKIE]);
+  if (!payload) return null;
+
+  if (payload.role === "owner") {
+    return {
+      role: "owner",
+      label: "Owner",
+      keyId: null,
+      permissions: { ...OWNER_PERMISSIONS },
+    };
+  }
+
+  if (payload.role === "staff" && payload.keyId) {
+    const data = await getAccessKeys();
+    const found = data.keys.find((k) => k.id === payload.keyId);
+    if (!found || found.enabled === false) return null;
+    return {
+      role: "staff",
+      label: found.label || "Staff",
+      keyId: found.id,
+      permissions: sanitizeStaffPerms(found.permissions),
+    };
+  }
+
   return null;
 }
 
@@ -131,7 +169,13 @@ export function setSessionCookie(res, sessionPayload) {
 }
 
 export function clearSessionCookie(res) {
-  res.setHeader("Set-Cookie", `${COOKIE}=; Path=/; HttpOnly; Max-Age=0`);
+  const secure = process.env.RAILWAY_ENVIRONMENT || process.env.NODE_ENV === "production"
+    ? "; Secure"
+    : "";
+  res.setHeader(
+    "Set-Cookie",
+    `${COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secure}`,
+  );
 }
 
 export async function authenticateAccessKey(raw) {

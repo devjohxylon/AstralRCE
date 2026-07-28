@@ -165,6 +165,16 @@ export async function startBot() {
       config.adminPanel.publicUrl?.replace(/\/$/, "") ||
       `http://localhost:${config.webhook.port}`;
     console.log(`Admin panel: ${panelUrl}/admin`);
+    if (!process.env.ADMIN_PANEL_PASSWORD?.trim() || config.adminPanel.password === "change-me") {
+      console.warn(
+        "WARNING: Set a strong unique ADMIN_PANEL_PASSWORD — default/fallback passwords are unsafe on a public host.",
+      );
+    }
+    if (!process.env.ADMIN_SESSION_SECRET?.trim()) {
+      console.warn(
+        "WARNING: Set ADMIN_SESSION_SECRET (separate from the login password) for stronger session cookies.",
+      );
+    }
   });
 
   return client;

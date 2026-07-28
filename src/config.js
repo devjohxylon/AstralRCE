@@ -238,6 +238,8 @@ export const config = {
       optional("ADMIN_PANEL_PASSWORD") ||
       optional("BOT_WEBHOOK_SECRET") ||
       "change-me",
+    // Dedicated HMAC secret for session cookies (falls back to password if unset)
+    sessionSecret: optional("ADMIN_SESSION_SECRET") || null,
     // Public URL for logs / bookmarks, e.g. https://admin.astralrce.com
     publicUrl: optional("ADMIN_PANEL_URL") || null,
   },
