@@ -2152,7 +2152,7 @@ async function renderPlayerDossier(ign) {
 
   const banRows = history.slice(0, 12).map((b) => `
     <tr>
-      <td data-label="Reason">${esc(b.reason || "—")}</td>
+      <td data-label="Reason"><strong>${esc(String(b.reason || "").trim() || "—")}</strong>${b.unbanReason ? `<div class="muted" style="font-family:var(--mono);font-size:.65rem;margin-top:.25rem">Unban: ${esc(b.unbanReason)}</div>` : ""}</td>
       <td data-label="By">${esc(b.admin || b.bannedBy || "—")}</td>
       <td data-label="When">${esc(b.bannedAt ? new Date(b.bannedAt).toLocaleString() : "—")}</td>
       <td data-label="Status">${b.active ? `<span class="pill bad">active</span>` : `<span class="pill">ended</span>`}</td>
@@ -3039,18 +3039,22 @@ async function renderBans() {
     return list.map((b) => {
       const expires = b.expiresAt ? new Date(b.expiresAt).toLocaleString() : "Never";
       const when = b.bannedAt ? new Date(b.bannedAt).toLocaleString() : "—";
+      const reason = String(b.reason || "").trim() || "—";
+      const unbanNote = inactive && b.unbanReason
+        ? `<div class="muted" style="font-family:var(--mono);font-size:.65rem;margin-top:.25rem">Unban: ${esc(b.unbanReason)}${b.unbannedBy ? ` · ${esc(b.unbannedBy)}` : ""}</div>`
+        : "";
       return `
       <tr>
         <td data-label="Player"><strong>${esc(b.ign)}</strong></td>
-        <td data-label="Reason">${esc(b.reason)}</td>
-        <td data-label="Admin">${esc(b.admin)}</td>
+        <td data-label="Reason"><strong style="font-weight:600">${esc(reason)}</strong>${unbanNote}</td>
+        <td data-label="Admin">${esc(b.admin || "—")}</td>
         <td data-label="Banned">${esc(when)}</td>
         <td data-label="${inactive ? "Unbanned" : "Expires"}">${inactive ? esc(b.unbannedAt ? new Date(b.unbannedAt).toLocaleString() : "—") : esc(expires)}</td>
         <td data-label="Actions" class="actions">
           ${!inactive && can("ban") ? `<button class="danger" data-action="unban" data-ign="${esc(b.ign)}">Unban</button>` : `<span class="muted">${esc(b.source || "")}</span>`}
         </td>
       </tr>`;
-    }).join("") || `<tr><td colspan="6"><div class="empty">${inactive ? "No past bans" : "No active bans"}<span class="empty-hint">${inactive ? "" : "Click Sync from server if players were banned outside the panel"}</span></div></td></tr>`;
+    }).join("") || `<tr><td colspan="6"><div class="empty">${inactive ? "No past bans" : "No active bans"}<span class="empty-hint">${inactive ? "Past bans keep their original reason here" : "Click Sync from server if players were banned outside the panel"}</span></div></td></tr>`;
   }
 
   return `
@@ -3062,7 +3066,7 @@ async function renderBans() {
           <button data-action="syncBans" style="padding:.3rem .6rem;font-size:.72rem">Sync from server</button>
         </div>
       </div>
-      <p class="card-desc">Panel bans, Discord bans, and the live server banlist. Use Sync if older bans are missing.</p>
+      <p class="card-desc">Reason is saved with every panel ban. Synced server bans show whatever the banlist returns (often just “Banned” if the game didn’t store a note).</p>
       <div class="table-wrap"><table class="table">
         <thead><tr><th>Player</th><th>Reason</th><th>Admin</th><th>Banned</th><th>Expires</th><th></th></tr></thead>
         <tbody>${banRows(bans)}</tbody>
@@ -3093,6 +3097,7 @@ async function renderBans() {
         <h3>Ban history</h3>
         <span class="pill info">${history.length}</span>
       </div>
+      <p class="card-desc">Inactive / past bans with the original reason. Open a player profile for that player’s full dossier.</p>
       <div class="table-wrap"><table class="table">
         <thead><tr><th>Player</th><th>Reason</th><th>Admin</th><th>Banned</th><th>Unbanned</th><th></th></tr></thead>
         <tbody>${banRows(history.slice(0, 50), { inactive: true })}</tbody>
@@ -3603,13 +3608,26 @@ function bindView() {
           render();
         }
         if (a === "kick") {
-          await api(`/players/${encodeURIComponent(el.dataset.ign)}/kick`, { method: "POST", body: { reason: "Kicked by admin panel" } });
-          toast(`Kicked ${el.dataset.ign}`); refreshOverview().then(render);
+          const reason = prompt(`Kick reason for ${el.dataset.ign}:`, "Kicked by admin")?.trim();
+          if (reason == null) return;
+          await api(`/players/${encodeURIComponent(el.dataset.ign)}/kick`, {
+            method: "POST",
+            body: { reason: reason || "Kicked by admin" },
+          });
+          toast(`Kicked ${el.dataset.ign}`);
+          refreshOverview().then(render);
         }
         if (a === "ban") {
-          if (!confirm(`Ban ${el.dataset.ign}?`)) return;
-          await api(`/players/${encodeURIComponent(el.dataset.ign)}/ban`, { method: "POST", body: { reason: "Banned by admin panel" } });
-          toast(`Banned ${el.dataset.ign}`); refreshOverview().then(render);
+          const reason = prompt(`Ban reason for ${el.dataset.ign}:`, "")?.trim();
+          if (reason == null) return;
+          if (!reason) { toast("Ban reason required", true); return; }
+          if (!confirm(`Ban ${el.dataset.ign}?\nReason: ${reason}`)) return;
+          await api(`/players/${encodeURIComponent(el.dataset.ign)}/ban`, {
+            method: "POST",
+            body: { reason },
+          });
+          toast(`Banned ${el.dataset.ign}`);
+          refreshOverview().then(render);
         }
         if (a === "rcon" || a === "preset") {
           const cmd = a === "preset" ? el.dataset.cmd : document.getElementById("rconCmd").value;
