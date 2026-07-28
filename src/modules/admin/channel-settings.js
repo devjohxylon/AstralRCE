@@ -106,7 +106,7 @@ export const CHANNEL_FIELDS = [
     key: "leaderboard",
     label: "Leaderboard",
     env: "CHANNEL_LEADERBOARD",
-    hint: "Leaderboard images / relay",
+    hint: "Live Astral leaderboard image (also used to relay KAOS if posted here)",
   },
   {
     group: "Website",

@@ -42,6 +42,7 @@ import {
   stopGroupScanner,
 } from "./reports.js";
 import { startPositionPolling, stopPositionPolling } from "./live-map.js";
+import { attachLeaderboardClient, publishLeaderboardToDiscord } from "./leaderboard-publish.js";
 
 const LEADERBOARD_BOARDS = [
   { category: "kills", title: "Top Kills" },
@@ -63,6 +64,7 @@ export async function startRcon(client) {
   discordClient = client;
   attachFeedClient(client);
   attachReportsClient(client);
+  attachLeaderboardClient(client);
   const manager = await connectRcon();
   if (!manager) {
     startWipeScheduler(client);
@@ -72,6 +74,9 @@ export async function startRcon(client) {
   manager.on(RCEEvent.Ready, () => {
     syncServerStatus(client, getServerInfo(), { force: true }).catch(() => {});
     pushLeaderboardToWebsite().catch(() => {});
+    publishLeaderboardToDiscord(client).catch((e) =>
+      console.error("Leaderboard Discord publish failed:", e.message),
+    );
     syncWipeStatus(client, { force: true }).catch(() => {});
     scanTeamsSoon(manager);
   });
@@ -147,10 +152,14 @@ export async function startRcon(client) {
 
   setInterval(() => flushStats().catch(() => {}), 60_000);
   setInterval(
-    () =>
+    () => {
       pushLeaderboardToWebsite().catch((error) =>
         console.error("Leaderboard push failed:", error.message),
-      ),
+      );
+      publishLeaderboardToDiscord(client).catch((error) =>
+        console.error("Leaderboard Discord publish failed:", error.message),
+      );
+    },
     config.rcon.leaderboardPushMs,
   );
 
@@ -256,6 +265,8 @@ export async function pushLeaderboardToWebsite() {
   console.log(`Leaderboard pushed to website (${leaderboards.length} board(s))`);
   return payload;
 }
+
+export { publishLeaderboardToDiscord, buildLeaderboardAttachment } from "./leaderboard-publish.js";
 
 export async function relayDiscordToGame(message) {
   if (!config.rcon.chatBridge) return false;

@@ -563,8 +563,16 @@ export async function attachAdminPanel(app, client) {
   app.post("/admin/api/stats/push", requireAuth, requirePerm("stats"), async (req, res) => {
     try {
       const result = await pushLeaderboardToWebsite();
+      const { publishLeaderboardToDiscord } = await import("../../modules/rcon/leaderboard-publish.js");
+      const discordMsg = await publishLeaderboardToDiscord(client).catch((e) => ({ error: e.message }));
       await audit(req, "stats_push");
-      res.json({ ok: true, result });
+      res.json({
+        ok: true,
+        result,
+        discord: discordMsg?.error
+          ? { ok: false, error: discordMsg.error }
+          : { ok: true, messageId: discordMsg?.id || null },
+      });
     } catch (error) {
       res.status(500).json({ ok: false, error: error.message });
     }

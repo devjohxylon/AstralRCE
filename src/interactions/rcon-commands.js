@@ -7,7 +7,7 @@ import {
   sendGameCommand,
 } from "../modules/rcon/client.js";
 import { getRconStatus } from "../modules/rcon/client.js";
-import { pushLeaderboardToWebsite } from "../modules/rcon/index.js";
+import { pushLeaderboardToWebsite, buildLeaderboardAttachment } from "../modules/rcon/index.js";
 import {
   formatPlaytime,
   getLeaderboard,
@@ -117,29 +117,35 @@ export async function handleStatsCommand(interaction) {
 }
 
 export async function handleLeaderboardCommand(interaction) {
-  const category = interaction.options.getString("category") ?? "kills";
-  const rows = await getLeaderboard(category, 10);
+  await interaction.deferReply();
 
-  if (!rows.length) {
-    return interaction.reply({
-      ephemeral: true,
-      content: "No stats tracked yet — the leaderboard fills up as players join and fight.",
+  try {
+    const file = await buildLeaderboardAttachment();
+    return interaction.editReply({
+      content: null,
+      files: [file],
     });
+  } catch (error) {
+    // Fallback to text embed if image render fails
+    const category = interaction.options.getString("category") ?? "kills";
+    const rows = await getLeaderboard(category, 10);
+    if (!rows.length) {
+      return interaction.editReply(
+        "No stats tracked yet — the leaderboard fills up as players join and fight.",
+      );
+    }
+    const medals = ["🥇", "🥈", "🥉"];
+    const body = rows
+      .map((row) => `${medals[row.rank - 1] ?? `\`#${row.rank}\``} **${row.name}** — ${row.value}`)
+      .join("\n");
+    const embed = new EmbedBuilder()
+      .setTitle(`🏆 ${CATEGORY_LABELS[category] ?? "Leaderboard"}`)
+      .setDescription(body)
+      .setColor(0xf1c40f)
+      .setFooter({ text: `Astral Vanilla+ • image render failed: ${error.message}` })
+      .setTimestamp();
+    return interaction.editReply({ embeds: [embed] });
   }
-
-  const medals = ["🥇", "🥈", "🥉"];
-  const body = rows
-    .map((row) => `${medals[row.rank - 1] ?? `\`#${row.rank}\``} **${row.name}** — ${row.value}`)
-    .join("\n");
-
-  const embed = new EmbedBuilder()
-    .setTitle(`🏆 ${CATEGORY_LABELS[category] ?? "Leaderboard"}`)
-    .setDescription(body)
-    .setColor(0xf1c40f)
-    .setFooter({ text: "Astral Vanilla+ • live from the server" })
-    .setTimestamp();
-
-  return interaction.reply({ embeds: [embed] });
 }
 
 export async function handleRconCommand(interaction) {
@@ -162,9 +168,20 @@ export async function handleRconCommand(interaction) {
   if (sub === "pushstats") {
     await interaction.deferReply({ ephemeral: true });
     const result = await pushLeaderboardToWebsite().catch((error) => ({ error: error.message }));
-    if (!result) return interaction.editReply("No stats to push yet.");
-    if (result.error) return interaction.editReply(`Failed: ${result.error}`);
-    return interaction.editReply(`Pushed ${result.leaderboards.length} board(s) to the website.`);
+    const { publishLeaderboardToDiscord } = await import("../modules/rcon/leaderboard-publish.js");
+    const discord = await publishLeaderboardToDiscord(interaction.client).catch((error) => ({
+      error: error.message,
+    }));
+    if (!result && discord?.error) {
+      return interaction.editReply(`Failed: ${discord.error}`);
+    }
+    if (result?.error) return interaction.editReply(`Website: ${result.error}`);
+    const parts = [];
+    if (result) parts.push(`website ${result.leaderboards.length} board(s)`);
+    if (discord && !discord.error) parts.push("Discord image updated");
+    if (discord?.error) parts.push(`Discord: ${discord.error}`);
+    if (!parts.length) return interaction.editReply("No stats to push yet.");
+    return interaction.editReply(`Pushed: ${parts.join(" · ")}`);
   }
 
   if (!getRconStatus().connected) {
