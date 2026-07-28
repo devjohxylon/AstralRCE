@@ -4,6 +4,7 @@ import {
   getFeedSettingsSync,
   shouldPostKill,
 } from "../admin/feed-settings.js";
+import { getPositionFor } from "./live-map.js";
 
 const FLUSH_MS = 3000;
 const MAX_CHARS = 1900;
@@ -142,6 +143,24 @@ function killDistance(data) {
   return Math.round(n);
 }
 
+/** Horizontal meters between two cached positions (Rust combat distance). */
+function horizontalDistance(a, b) {
+  if (!a || !b) return null;
+  const dx = Number(a.x) - Number(b.x);
+  const dz = Number(a.z) - Number(b.z);
+  if (![dx, dz].every(Number.isFinite)) return null;
+  return Math.round(Math.sqrt(dx * dx + dz * dz));
+}
+
+function resolveKillDistance(data, killer, victim) {
+  const fromEvent = killDistance(data);
+  if (fromEvent != null) return fromEvent;
+  return horizontalDistance(
+    getPositionFor(killer?.name),
+    getPositionFor(victim?.name),
+  );
+}
+
 function compactKillEmbed({ line, footerTag, kind = "kill" }) {
   const tag = String(footerTag || "S2").trim() || "S2";
   return new EmbedBuilder()
@@ -151,12 +170,9 @@ function compactKillEmbed({ line, footerTag, kind = "kill" }) {
     .setTimestamp();
 }
 
-function formatCompactPvp({ victim, killer, distance, kf }) {
-  const death = kf.deathIcon || "💀";
-  const hit = kf.hitIcon || "🎯";
-  // KA0SB0T-style: Victim 💀 Killer 🎯 [distance]
-  let line = `${clean(victim.name)} ${death} ${clean(killer.name)} ${hit}`;
-  if (distance != null) line += ` ${distance}`;
+function formatCompactPvp({ victim, killer, distance, showDistance = true }) {
+  let line = `${clean(killer.name)} killed ${clean(victim.name)}`;
+  if (showDistance && distance != null) line += ` · ${distance}m`;
   return line;
 }
 
@@ -176,7 +192,7 @@ export function feedKill(data) {
   const headshot =
     Boolean(data?.headshot) ||
     /head/i.test(String(bodyPart ?? ""));
-  const distance = killDistance(data);
+  const distance = resolveKillDistance(data, killer, victim);
 
   const pvp = killer?.type === "Player" && victim?.type === "Player";
   const suicide = pvp && killer.name === victim.name;
@@ -211,7 +227,7 @@ export function feedKill(data) {
       queueFeedEmbed(
         channelId,
         compactKillEmbed({
-          line: `${clean(victim.name)} ${kf.deathIcon || "💀"}`,
+          line: `${clean(victim.name)} died`,
           footerTag: kf.footerTag,
           kind: "kill",
         }),
@@ -233,7 +249,12 @@ export function feedKill(data) {
       queueFeedEmbed(
         channelId,
         compactKillEmbed({
-          line: formatCompactPvp({ victim, killer, distance, kf }),
+          line: formatCompactPvp({
+            victim,
+            killer,
+            distance,
+            showDistance: kf.showDistance !== false,
+          }),
           footerTag: kf.footerTag,
           kind: "kill",
         }),
@@ -242,7 +263,7 @@ export function feedKill(data) {
       const extras = [];
       if (weapon) extras.push(clean(weapon));
       if (headshot) extras.push("HS");
-      if (distance != null) extras.push(`${distance}m`);
+      if (kf.showDistance !== false && distance != null) extras.push(`${distance}m`);
       const suffix = extras.length ? ` *(${extras.join(" · ")})*` : "";
       queueFeedLine(
         channelId,
@@ -271,13 +292,15 @@ export function feedKill(data) {
   }
 
   // Non-PvP (only reached when settings allow NPC / animal / entity / natural)
+  const distSuffix =
+    kf.showDistance !== false && distance != null ? ` · ${distance}m` : "";
   if (victim?.type === "Player") {
     killStreaks.delete(String(victim.name).toLowerCase());
     if (kf.style === "compact") {
       queueFeedEmbed(
         channelId,
         compactKillEmbed({
-          line: `${clean(victim.name)} ${kf.deathIcon || "💀"} ${clean(killer?.name)}`,
+          line: `${clean(killer?.name)} killed ${clean(victim.name)}${distSuffix}`,
           footerTag: kf.footerTag,
           kind: "kill",
         }),
@@ -293,7 +316,7 @@ export function feedKill(data) {
       queueFeedEmbed(
         channelId,
         compactKillEmbed({
-          line: `${clean(victim?.name)} ${kf.deathIcon || "💀"} ${clean(killer.name)}`,
+          line: `${clean(killer.name)} killed ${clean(victim?.name)}${distSuffix}`,
           footerTag: kf.footerTag,
           kind: "kill",
         }),
