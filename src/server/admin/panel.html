@@ -996,8 +996,6 @@ button { transition: all .15s ease; }
           <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l2.2 4.5L19 8.3l-3.5 3.4.8 4.8L12 14.2 7.7 16.5l.8-4.8L5 8.3l4.8-.8L12 3z"/><path d="M5 20h14"/></svg>Commands</button>
         <button type="button" data-tab="warps" data-perm="warps">
           <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s7-6.5 7-11a7 7 0 1 0-14 0c0 4.5 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>Warps</button>
-        <button type="button" data-tab="analytics" data-perm="overview">
-          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M18 17l-3-3-4 4-5-5"/></svg>Analytics</button>
         <button type="button" data-tab="audit" data-perm="logs">
           <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M20 17l-4-4M20 17l-4 4"/></svg>Audit</button>
         <button type="button" data-tab="keys" data-perm="keys">
@@ -1118,7 +1116,6 @@ const ADVANCED_TABS = [
   { id: "discord", label: "Discord", perm: "serverCommands", title: "Discord", sub: "Feed channels and Discord wiring" },
   { id: "commands", label: "Commands", perm: "serverCommands", title: "Commands", sub: "Give kits, ranks, and trigger events" },
   { id: "warps", label: "Warps", perm: "warps", title: "Warps", sub: "Warps and force teleports" },
-  { id: "analytics", label: "Analytics", perm: "overview", title: "Analytics", sub: "Performance metrics and player trends" },
   { id: "audit", label: "Audit", perm: "logs", title: "Audit Log", sub: "Complete history of all admin actions" },
   { id: "keys", label: "Keys", perm: "keys", title: "Keys", sub: "Staff access keys" },
   { id: "logs", label: "Logs", perm: "logs", title: "Logs", sub: "Panel audit trail" },
@@ -1145,6 +1142,7 @@ for (const t of ADVANCED_TABS) {
 
 function normalizeTab(tab) {
   if (tab === "automsg" || tab === "schedule") return "automation";
+  if (tab === "analytics") return "status";
   return tab;
 }
 
@@ -1387,7 +1385,7 @@ function connectWebSocket() {
   });
 
   state.socket.on("kill:new", (data) => {
-    if (state.tab === "overview" || state.tab === "analytics") {
+    if (state.tab === "overview" || state.tab === "status") {
       toast(`🔫 ${data.killer} killed ${data.victim}`);
     }
   });
@@ -1452,7 +1450,6 @@ async function render() {
   view.style.animation = "";
   try {
     if (state.tab === "overview") view.innerHTML = renderOverview();
-    if (state.tab === "analytics") view.innerHTML = await renderAnalytics();
     if (state.tab === "map") view.innerHTML = await renderMap();
     if (state.tab === "players") view.innerHTML = await renderPlayers();
     if (state.tab === "profiles") view.innerHTML = await renderProfiles();
@@ -3232,10 +3229,6 @@ function esc(s) {
 }
 
 function bindView() {
-  if (state.tab === "analytics" && state.analyticsData) {
-    initAnalyticsCharts();
-  }
-
   document.querySelectorAll("[data-action]").forEach((el) => {
     el.onclick = async () => {
       const a = el.dataset.action;
