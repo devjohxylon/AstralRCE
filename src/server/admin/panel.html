@@ -416,6 +416,50 @@ button { transition: all .15s ease; }
   color: rgba(215,221,230,.5); font-weight: 600; font-family: var(--mono);
 }
 .card-desc { margin: -.3rem 0 1.25rem; color: var(--faint); font-size: .78rem; line-height: 1.6; }
+.wipe-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .45rem;
+  margin: 0 0 1rem;
+}
+.wipe-toggle {
+  display: flex;
+  align-items: center;
+  gap: .55rem;
+  margin: 0;
+  padding: .55rem .7rem;
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 8px;
+  background: rgba(255,255,255,.02);
+  cursor: pointer;
+  font-size: .82rem;
+  line-height: 1.25;
+  min-width: 0;
+}
+.wipe-toggle input { flex: 0 0 auto; margin: 0; }
+.wipe-toggle span { min-width: 0; }
+.wipe-toggle strong { display: block; font-weight: 600; color: #e8eaef; }
+.wipe-toggle small { display: block; margin-top: .15rem; color: var(--faint); font-size: .68rem; font-family: var(--mono); }
+.wipe-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .6rem;
+  align-items: center;
+  margin-top: .85rem;
+}
+.wipe-actions input[type="text"] { flex: 1 1 140px; min-width: 120px; }
+.wipe-last {
+  margin-top: 1rem;
+  padding-top: .85rem;
+  border-top: 1px solid rgba(255,255,255,.06);
+  display: flex;
+  flex-wrap: wrap;
+  gap: .45rem;
+  align-items: center;
+}
+@media (max-width: 700px) {
+  .wipe-grid { grid-template-columns: 1fr; }
+}
 
 .card.stat {
   padding: 2rem 2.25rem; 
@@ -3461,16 +3505,24 @@ async function renderAnalytics() {
   state.analyticsData = await api("/analytics").catch(() => null);
   
   const data = state.analyticsData || {};
-  const weapons = (data.topWeapons || []).slice(0, 8).map(w => `
-    <tr><td>${esc(w.weapon)}</td><td>${w.kills}</td></tr>
-  `).join("") || `<tr><td colspan="2"><div class="empty">No weapon data yet<span class="empty-hint">PvP kills with weapons will show here</span></div></td></tr>`;
+  const top = data.topWeapon;
+  const topLabel = top
+    ? `${esc(top.weapon)} <span class="slash">×${top.kills}</span>`
+    : "—";
+  const weapons = (data.topWeapons || []).slice(0, 8).map((w, i) => `
+    <tr>
+      <td data-label="#">${i + 1}</td>
+      <td data-label="Weapon"><strong>${esc(w.weapon)}</strong></td>
+      <td data-label="Kills">${w.kills}</td>
+    </tr>
+  `).join("") || `<tr><td colspan="3"><div class="empty">No weapon kills tracked yet<span class="empty-hint">Shows up as PvP kills come in (Console often sends “Unknown”)</span></div></td></tr>`;
 
   return `
     <div class="grid stats">
+      ${statCard(topLabel, "Top weapon")}
       ${statCard(data.peak24h || 0, "Peak 24h")}
       ${statCard(data.avg24h || 0, "Avg 24h")}
       ${statCard(data.avgFps || "—", "Avg FPS")}
-      ${statCard(data.activePlayers || 0, "Active players")}
     </div>
     <div class="split" style="margin-top:1rem">
       <div class="card">
@@ -3478,13 +3530,16 @@ async function renderAnalytics() {
           <h3>Player activity (24h)</h3>
           <button data-action="refreshAnalytics">Refresh</button>
         </div>
-        <canvas id="analyticsChart" style="max-height:300px"></canvas>
+        <canvas id="analyticsChart" style="max-height:280px"></canvas>
       </div>
       <div class="card">
         <h3>Top weapons</h3>
-        <table class="table"><thead><tr><th>Weapon</th><th>Kills</th></tr></thead><tbody>${weapons}</tbody></table>
-        <h3 style="margin-top:1.5rem">Server performance</h3>
-        <canvas id="performanceChart" style="max-height:180px"></canvas>
+        <table class="table">
+          <thead><tr><th>#</th><th>Weapon</th><th>Kills</th></tr></thead>
+          <tbody>${weapons}</tbody>
+        </table>
+        <h3 style="margin-top:1.25rem">Server FPS</h3>
+        <canvas id="performanceChart" style="max-height:160px"></canvas>
       </div>
     </div>
   `;
@@ -3499,69 +3554,56 @@ async function renderWipe() {
   const canRun = can("statsReset");
   const steps = data.steps || [];
   const last = data.lastRun;
-  const lastRows = (data.lastResults || []).map((r) => `
-    <tr>
-      <td><code>${esc(r.id)}</code></td>
-      <td>${r.ok ? `<span class="pill ok">ok</span>` : `<span class="pill bad">fail</span>`}</td>
-      <td class="muted" style="font-size:.78rem">${esc(r.error || (r.detail?.warning || r.detail?.command || JSON.stringify(r.detail || {}).slice(0, 80)))}</td>
-    </tr>
-  `).join("") || `<tr><td colspan="3"><div class="empty">No wipe run yet</div></td></tr>`;
-
-  const stepRows = steps.map((s) => `
-    <label class="wipe-step" style="display:flex;gap:.75rem;align-items:flex-start;padding:.65rem 0;border-bottom:1px solid var(--line)">
-      <input type="checkbox" data-wipe-step="${esc(s.id)}" ${s.enabled !== false ? "checked" : ""} ${canRun ? "" : "disabled"} style="margin-top:.25rem" />
-      <span>
-        <strong>${esc(s.label)}</strong>
-        <span class="hint" style="display:block;margin-top:.2rem">${esc(s.hint || "")}</span>
-      </span>
-    </label>
-  `).join("");
-
   const o = state.overview || {};
   const wipeAt = o.wipe?.wipeAt;
   const wipeLabel = wipeAt ? new Date(wipeAt).toLocaleString() : "Not set";
 
+  const toggles = steps.map((s) => `
+    <label class="wipe-toggle">
+      <input type="checkbox" data-wipe-step="${esc(s.id)}" ${s.enabled !== false ? "checked" : ""} ${canRun ? "" : "disabled"} />
+      <span>
+        <strong>${esc(s.label)}</strong>
+        <small>${esc(s.hint || "")}</small>
+      </span>
+    </label>
+  `).join("");
+
+  const lastBits = (data.lastResults || []).map((r) =>
+    `<span class="pill ${r.ok ? "ok" : "bad"}">${esc(r.id)}</span>`,
+  ).join(" ");
+
   return `
-    <div class="split">
-      <div style="display:grid;gap:1rem">
-        <div class="card">
-          <div class="card-head">
-            <h3>Wipe checklist</h3>
-            ${last?.at ? `<span class="pill info">Last run ${esc(new Date(last.at).toLocaleString())}</span>` : ""}
-          </div>
-          <p class="card-desc">Toggle what runs, then hit <strong>Run wipe now</strong>. This is bot-side + RCON — it does not wipe the Nitrado map for you.</p>
-          <div id="wipeSteps">${stepRows}</div>
-          ${canRun ? `
-          <div class="form-row" style="margin-top:1rem">
-            <input id="wipeRunLabel" placeholder="Wipe label (YYYY-MM-DD)" value="${esc(new Date().toISOString().slice(0, 10))}" />
-            <button class="primary" data-action="runWipe">Run wipe now</button>
-            <button data-action="saveWipeAutomation">Save toggles</button>
-          </div>
-          <label style="display:flex;gap:.6rem;align-items:center;margin-top:.85rem;font-size:.9rem">
-            <input type="checkbox" id="wipeAutoSchedule" ${data.autoRunOnSchedule ? "checked" : ""} />
-            Auto-run when wipe countdown hits zero
-          </label>
-          ` : `<p class="hint" style="margin-top:1rem">You need stats-reset permission to run wipe automation.</p>`}
-        </div>
-
-        <div class="card">
-          <h3>Countdown</h3>
-          <p class="card-desc">Next wipe time for the status channel / website.</p>
-          <p class="hint" style="margin:0 0 .7rem">Current: ${esc(wipeLabel)} · Stats label: ${esc(o.stats?.wipe || "—")}</p>
-          <div class="form-row">
-            <input id="wipeAtInput" type="datetime-local" value="${esc(o.wipe?.localInput || "")}" />
-            <button class="primary" data-action="saveWipe">Save</button>
-            <button data-action="clearWipe">Clear</button>
-          </div>
-        </div>
+    <div class="card">
+      <div class="card-head">
+        <h3>Run wipe</h3>
+        ${last?.at ? `<span class="pill info">${esc(new Date(last.at).toLocaleString())}</span>` : `<span class="pill">Never run</span>`}
       </div>
+      <p class="card-desc">Resets bot-side wipe data (stats, homes, cooldowns, boards). Does <strong>not</strong> wipe the Nitrado map.</p>
 
-      <div class="card">
-        <h3>Last run results</h3>
-        <table class="table">
-          <thead><tr><th>Step</th><th>Status</th><th>Detail</th></tr></thead>
-          <tbody>${lastRows}</tbody>
-        </table>
+      <div class="wipe-grid">${toggles}</div>
+
+      ${canRun ? `
+      <div class="wipe-actions">
+        <input id="wipeRunLabel" type="text" placeholder="Wipe label" value="${esc(new Date().toISOString().slice(0, 10))}" />
+        <button class="primary" data-action="runWipe">Run wipe now</button>
+        <button data-action="saveWipeAutomation">Save</button>
+      </div>
+      <label class="wipe-toggle" style="margin-top:.75rem;width:fit-content">
+        <input type="checkbox" id="wipeAutoSchedule" ${data.autoRunOnSchedule ? "checked" : ""} />
+        <span><strong>Auto-run at countdown</strong><small>When wipe time hits zero</small></span>
+      </label>
+      ` : `<p class="hint">Need stats-reset permission to run this.</p>`}
+
+      ${lastBits ? `<div class="wipe-last"><span class="hint" style="margin:0">Last run:</span>${lastBits}</div>` : ""}
+    </div>
+
+    <div class="card" style="margin-top:1rem">
+      <div class="card-head"><h3>Countdown</h3><span class="pill">${esc(o.stats?.wipe || "—")}</span></div>
+      <p class="card-desc">Status channel / website wipe time. Current: ${esc(wipeLabel)}</p>
+      <div class="form-row" style="margin-top:0">
+        <input id="wipeAtInput" type="datetime-local" value="${esc(o.wipe?.localInput || "")}" />
+        <button class="primary" data-action="saveWipe">Save</button>
+        <button data-action="clearWipe">Clear</button>
       </div>
     </div>
   `;

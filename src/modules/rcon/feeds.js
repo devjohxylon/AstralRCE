@@ -187,8 +187,13 @@ export function feedKill(data) {
   const weapon =
     data?.weapon ||
     data?.Weapon ||
-    killer?.weapon ||
+    data?.weaponName ||
+    data?.WeaponName ||
     data?.item ||
+    data?.Item ||
+    killer?.weapon ||
+    killer?.Weapon ||
+    victim?.weapon ||
     null;
   const bodyPart = data?.bodyPart || data?.BodyPart || data?.hitBone || null;
   const headshot =
@@ -208,8 +213,9 @@ export function feedKill(data) {
     });
   }
 
-  if (analyticsModule?.trackWeaponKill && weapon && pvp && !suicide) {
-    analyticsModule.trackWeaponKill(weapon).catch(() => {});
+  // Console kills often omit weapon — still count so Analytics isn't empty forever.
+  if (analyticsModule?.trackWeaponKill && pvp && !suicide) {
+    analyticsModule.trackWeaponKill(weapon || "Unknown").catch(() => {});
   }
 
   if (analyticsModule?.trackPlayerActivity) {

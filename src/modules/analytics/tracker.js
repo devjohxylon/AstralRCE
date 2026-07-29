@@ -140,7 +140,7 @@ export async function getAnalyticsSummary() {
   const topWeapons = Object.entries(data.weaponStats)
     .sort((a, b) => b[1].kills - a[1].kills)
     .slice(0, 10)
-    .map(([id, stat]) => ({ weapon: stat.name, kills: stat.kills }));
+    .map(([id, stat]) => ({ weapon: stat.name || id, kills: stat.kills }));
 
   const recentPerf = data.serverPerformance.slice(-60);
   const avgFps = recentPerf.length > 0
@@ -148,11 +148,13 @@ export async function getAnalyticsSummary() {
     : null;
 
   const activePlayerCount = Object.keys(data.playerActivity).length;
+  const topWeapon = topWeapons[0] || null;
 
   return {
     peak24h: peakToday,
     avg24h: avgToday,
     topWeapons,
+    topWeapon,
     avgFps,
     activePlayers: activePlayerCount,
     hourlyData: last24Hours.map(k => ({
