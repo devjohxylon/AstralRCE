@@ -1470,12 +1470,25 @@ const state = {
         rot180: false,
         swapXZ: false,
         sizeOverride: 0,
+        samples: [],
+        affine: null,
         ...JSON.parse(localStorage.getItem("astralMapCal") || "{}"),
       };
     } catch {
-      return { pad: 0, flipX: false, flipZ: false, rot180: false, swapXZ: false, sizeOverride: 0 };
+      return {
+        pad: 0,
+        flipX: false,
+        flipZ: false,
+        rot180: false,
+        swapXZ: false,
+        sizeOverride: 0,
+        samples: [],
+        affine: null,
+      };
     }
   })(),
+  mapCalibrateIgn: null,
+  mapDrawRect: null,
 };
 
 const NAV_SECTIONS = {
@@ -3189,8 +3202,7 @@ function fitContain(imgW, imgH, boxW, boxH) {
   };
 }
 
-/** Map Rust world X/Z into the drawn map image rect. */
-function worldToMapPixel(wx, wz, mapSize, rect, cal = state.mapCal) {
+function standardWorldToPixel(wx, wz, mapSize, rect, cal = state.mapCal) {
   let x = Number(wx);
   let z = Number(wz);
   if (!Number.isFinite(x) || !Number.isFinite(z)) return null;
@@ -3223,6 +3235,55 @@ function worldToMapPixel(wx, wz, mapSize, rect, cal = state.mapCal) {
   };
 }
 
+/** Build affine px=a*wx+b, py=c*wz+d from 2+ click samples. */
+function rebuildMapAffine() {
+  const samples = state.mapCal?.samples || [];
+  if (samples.length < 2) {
+    if (state.mapCal) state.mapCal.affine = null;
+    return;
+  }
+  const a = samples[0];
+  const b = samples[samples.length - 1];
+  const dxw = b.wx - a.wx;
+  const dzw = b.wz - a.wz;
+  if (Math.abs(dxw) < 5 || Math.abs(dzw) < 5) {
+    // Points too close on an axis — keep previous / null
+    return;
+  }
+  const ax = (b.px - a.px) / dxw;
+  const bx = a.px - ax * a.wx;
+  const cz = (b.py - a.py) / dzw;
+  const dz = a.py - cz * a.wz;
+  state.mapCal.affine = { ax, bx, cz, dz };
+}
+
+function worldToMapPixel(wx, wz, mapSize, rect, cal = state.mapCal) {
+  const aff = cal?.affine;
+  if (aff && Number.isFinite(aff.ax) && Number.isFinite(aff.cz)) {
+    return {
+      x: aff.ax * Number(wx) + aff.bx,
+      y: aff.cz * Number(wz) + aff.dz,
+    };
+  }
+
+  const base = standardWorldToPixel(wx, wz, mapSize, rect, cal);
+  if (!base) return null;
+
+  // Single-sample offset: shift the whole standard projection
+  const samples = cal?.samples || [];
+  if (samples.length === 1) {
+    const s = samples[0];
+    const expected = standardWorldToPixel(s.wx, s.wz, mapSize, rect, cal);
+    if (expected) {
+      return {
+        x: base.x + (s.px - expected.x),
+        y: base.y + (s.py - expected.y),
+      };
+    }
+  }
+  return base;
+}
+
 function drawMap() {
   const canvas = document.getElementById("mapCanvas");
   if (!canvas) return;
@@ -3248,8 +3309,6 @@ function drawMap() {
   let rect = { dx: 0, dy: 0, dw: px, dh: px };
 
   if (hasPhoto) {
-    // Draw image into canvas with contain-fit so dots share the same rect
-    // (avoids object-fit letterbox mismatch with an overlay canvas).
     rect = fitContain(img.naturalWidth, img.naturalHeight, px, px);
     ctx.drawImage(img, rect.dx, rect.dy, rect.dw, rect.dh);
     img.style.display = "none";
@@ -3258,16 +3317,29 @@ function drawMap() {
     drawProceduralTerrain(ctx, px, px, seed);
   }
 
+  state.mapDrawRect = rect;
+
   const MAP_SIZE = Number(state.overview?.server?.mapSize) || 4000;
   const players = state.playerPositions || [];
   const cal = state.mapCal || {};
 
+  // Calibration sample markers
+  for (const s of cal.samples || []) {
+    ctx.strokeStyle = "#60a5fa";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(s.px, s.py, 10, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = "#60a5fa";
+    ctx.font = "bold 11px sans-serif";
+    ctx.fillText("✓", s.px - 4, s.py + 4);
+  }
+
   players.forEach((p) => {
     if (!p.coords) return;
     const pt = worldToMapPixel(p.coords.x, p.coords.z, MAP_SIZE, rect, cal);
-    if (!pt) return;
+    if (!pt || !Number.isFinite(pt.x) || !Number.isFinite(pt.y)) return;
 
-    // Soft-clamp so edge players (oil rig) stay on the drawn map, not in the gutter
     const x = Math.min(rect.dx + rect.dw - 2, Math.max(rect.dx + 2, pt.x));
     const y = Math.min(rect.dy + rect.dh - 2, Math.max(rect.dy + 2, pt.y));
 
@@ -4109,11 +4181,24 @@ async function renderMap() {
   const mapName = server?.map || "Unknown";
   const withCoords = players.filter((p) => p.coords).length;
 
-  const cal = state.mapCal || { pad: 0, flipX: false, flipZ: false, rot180: false, swapXZ: false, sizeOverride: 0 };
+  const cal = state.mapCal || {
+    pad: 0, flipX: false, flipZ: false, rot180: false, swapXZ: false,
+    sizeOverride: 0, samples: [], affine: null,
+  };
   const serverSize = mapSize;
+  const trackedPlayers = players.filter((p) => p.coords);
+  const calOpts = trackedPlayers.map((p) =>
+    `<option value="${esc(p.ign)}" ${state.mapCalibrateIgn === p.ign ? "selected" : ""}>${esc(p.ign)}</option>`
+  ).join("");
+  const sampleN = (cal.samples || []).length;
+  const calMode = cal.affine
+    ? "2-point lock on"
+    : sampleN === 1
+      ? "1-point offset on"
+      : "not calibrated";
 
   const statusHint = imageReady
-    ? `Showing your uploaded map${imageSource ? ` (${esc(imageSource)})` : ""}. If dots are wrong, tweak Align below — oil-rig players should sit on the water icons.`
+    ? `Showing your uploaded map${imageSource ? ` (${esc(imageSource)})` : ""}. Use <b>Click calibrate</b> below — pick someone you can see in-game, then click where they actually are on the picture.`
     : `Upload a screenshot of your <strong>in-game map</strong> (full square map). Console maps aren’t on RustMaps — the photo is required for dots to line up.`;
 
   return `
@@ -4135,15 +4220,31 @@ async function renderMap() {
             ? `Map: ${esc(mapName)} · Seed: ${mapSeed} · Size: ${serverSize}m · <span id="mapTrackedHint">Tracked: ${withCoords}/${players.length}</span>`
             : "Waiting for seed/size — click Refresh seed once RCON is up"}
         </p>
-        <div class="map-stage" style="position:relative;max-width:560px;margin:0 auto;aspect-ratio:1;background:#0a0a0a;border:1px solid var(--line);overflow:hidden">
+        <div class="map-stage" style="position:relative;max-width:560px;margin:0 auto;aspect-ratio:1;background:#0a0a0a;border:1px solid var(--line);overflow:hidden;cursor:${state.mapCalibrateIgn ? "crosshair" : "default"}">
           ${mapImageUrl
             ? `<img id="mapImage" src="${esc(mapImageUrl)}&t=${Date.now()}" alt="Map" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none" />`
             : `<img id="mapImage" alt="" style="display:none" />`}
           <canvas id="mapCanvas" width="560" height="560" style="position:absolute;inset:0;width:100%;height:100%"></canvas>
         </div>
-        <div class="map-cal" style="margin-top:.85rem;display:grid;gap:.55rem">
-          <p class="hint" style="margin:0">Align — start with <b>Padding</b> if oil-rig / edge players sit in the black gutter. Use Flip / Rotate if the whole island is mirrored.</p>
-          <div style="display:flex;flex-wrap:wrap;gap:.65rem;align-items:center">
+        <div class="map-cal" style="margin-top:.85rem;display:grid;gap:.65rem;padding:.75rem;border:1px solid var(--line);border-radius:var(--radius-sm);background:rgba(0,0,0,.25)">
+          <div>
+            <strong style="font-size:.82rem">Click calibrate</strong>
+            <span class="pill info" style="margin-left:.4rem">${esc(calMode)} · ${sampleN}/2 marks</span>
+          </div>
+          <p class="hint" style="margin:0">1) Pick a player you know the location of. 2) Click <b>Mark on map</b>. 3) Click their real spot on the picture. Do this for <b>two</b> players in different areas (e.g. oil rig + airfield) to lock alignment.</p>
+          <div style="display:flex;flex-wrap:wrap;gap:.5rem;align-items:center">
+            <select id="mapCalPlayer" style="min-width:160px;margin:0">
+              <option value="">— player with coords —</option>
+              ${calOpts}
+            </select>
+            <button type="button" class="primary" data-action="mapCalArm" ${trackedPlayers.length ? "" : "disabled"}>Mark on map</button>
+            <button type="button" data-action="mapCalClearSamples">Clear marks</button>
+          </div>
+          ${state.mapCalibrateIgn ? `<p class="hint" style="margin:0;color:#fbbf24">Click the map where <b>${esc(state.mapCalibrateIgn)}</b> actually is…</p>` : ""}
+        </div>
+        <details style="margin-top:.65rem">
+          <summary class="hint" style="cursor:pointer">Advanced align (padding / flips)</summary>
+          <div style="display:flex;flex-wrap:wrap;gap:.65rem;align-items:center;margin-top:.55rem">
             <label style="font-size:.72rem;font-family:var(--mono);color:var(--muted)">Padding
               <input id="mapCalPad" type="range" min="0" max="20" step="1" value="${Number(cal.pad) || 0}" style="width:120px;vertical-align:middle;margin-left:.35rem" />
               <span id="mapCalPadVal">${Number(cal.pad) || 0}%</span>
@@ -4152,14 +4253,14 @@ async function renderMap() {
               <input id="mapCalSize" type="number" min="0" step="50" placeholder="${serverSize}" value="${cal.sizeOverride || ""}" style="width:88px;margin-left:.35rem" />
             </label>
           </div>
-          <div class="actions" style="margin:0">
+          <div class="actions" style="margin:.55rem 0 0">
             <button type="button" data-action="mapCalToggle" data-key="flipX" class="${cal.flipX ? "primary" : ""}">Flip X</button>
             <button type="button" data-action="mapCalToggle" data-key="flipZ" class="${cal.flipZ ? "primary" : ""}">Flip Z</button>
             <button type="button" data-action="mapCalToggle" data-key="rot180" class="${cal.rot180 ? "primary" : ""}">Rotate 180°</button>
             <button type="button" data-action="mapCalToggle" data-key="swapXZ" class="${cal.swapXZ ? "primary" : ""}">Swap X/Z</button>
-            <button type="button" data-action="mapCalReset">Reset align</button>
+            <button type="button" data-action="mapCalReset">Reset all align</button>
           </div>
-        </div>
+        </details>
         <p class="hint" style="margin-top:.75rem">${statusHint}${imageMessage && !imageReady ? ` <span class="muted">(${esc(imageMessage)})</span>` : ""}</p>
       </div>
       <div class="card">
@@ -4189,6 +4290,46 @@ function bindView() {
       drawMap();
     }
     requestAnimationFrame(() => drawMap());
+
+    const canvas = document.getElementById("mapCanvas");
+    if (canvas) {
+      canvas.onclick = (e) => {
+        const ign = state.mapCalibrateIgn;
+        if (!ign) return;
+        const p = (state.playerPositions || []).find((x) => x.ign === ign);
+        if (!p?.coords) {
+          toast("Lost player coords — wait and try again", true);
+          state.mapCalibrateIgn = null;
+          return;
+        }
+        const br = canvas.getBoundingClientRect();
+        if (!br.width || !br.height) return;
+        const px = ((e.clientX - br.left) / br.width) * canvas.width;
+        const py = ((e.clientY - br.top) / br.height) * canvas.height;
+        state.mapCal = state.mapCal || { samples: [] };
+        state.mapCal.samples = state.mapCal.samples || [];
+        state.mapCal.samples.push({
+          ign,
+          wx: p.coords.x,
+          wz: p.coords.z,
+          px,
+          py,
+        });
+        if (state.mapCal.samples.length > 4) {
+          state.mapCal.samples = state.mapCal.samples.slice(-4);
+        }
+        rebuildMapAffine();
+        state.mapCalibrateIgn = null;
+        saveMapCal();
+        const n = state.mapCal.samples.length;
+        toast(
+          n >= 2
+            ? `Locked with ${n} marks — dots should snap to the photo`
+            : `Mark 1 saved — mark one more player in another area`,
+        );
+        render();
+      };
+    }
 
     const pad = document.getElementById("mapCalPad");
     const padVal = document.getElementById("mapCalPadVal");
@@ -4282,13 +4423,40 @@ function bindView() {
           if (!key) return;
           state.mapCal = state.mapCal || {};
           state.mapCal[key] = !state.mapCal[key];
+          // Flips invalidate affine — keep samples so user can rebuild
+          state.mapCal.affine = null;
+          rebuildMapAffine();
           saveMapCal();
           render();
           return;
         }
         if (a === "mapCalReset") {
-          state.mapCal = { pad: 0, flipX: false, flipZ: false, rot180: false, swapXZ: false, sizeOverride: 0 };
+          state.mapCal = {
+            pad: 0, flipX: false, flipZ: false, rot180: false, swapXZ: false,
+            sizeOverride: 0, samples: [], affine: null,
+          };
+          state.mapCalibrateIgn = null;
           saveMapCal();
+          render();
+          return;
+        }
+        if (a === "mapCalArm") {
+          const ign = document.getElementById("mapCalPlayer")?.value?.trim();
+          if (!ign) { toast("Pick a player with coords first", true); return; }
+          const p = (state.playerPositions || []).find((x) => x.ign === ign);
+          if (!p?.coords) { toast("That player has no position yet — wait a few seconds", true); return; }
+          state.mapCalibrateIgn = ign;
+          toast(`Click the map where ${ign} actually is`);
+          render();
+          return;
+        }
+        if (a === "mapCalClearSamples") {
+          state.mapCal = state.mapCal || {};
+          state.mapCal.samples = [];
+          state.mapCal.affine = null;
+          state.mapCalibrateIgn = null;
+          saveMapCal();
+          toast("Calibration marks cleared");
           render();
           return;
         }

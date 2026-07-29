@@ -1,4 +1,5 @@
 import { getOnlinePlayers, isRconEnabled, sendGameCommand } from "./client.js";
+import { parsePosition } from "./positions.js";
 
 const positions = new Map(); // ignLower -> { x, y, z, at, ign }
 let pollTimer = null;
@@ -6,20 +7,6 @@ let polling = false;
 
 const POLL_MS = 5_000;
 const STALE_MS = 30_000;
-
-function parsePosition(raw) {
-  if (!raw) return null;
-  const text = String(raw);
-  const match = text.match(
-    /\(?\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*\)?/,
-  );
-  if (!match) return null;
-  return {
-    x: Number(match[1]),
-    y: Number(match[2]),
-    z: Number(match[3]),
-  };
-}
 
 export async function fetchPlayerPosition(ign) {
   const name = String(ign ?? "").trim();
@@ -38,6 +25,9 @@ export async function fetchPlayerPosition(ign) {
       if (pos) {
         positions.set(name.toLowerCase(), { ...pos, ign: name, at: Date.now() });
         return pos;
+      }
+      if (raw) {
+        console.warn(`printpos no coords for ${name}:`, String(raw).slice(0, 120));
       }
     } catch {
       /* try next */

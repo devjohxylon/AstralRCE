@@ -3,6 +3,7 @@ import { getHomes, saveHomes } from "../../data/store.js";
 import { sendGameCommand } from "./client.js";
 import { findOnlinePlayer, getLinkByIgn, requireLinkedIgn } from "./linking.js";
 import { queueFeedLine } from "./feeds.js";
+import { parsePosition } from "./positions.js";
 
 const cooldowns = new Map();
 const pendingTpr = new Map();
@@ -25,23 +26,6 @@ function limitsFor(member) {
       ? config.teleports.vipCooldownSeconds
       : config.teleports.cooldownSeconds,
     delaySeconds: config.teleports.delaySeconds,
-  };
-}
-
-function parsePosition(raw) {
-  if (!raw) return null;
-  const text = String(raw);
-
-  // Matches (x, y, z) or (x,y,z) or x,y,z
-  const match = text.match(
-    /\(?\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*\)?/,
-  );
-  if (!match) return null;
-
-  return {
-    x: Number(match[1]),
-    y: Number(match[2]),
-    z: Number(match[3]),
   };
 }
 
