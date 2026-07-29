@@ -251,6 +251,12 @@ export const config = {
     kitId: optional("VIP_KIT_ID", "vip") || "vip",
     grantCommand: optional("VIP_RCON_GRANT") || null,
     revokeCommand: optional("VIP_RCON_REVOKE") || null,
+    // Claim via in-game quick chat (default: "I need water"). Requires Discord VIP + link.
+    claimEnabled: parseBool("VIP_CLAIM_ENABLED", true),
+    claimPhrase: optional("VIP_CLAIM_PHRASE", "i need water") || "i need water",
+    claimCooldownSeconds: Number(optional("VIP_CLAIM_COOLDOWN_SECONDS", "3600")) || 3600,
+    // Old behavior: auto-give kit on role/join/link (off — use quick chat claim instead)
+    autoGrant: parseBool("VIP_AUTO_GRANT", false),
   },
   wipe: {
     // Fallback if settings.json has no wipeAt; ISO string e.g. 2026-08-01T18:00:00Z

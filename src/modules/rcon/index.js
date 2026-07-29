@@ -33,7 +33,7 @@ import {
 } from "./stats.js";
 import { startScheduler, stopScheduler } from "./scheduler.js";
 import { startWipeScheduler, stopWipeScheduler, syncWipeStatus } from "./wipe.js";
-import { syncVipForDiscord, syncVipOnJoin } from "./vip-sync.js";
+import { syncVipForDiscord, syncVipOnJoin, tryClaimVipFromQuickChat, attachVipClient } from "./vip-sync.js";
 import {
   attachReportsClient,
   checkTeamSize,
@@ -65,6 +65,7 @@ export async function startRcon(client) {
   attachFeedClient(client);
   attachReportsClient(client);
   attachLeaderboardClient(client);
+  attachVipClient(client);
   const manager = await connectRcon();
   if (!manager) {
     startWipeScheduler(client);
@@ -131,6 +132,9 @@ export async function startRcon(client) {
 
   manager.on(RCEEvent.QuickChat, ({ player, message, type }) => {
     feedQuickChat({ player, message, type });
+    tryClaimVipFromQuickChat({ player, message }).catch((e) =>
+      console.error("VIP quick-chat claim failed:", e.message),
+    );
   });
 
   manager.on(RCEEvent.EventStart, (data) => {
