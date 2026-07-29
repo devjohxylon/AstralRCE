@@ -10,7 +10,10 @@ import {
   getMapMetadata,
   clearMapMetadataCache,
 } from "../../modules/rcon/client.js";
-import { getPlayersWithPositions } from "../../modules/rcon/live-map.js";
+import {
+  fetchPlayerPosition,
+  getPlayersWithPositions,
+} from "../../modules/rcon/live-map.js";
 import {
   ensureMapPreview,
   hasCachedMapImage,
@@ -561,6 +564,23 @@ export async function attachAdminPanel(app, client) {
       await clearMapImage(mapMetadata.seed, mapMetadata.size);
       await audit(req, "map_image_clear", { seed: mapMetadata.seed, size: mapMetadata.size });
       res.json({ ok: true });
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  app.post("/admin/api/map/position", requireAuth, requirePerm("overview"), async (req, res) => {
+    try {
+      const ign = String(req.body?.ign ?? "").trim();
+      if (!ign) return res.status(400).json({ ok: false, error: "Missing player IGN" });
+      const coords = await fetchPlayerPosition(ign);
+      if (!coords) {
+        return res.status(404).json({
+          ok: false,
+          error: `No position for ${ign} — are they online?`,
+        });
+      }
+      res.json({ ok: true, ign, coords, players: getPlayersWithPositions() });
     } catch (error) {
       res.status(500).json({ ok: false, error: error.message });
     }

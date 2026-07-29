@@ -5,8 +5,8 @@ const positions = new Map(); // ignLower -> { x, y, z, at, ign }
 let pollTimer = null;
 let polling = false;
 
-const POLL_MS = 5_000;
-const STALE_MS = 30_000;
+const POLL_MS = 4_000;
+const STALE_MS = 45_000;
 
 export async function fetchPlayerPosition(ign) {
   const name = String(ign ?? "").trim();

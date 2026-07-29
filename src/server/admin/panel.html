@@ -1462,33 +1462,37 @@ const state = {
   statsCategory: "kills",
   analyticsData: null,
   mapCal: (() => {
+    const defaults = {
+      pad: 0,
+      flipX: false,
+      flipZ: false,
+      rot180: false,
+      swapXZ: false,
+      sizeOverride: 0,
+      samples: [],
+      transform: null,
+    };
     try {
-      return {
-        pad: 0,
-        flipX: false,
-        flipZ: false,
-        rot180: false,
-        swapXZ: false,
-        sizeOverride: 0,
-        samples: [],
-        affine: null,
-        ...JSON.parse(localStorage.getItem("astralMapCal") || "{}"),
-      };
+      const raw = { ...defaults, ...JSON.parse(localStorage.getItem("astralMapCal") || "{}") };
+      // Legacy absolute-pixel samples / axis-only affine break after canvas resize
+      const samples = Array.isArray(raw.samples) ? raw.samples : [];
+      const legacy =
+        samples.some((s) => s == null || s.u == null || s.v == null) ||
+        (raw.affine && raw.affine.ax != null && raw.transform == null);
+      if (legacy) {
+        raw.samples = [];
+        raw.transform = null;
+      }
+      delete raw.affine;
+      return raw;
     } catch {
-      return {
-        pad: 0,
-        flipX: false,
-        flipZ: false,
-        rot180: false,
-        swapXZ: false,
-        sizeOverride: 0,
-        samples: [],
-        affine: null,
-      };
+      return { ...defaults };
     }
   })(),
   mapCalibrateIgn: null,
   mapDrawRect: null,
+  mapImageBust: 0,
+  mapResizeObs: null,
 };
 
 const NAV_SECTIONS = {
@@ -3186,7 +3190,9 @@ function drawProceduralTerrain(ctx, w, h, seed) {
 }
 
 function saveMapCal() {
-  localStorage.setItem("astralMapCal", JSON.stringify(state.mapCal || {}));
+  const cal = { ...(state.mapCal || {}) };
+  delete cal.affine;
+  localStorage.setItem("astralMapCal", JSON.stringify(cal));
 }
 
 function fitContain(imgW, imgH, boxW, boxH) {
@@ -3202,7 +3208,23 @@ function fitContain(imgW, imgH, boxW, boxH) {
   };
 }
 
-function standardWorldToPixel(wx, wz, mapSize, rect, cal = state.mapCal) {
+function uvToPixel(u, v, rect) {
+  return {
+    x: rect.dx + Number(u) * rect.dw,
+    y: rect.dy + Number(v) * rect.dh,
+  };
+}
+
+function pixelToUv(px, py, rect) {
+  if (!rect?.dw || !rect?.dh) return null;
+  const u = (px - rect.dx) / rect.dw;
+  const v = (py - rect.dy) / rect.dh;
+  if (![u, v].every(Number.isFinite)) return null;
+  return { u, v };
+}
+
+/** Apply axis flips / padding → normalized image UV (0–1). */
+function standardWorldToUv(wx, wz, mapSize, cal = state.mapCal) {
   let x = Number(wx);
   let z = Number(wz);
   if (!Number.isFinite(x) || !Number.isFinite(z)) return null;
@@ -3229,59 +3251,190 @@ function standardWorldToPixel(wx, wz, mapSize, rect, cal = state.mapCal) {
   nx = pad + nx * usable;
   nz = pad + nz * usable;
 
-  return {
-    x: rect.dx + nx * rect.dw,
-    y: rect.dy + (1 - nz) * rect.dh,
+  return { u: nx, v: 1 - nz };
+}
+
+/**
+ * Similarity (uniform scale + rotation + translation) from 2 UV samples,
+ * or least-squares full affine with 3+.
+ * Maps world (wx,wz) → image UV (u,v) so resize never invalidates calibration.
+ */
+function rebuildMapTransform() {
+  const samples = (state.mapCal?.samples || []).filter(
+    (s) => s && Number.isFinite(s.wx) && Number.isFinite(s.wz) && Number.isFinite(s.u) && Number.isFinite(s.v),
+  );
+  if (!state.mapCal) return;
+  if (samples.length < 2) {
+    state.mapCal.transform = null;
+    return;
+  }
+
+  if (samples.length === 2) {
+    const a = samples[0];
+    const b = samples[1];
+    const dwx = b.wx - a.wx;
+    const dwz = b.wz - a.wz;
+    const du = b.u - a.u;
+    const dv = b.v - a.v;
+    const worldDist = Math.hypot(dwx, dwz);
+    const uvDist = Math.hypot(du, dv);
+    if (worldDist < 40 || uvDist < 0.02) {
+      state.mapCal.transform = null;
+      return;
+    }
+    const scale = uvDist / worldDist;
+    const rot = Math.atan2(dv, du) - Math.atan2(dwz, dwx);
+    const cos = Math.cos(rot);
+    const sin = Math.sin(rot);
+    const a11 = scale * cos;
+    const a12 = -scale * sin;
+    const a21 = scale * sin;
+    const a22 = scale * cos;
+    const tx = a.u - (a11 * a.wx + a12 * a.wz);
+    const ty = a.v - (a21 * a.wx + a22 * a.wz);
+    state.mapCal.transform = { a11, a12, a21, a22, tx, ty, kind: "similarity" };
+    return;
+  }
+
+  // 3+ points: least-squares affine
+  let sxx = 0, sxz = 0, szz = 0, sx = 0, sz = 0, n = 0;
+  let sux = 0, suz = 0, su = 0, svx = 0, svz = 0, sv = 0;
+  for (const s of samples) {
+    sxx += s.wx * s.wx;
+    sxz += s.wx * s.wz;
+    szz += s.wz * s.wz;
+    sx += s.wx;
+    sz += s.wz;
+    sux += s.u * s.wx;
+    suz += s.u * s.wz;
+    su += s.u;
+    svx += s.v * s.wx;
+    svz += s.v * s.wz;
+    sv += s.v;
+    n += 1;
+  }
+
+  function solve3(m00, m01, m02, m10, m11, m12, m20, m21, m22, r0, r1, r2) {
+    const det =
+      m00 * (m11 * m22 - m12 * m21) -
+      m01 * (m10 * m22 - m12 * m20) +
+      m02 * (m10 * m21 - m11 * m20);
+    if (!Number.isFinite(det) || Math.abs(det) < 1e-12) return null;
+    const inv = 1 / det;
+    const c0 =
+      inv *
+      (r0 * (m11 * m22 - m12 * m21) -
+        m01 * (r1 * m22 - m12 * r2) +
+        m02 * (r1 * m21 - m11 * r2));
+    const c1 =
+      inv *
+      (m00 * (r1 * m22 - m12 * r2) -
+        r0 * (m10 * m22 - m12 * m20) +
+        m02 * (m10 * r2 - r1 * m20));
+    const c2 =
+      inv *
+      (m00 * (m11 * r2 - r1 * m21) -
+        m01 * (m10 * r2 - r1 * m20) +
+        r0 * (m10 * m21 - m11 * m20));
+    return [c0, c1, c2];
+  }
+
+  const rowU = solve3(sxx, sxz, sx, sxz, szz, sz, sx, sz, n, sux, suz, su);
+  const rowV = solve3(sxx, sxz, sx, sxz, szz, sz, sx, sz, n, svx, svz, sv);
+  if (!rowU || !rowV) {
+    state.mapCal.transform = null;
+    return;
+  }
+  state.mapCal.transform = {
+    a11: rowU[0],
+    a12: rowU[1],
+    a21: rowV[0],
+    a22: rowV[1],
+    tx: rowU[2],
+    ty: rowV[2],
+    kind: "affine",
   };
 }
 
-/** Build affine px=a*wx+b, py=c*wz+d from 2+ click samples. */
-function rebuildMapAffine() {
-  const samples = state.mapCal?.samples || [];
-  if (samples.length < 2) {
-    if (state.mapCal) state.mapCal.affine = null;
-    return;
-  }
-  const a = samples[0];
-  const b = samples[samples.length - 1];
-  const dxw = b.wx - a.wx;
-  const dzw = b.wz - a.wz;
-  if (Math.abs(dxw) < 5 || Math.abs(dzw) < 5) {
-    // Points too close on an axis — keep previous / null
-    return;
-  }
-  const ax = (b.px - a.px) / dxw;
-  const bx = a.px - ax * a.wx;
-  const cz = (b.py - a.py) / dzw;
-  const dz = a.py - cz * a.wz;
-  state.mapCal.affine = { ax, bx, cz, dz };
+function applyTransform(wx, wz, t) {
+  if (!t) return null;
+  const x = Number(wx);
+  const z = Number(wz);
+  if (!Number.isFinite(x) || !Number.isFinite(z)) return null;
+  return {
+    u: t.a11 * x + t.a12 * z + t.tx,
+    v: t.a21 * x + t.a22 * z + t.ty,
+  };
 }
 
 function worldToMapPixel(wx, wz, mapSize, rect, cal = state.mapCal) {
-  const aff = cal?.affine;
-  if (aff && Number.isFinite(aff.ax) && Number.isFinite(aff.cz)) {
-    return {
-      x: aff.ax * Number(wx) + aff.bx,
-      y: aff.cz * Number(wz) + aff.dz,
-    };
+  if (!rect) return null;
+
+  const locked = cal?.transform;
+  if (locked && Number.isFinite(locked.a11)) {
+    const uv = applyTransform(wx, wz, locked);
+    if (!uv) return null;
+    return uvToPixel(uv.u, uv.v, rect);
   }
 
-  const base = standardWorldToPixel(wx, wz, mapSize, rect, cal);
+  const base = standardWorldToUv(wx, wz, mapSize, cal);
   if (!base) return null;
 
-  // Single-sample offset: shift the whole standard projection
-  const samples = cal?.samples || [];
+  const samples = (cal?.samples || []).filter(
+    (s) => s && Number.isFinite(s.u) && Number.isFinite(s.v),
+  );
   if (samples.length === 1) {
     const s = samples[0];
-    const expected = standardWorldToPixel(s.wx, s.wz, mapSize, rect, cal);
+    const expected = standardWorldToUv(s.wx, s.wz, mapSize, cal);
     if (expected) {
-      return {
-        x: base.x + (s.px - expected.x),
-        y: base.y + (s.py - expected.y),
-      };
+      return uvToPixel(base.u + (s.u - expected.u), base.v + (s.v - expected.v), rect);
     }
   }
-  return base;
+  return uvToPixel(base.u, base.v, rect);
+}
+
+function mapCalModeLabel() {
+  const cal = state.mapCal || {};
+  const n = (cal.samples || []).length;
+  if (cal.transform) return `${cal.transform.kind === "affine" ? "Affine" : "2-point"} lock · ${n} marks`;
+  if (n === 1) return "1-point offset · 1/2 marks";
+  return `not calibrated · ${n}/2 marks`;
+}
+
+function updateMapCalChrome() {
+  const pill = document.getElementById("mapCalModePill");
+  if (pill) pill.textContent = mapCalModeLabel();
+  const arm = document.getElementById("mapCalArmHint");
+  if (arm) {
+    if (state.mapCalibrateIgn) {
+      arm.style.display = "";
+      arm.innerHTML = `Click the map where <b>${esc(state.mapCalibrateIgn)}</b> actually is…`;
+    } else {
+      arm.style.display = "none";
+      arm.textContent = "";
+    }
+  }
+  const stage = document.querySelector(".map-stage");
+  if (stage) stage.style.cursor = state.mapCalibrateIgn ? "crosshair" : "default";
+  const locked = Boolean(state.mapCal?.transform);
+  document.querySelectorAll("[data-map-advanced]").forEach((el) => {
+    el.style.opacity = locked ? "0.45" : "1";
+    el.title = locked ? "Clear marks to use padding / flips (click-cal owns alignment)" : "";
+  });
+}
+
+function ensureMapResizeObserver() {
+  const stage = document.querySelector(".map-stage");
+  if (!stage || typeof ResizeObserver === "undefined") return;
+  if (state.mapResizeObs) {
+    try { state.mapResizeObs.disconnect(); } catch { /* */ }
+  }
+  let t = null;
+  state.mapResizeObs = new ResizeObserver(() => {
+    clearTimeout(t);
+    t = setTimeout(() => drawMap(), 50);
+  });
+  state.mapResizeObs.observe(stage);
 }
 
 function drawMap() {
@@ -3297,14 +3450,17 @@ function drawMap() {
   );
   const px = Math.max(280, Math.round(size));
 
-  canvas.width = px;
-  canvas.height = px;
+  if (canvas.width !== px || canvas.height !== px) {
+    canvas.width = px;
+    canvas.height = px;
+  }
   canvas.style.width = "100%";
   canvas.style.height = "100%";
 
   ctx.fillStyle = "#0a0a0a";
   ctx.fillRect(0, 0, px, px);
 
+  const waitingPhoto = img && img.getAttribute("src") && !(img.complete && img.naturalWidth > 0);
   const hasPhoto = img && img.complete && img.naturalWidth > 0;
   let rect = { dx: 0, dy: 0, dw: px, dh: px };
 
@@ -3312,6 +3468,14 @@ function drawMap() {
     rect = fitContain(img.naturalWidth, img.naturalHeight, px, px);
     ctx.drawImage(img, rect.dx, rect.dy, rect.dw, rect.dh);
     img.style.display = "none";
+  } else if (waitingPhoto) {
+    ctx.fillStyle = "#6b7280";
+    ctx.font = "13px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("Loading map image…", px / 2, px / 2);
+    ctx.textAlign = "start";
+    state.mapDrawRect = rect;
+    return;
   } else {
     const seed = state.overview?.server?.mapSeed || 1;
     drawProceduralTerrain(ctx, px, px, seed);
@@ -3323,54 +3487,65 @@ function drawMap() {
   const players = state.playerPositions || [];
   const cal = state.mapCal || {};
 
-  // Calibration sample markers
   for (const s of cal.samples || []) {
+    if (!Number.isFinite(s.u) || !Number.isFinite(s.v)) continue;
+    const mark = uvToPixel(s.u, s.v, rect);
     ctx.strokeStyle = "#60a5fa";
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.arc(s.px, s.py, 10, 0, Math.PI * 2);
+    ctx.arc(mark.x, mark.y, 10, 0, Math.PI * 2);
     ctx.stroke();
     ctx.fillStyle = "#60a5fa";
     ctx.font = "bold 11px sans-serif";
-    ctx.fillText("✓", s.px - 4, s.py + 4);
+    ctx.fillText("✓", mark.x - 4, mark.y + 4);
   }
+
+  const x0 = rect.dx;
+  const y0 = rect.dy;
+  const x1 = rect.dx + rect.dw;
+  const y1 = rect.dy + rect.dh;
 
   players.forEach((p) => {
     if (!p.coords) return;
     const pt = worldToMapPixel(p.coords.x, p.coords.z, MAP_SIZE, rect, cal);
     if (!pt || !Number.isFinite(pt.x) || !Number.isFinite(pt.y)) return;
 
-    const x = Math.min(rect.dx + rect.dw - 2, Math.max(rect.dx + 2, pt.x));
-    const y = Math.min(rect.dy + rect.dh - 2, Math.max(rect.dy + 2, pt.y));
+    const onMap = pt.x >= x0 && pt.x <= x1 && pt.y >= y0 && pt.y <= y1;
+    const x = pt.x;
+    const y = pt.y;
 
     ctx.shadowColor = "rgba(0,0,0,0.8)";
     ctx.shadowBlur = 4;
 
-    ctx.fillStyle = "#ff6b73";
+    ctx.globalAlpha = onMap ? 1 : 0.35;
+    ctx.fillStyle = onMap ? "#ff6b73" : "#9ca3af";
     ctx.beginPath();
-    ctx.arc(x, y, 6, 0, Math.PI * 2);
+    ctx.arc(x, y, onMap ? 6 : 4, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.fillStyle = "#fff";
-    ctx.beginPath();
-    ctx.arc(x, y, 3, 0, Math.PI * 2);
-    ctx.fill();
+    if (onMap) {
+      ctx.fillStyle = "#fff";
+      ctx.beginPath();
+      ctx.arc(x, y, 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
 
     const label = p.ign;
     ctx.font = "bold 12px sans-serif";
     const tw = ctx.measureText(label).width;
     let lx = x + 10;
-    if (lx + tw > rect.dx + rect.dw - 4) lx = x - tw - 10;
-    lx = Math.max(rect.dx + 2, Math.min(lx, rect.dx + rect.dw - tw - 2));
-    const ly = Math.max(rect.dy + 12, Math.min(y + 4, rect.dy + rect.dh - 4));
+    if (lx + tw > x1 - 4) lx = x - tw - 10;
+    lx = Math.max(4, Math.min(lx, px - tw - 4));
+    const ly = Math.max(12, Math.min(y + 4, px - 4));
 
     ctx.shadowBlur = 2;
-    ctx.fillStyle = "#fff";
+    ctx.fillStyle = onMap ? "#fff" : "#9ca3af";
     ctx.strokeStyle = "#000";
     ctx.lineWidth = 3;
     ctx.strokeText(label, lx, ly);
     ctx.fillText(label, lx, ly);
 
+    ctx.globalAlpha = 1;
     ctx.shadowBlur = 0;
   });
 }
@@ -4183,22 +4358,20 @@ async function renderMap() {
 
   const cal = state.mapCal || {
     pad: 0, flipX: false, flipZ: false, rot180: false, swapXZ: false,
-    sizeOverride: 0, samples: [], affine: null,
+    sizeOverride: 0, samples: [], transform: null,
   };
   const serverSize = mapSize;
   const trackedPlayers = players.filter((p) => p.coords);
   const calOpts = trackedPlayers.map((p) =>
     `<option value="${esc(p.ign)}" ${state.mapCalibrateIgn === p.ign ? "selected" : ""}>${esc(p.ign)}</option>`
   ).join("");
-  const sampleN = (cal.samples || []).length;
-  const calMode = cal.affine
-    ? "2-point lock on"
-    : sampleN === 1
-      ? "1-point offset on"
-      : "not calibrated";
+  const calMode = mapCalModeLabel();
+  const imgSrc = mapImageUrl
+    ? `${mapImageUrl}${state.mapImageBust ? `&t=${state.mapImageBust}` : ""}`
+    : "";
 
   const statusHint = imageReady
-    ? `Showing your uploaded map${imageSource ? ` (${esc(imageSource)})` : ""}. Use <b>Click calibrate</b> below — pick someone you can see in-game, then click where they actually are on the picture.`
+    ? `Showing your uploaded map${imageSource ? ` (${esc(imageSource)})` : ""}. Use <b>Click calibrate</b> — mark <b>two</b> players in different areas so dots lock to the photo (survives resize).`
     : `Upload a screenshot of your <strong>in-game map</strong> (full square map). Console maps aren’t on RustMaps — the photo is required for dots to line up.`;
 
   return `
@@ -4221,17 +4394,17 @@ async function renderMap() {
             : "Waiting for seed/size — click Refresh seed once RCON is up"}
         </p>
         <div class="map-stage" style="position:relative;max-width:560px;margin:0 auto;aspect-ratio:1;background:#0a0a0a;border:1px solid var(--line);overflow:hidden;cursor:${state.mapCalibrateIgn ? "crosshair" : "default"}">
-          ${mapImageUrl
-            ? `<img id="mapImage" src="${esc(mapImageUrl)}&t=${Date.now()}" alt="Map" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none" />`
+          ${imgSrc
+            ? `<img id="mapImage" src="${esc(imgSrc)}" alt="Map" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none" />`
             : `<img id="mapImage" alt="" style="display:none" />`}
           <canvas id="mapCanvas" width="560" height="560" style="position:absolute;inset:0;width:100%;height:100%"></canvas>
         </div>
         <div class="map-cal" style="margin-top:.85rem;display:grid;gap:.65rem;padding:.75rem;border:1px solid var(--line);border-radius:var(--radius-sm);background:rgba(0,0,0,.25)">
           <div>
             <strong style="font-size:.82rem">Click calibrate</strong>
-            <span class="pill info" style="margin-left:.4rem">${esc(calMode)} · ${sampleN}/2 marks</span>
+            <span id="mapCalModePill" class="pill info" style="margin-left:.4rem">${esc(calMode)}</span>
           </div>
-          <p class="hint" style="margin:0">1) Pick a player you know the location of. 2) Click <b>Mark on map</b>. 3) Click their real spot on the picture. Do this for <b>two</b> players in different areas (e.g. oil rig + airfield) to lock alignment.</p>
+          <p class="hint" style="margin:0">1) Pick a player. 2) <b>Mark on map</b> (refreshes their live position). 3) Click their real spot on the picture. Mark <b>two</b> players far apart (e.g. oil + airfield).</p>
           <div style="display:flex;flex-wrap:wrap;gap:.5rem;align-items:center">
             <select id="mapCalPlayer" style="min-width:160px;margin:0">
               <option value="">— player with coords —</option>
@@ -4240,10 +4413,11 @@ async function renderMap() {
             <button type="button" class="primary" data-action="mapCalArm" ${trackedPlayers.length ? "" : "disabled"}>Mark on map</button>
             <button type="button" data-action="mapCalClearSamples">Clear marks</button>
           </div>
-          ${state.mapCalibrateIgn ? `<p class="hint" style="margin:0;color:#fbbf24">Click the map where <b>${esc(state.mapCalibrateIgn)}</b> actually is…</p>` : ""}
+          <p id="mapCalArmHint" class="hint" style="margin:0;color:#fbbf24;${state.mapCalibrateIgn ? "" : "display:none"}">${state.mapCalibrateIgn ? `Click the map where <b>${esc(state.mapCalibrateIgn)}</b> actually is…` : ""}</p>
         </div>
-        <details style="margin-top:.65rem">
+        <details style="margin-top:.65rem" data-map-advanced>
           <summary class="hint" style="cursor:pointer">Advanced align (padding / flips)</summary>
+          <p class="hint" style="margin:.45rem 0 0">Only used before click-cal lock. Clear marks if you need these again.</p>
           <div style="display:flex;flex-wrap:wrap;gap:.65rem;align-items:center;margin-top:.55rem">
             <label style="font-size:.72rem;font-family:var(--mono);color:var(--muted)">Padding
               <input id="mapCalPad" type="range" min="0" max="20" step="1" value="${Number(cal.pad) || 0}" style="width:120px;vertical-align:middle;margin-left:.35rem" />
@@ -4283,6 +4457,7 @@ function bindView() {
       if (img.complete && img.naturalWidth) drawMap();
       else img.onload = () => drawMap();
       img.onerror = () => {
+        img.removeAttribute("src");
         img.style.display = "none";
         drawMap();
       };
@@ -4290,44 +4465,86 @@ function bindView() {
       drawMap();
     }
     requestAnimationFrame(() => drawMap());
+    ensureMapResizeObserver();
+    rebuildMapTransform();
+    updateMapCalChrome();
 
     const canvas = document.getElementById("mapCanvas");
     if (canvas) {
-      canvas.onclick = (e) => {
+      canvas.onclick = async (e) => {
         const ign = state.mapCalibrateIgn;
         if (!ign) return;
-        const p = (state.playerPositions || []).find((x) => x.ign === ign);
-        if (!p?.coords) {
-          toast("Lost player coords — wait and try again", true);
-          state.mapCalibrateIgn = null;
+        const rect = state.mapDrawRect;
+        if (!rect?.dw) {
+          toast("Map image not ready yet", true);
           return;
         }
         const br = canvas.getBoundingClientRect();
         if (!br.width || !br.height) return;
         const px = ((e.clientX - br.left) / br.width) * canvas.width;
         const py = ((e.clientY - br.top) / br.height) * canvas.height;
+        const uv = pixelToUv(px, py, rect);
+        if (!uv || uv.u < -0.02 || uv.u > 1.02 || uv.v < -0.02 || uv.v > 1.02) {
+          toast("Click on the map image (not the black bars)", true);
+          return;
+        }
+        uv.u = Math.min(1, Math.max(0, uv.u));
+        uv.v = Math.min(1, Math.max(0, uv.v));
+
+        toast(`Refreshing ${ign} position…`);
+        let coords = null;
+        try {
+          const r = await api("/map/position", { method: "POST", body: { ign } });
+          if (r.ok && r.coords) {
+            coords = r.coords;
+            if (Array.isArray(r.players)) state.playerPositions = r.players;
+          }
+        } catch {
+          /* fall back to cache */
+        }
+        if (!coords) {
+          const p = (state.playerPositions || []).find((x) => x.ign === ign);
+          coords = p?.coords || null;
+        }
+        if (!coords) {
+          toast("Lost player coords — wait and try again", true);
+          state.mapCalibrateIgn = null;
+          updateMapCalChrome();
+          return;
+        }
+
         state.mapCal = state.mapCal || { samples: [] };
         state.mapCal.samples = state.mapCal.samples || [];
+        // Replace existing mark for same player
+        state.mapCal.samples = state.mapCal.samples.filter(
+          (s) => String(s.ign).toLowerCase() !== ign.toLowerCase(),
+        );
         state.mapCal.samples.push({
           ign,
-          wx: p.coords.x,
-          wz: p.coords.z,
-          px,
-          py,
+          wx: coords.x,
+          wz: coords.z,
+          u: uv.u,
+          v: uv.v,
         });
         if (state.mapCal.samples.length > 4) {
           state.mapCal.samples = state.mapCal.samples.slice(-4);
         }
-        rebuildMapAffine();
+        rebuildMapTransform();
+        if (state.mapCal.samples.length >= 2 && !state.mapCal.transform) {
+          toast("Marks too close — pick players farther apart on the map", true);
+        }
         state.mapCalibrateIgn = null;
         saveMapCal();
         const n = state.mapCal.samples.length;
         toast(
-          n >= 2
-            ? `Locked with ${n} marks — dots should snap to the photo`
-            : `Mark 1 saved — mark one more player in another area`,
+          state.mapCal.transform
+            ? `Locked with ${n} marks — dots should stick to the photo`
+            : n === 1
+              ? "Mark 1 saved — mark one more player in another area"
+              : "Marks saved",
         );
-        render();
+        updateMapCalChrome();
+        drawMap();
       };
     }
 
@@ -4335,6 +4552,11 @@ function bindView() {
     const padVal = document.getElementById("mapCalPadVal");
     if (pad) {
       pad.oninput = () => {
+        if (state.mapCal?.transform) {
+          toast("Clear click-cal marks to use padding", true);
+          pad.value = String(Number(state.mapCal.pad) || 0);
+          return;
+        }
         state.mapCal = state.mapCal || {};
         state.mapCal.pad = Number(pad.value) || 0;
         if (padVal) padVal.textContent = `${state.mapCal.pad}%`;
@@ -4345,6 +4567,10 @@ function bindView() {
     const sizeIn = document.getElementById("mapCalSize");
     if (sizeIn) {
       sizeIn.onchange = () => {
+        if (state.mapCal?.transform) {
+          toast("Clear click-cal marks to change world size", true);
+          return;
+        }
         state.mapCal = state.mapCal || {};
         const n = Number(sizeIn.value);
         state.mapCal.sizeOverride = Number.isFinite(n) && n > 0 ? n : 0;
@@ -4370,8 +4596,11 @@ function bindView() {
               method: "POST",
               body: { image: reader.result, filename: file.name },
             });
-            toast(r.ok ? "Map image saved — dots should line up now" : (r.error || "Upload failed"), !r.ok);
-            if (r.ok) render();
+            toast(r.ok ? "Map image saved — calibrate with 2 marks next" : (r.error || "Upload failed"), !r.ok);
+            if (r.ok) {
+              state.mapImageBust = Date.now();
+              render();
+            }
           } catch (e) {
             toast(e.message || "Upload failed", true);
           }
@@ -4421,11 +4650,13 @@ function bindView() {
         if (a === "mapCalToggle") {
           const key = el.dataset.key;
           if (!key) return;
+          if (state.mapCal?.transform || (state.mapCal?.samples || []).length) {
+            if (!confirm("Clear click-cal marks so flips can apply?")) return;
+            state.mapCal.samples = [];
+            state.mapCal.transform = null;
+          }
           state.mapCal = state.mapCal || {};
           state.mapCal[key] = !state.mapCal[key];
-          // Flips invalidate affine — keep samples so user can rebuild
-          state.mapCal.affine = null;
-          rebuildMapAffine();
           saveMapCal();
           render();
           return;
@@ -4433,7 +4664,7 @@ function bindView() {
         if (a === "mapCalReset") {
           state.mapCal = {
             pad: 0, flipX: false, flipZ: false, rot180: false, swapXZ: false,
-            sizeOverride: 0, samples: [], affine: null,
+            sizeOverride: 0, samples: [], transform: null,
           };
           state.mapCalibrateIgn = null;
           saveMapCal();
@@ -4443,21 +4674,35 @@ function bindView() {
         if (a === "mapCalArm") {
           const ign = document.getElementById("mapCalPlayer")?.value?.trim();
           if (!ign) { toast("Pick a player with coords first", true); return; }
-          const p = (state.playerPositions || []).find((x) => x.ign === ign);
-          if (!p?.coords) { toast("That player has no position yet — wait a few seconds", true); return; }
-          state.mapCalibrateIgn = ign;
-          toast(`Click the map where ${ign} actually is`);
-          render();
+          el.disabled = true;
+          try {
+            toast(`Refreshing ${ign}…`);
+            const r = await api("/map/position", { method: "POST", body: { ign } });
+            if (r.ok && Array.isArray(r.players)) state.playerPositions = r.players;
+            if (!r.ok || !r.coords) {
+              toast(r.error || "No position yet — wait a few seconds", true);
+              return;
+            }
+            state.mapCalibrateIgn = ign;
+            toast(`Click the map where ${ign} actually is`);
+            updateMapCalChrome();
+            drawMap();
+          } catch (err) {
+            toast(err.message || "Could not refresh position", true);
+          } finally {
+            el.disabled = false;
+          }
           return;
         }
         if (a === "mapCalClearSamples") {
           state.mapCal = state.mapCal || {};
           state.mapCal.samples = [];
-          state.mapCal.affine = null;
+          state.mapCal.transform = null;
           state.mapCalibrateIgn = null;
           saveMapCal();
           toast("Calibration marks cleared");
-          render();
+          updateMapCalChrome();
+          drawMap();
           return;
         }
         if (a === "goTab") {
