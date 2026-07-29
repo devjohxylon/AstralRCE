@@ -636,7 +636,38 @@ button { transition: all .15s ease; }
 .feed-field input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; flex-shrink: 0; }
 .feed-field select, .feed-field input[type="text"] { margin: 0; width: 100%; }
 .feed-field input[type="number"] { margin: 0; width: 100%; }
-.discord-actions { display: flex; flex-wrap: wrap; gap: .55rem; margin-top: .25rem; }
+.discord-actions {
+  display: flex; flex-wrap: wrap; gap: .55rem; align-items: center;
+  position: sticky; bottom: .75rem; z-index: 5;
+  margin-top: 1rem; padding: .75rem .85rem;
+  background: rgba(10,11,14,.92);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 -8px 24px rgba(0,0,0,.35);
+}
+.discord-actions .hint { margin: 0; flex: 1; min-width: 140px; }
+.discord-shell { display: grid; gap: 1rem; }
+.discord-intro {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: .72rem;
+  color: rgba(215,221,230,.5);
+  line-height: 1.55;
+}
+.chan-source {
+  display: inline-block;
+  margin-left: .35rem;
+  padding: .05rem .35rem;
+  border-radius: 4px;
+  font-size: .6rem;
+  font-weight: 600;
+  letter-spacing: .02em;
+  vertical-align: middle;
+}
+.chan-source.panel { background: rgba(90,180,120,.15); color: #8fd9a8; }
+.chan-source.env { background: rgba(120,150,200,.15); color: #a8c0e0; }
+.chan-source.unset { background: rgba(255,255,255,.06); color: rgba(215,221,230,.45); }
 .cmd-catalog { display: grid; gap: .75rem; }
 .cmd-group-card h3 { margin-bottom: .35rem; }
 .cmd-row {
@@ -1331,6 +1362,7 @@ const state = {
   },
   itemCatalog: null,
   autoSub: "messages",
+  discordSub: "channels",
   reportQuery: "",
   socket: null,
   playerPositions: [],
@@ -1390,7 +1422,7 @@ const NAV_SECTIONS = {
 
 const ADVANCED_TABS = [
   { id: "console", label: "RCON", perm: "rcon", title: "RCON", sub: "Raw RCON commands" },
-  { id: "discord", label: "Discord", perm: "serverCommands", title: "Discord", sub: "Feed channels and Discord wiring" },
+  { id: "discord", label: "Discord", perm: "serverCommands", title: "Discord", sub: "Channels, feeds, VIP, and slash commands" },
   { id: "commands", label: "Commands", perm: "serverCommands", title: "Commands", sub: "Give kits, ranks, and trigger events" },
   { id: "warps", label: "Warps", perm: "warps", title: "Warps", sub: "Warps and force teleports" },
   { id: "keys", label: "Keys", perm: "keys", title: "Keys", sub: "Staff access keys" },
@@ -2327,127 +2359,148 @@ function renderCommandField(cmdKey, field) {
 }
 
 async function renderDiscordChannels() {
+  const DISCORD_SUBS = [
+    { id: "channels", label: "Channels", hint: "Pick where each feed posts. Panel values override .env." },
+    { id: "status", label: "Status", hint: "How pop / wipe voice channels are renamed." },
+    { id: "feeds", label: "Feeds", hint: "What gets posted — killfeed filters and feed toggles." },
+    { id: "vip", label: "VIP", hint: "Discord role, kit id, claim phrase, and cooldowns." },
+    { id: "slash", label: "Slash cmds", hint: "Turn Discord slash commands on/off and tweak options." },
+  ];
+  const valid = new Set(DISCORD_SUBS.map((s) => s.id));
+  if (!valid.has(state.discordSub)) state.discordSub = "channels";
+  const sub = state.discordSub;
+  const meta = DISCORD_SUBS.find((s) => s.id === sub) || DISCORD_SUBS[0];
+
+  const pageSubEl = document.getElementById("pageSub");
+  if (pageSubEl) pageSubEl.textContent = meta.hint;
+
   const data = await api("/channels");
   const groups = {};
   for (const ch of data.channels || []) {
     (groups[ch.group] ||= []).push(ch);
   }
 
-  const channelBlocksClean = Object.entries(groups).map(([group, rows]) => `
-    <div class="card" style="margin-bottom:.75rem">
-      <h3>${esc(group)}</h3>
-      <div class="chan-grid">
-        ${rows.map((ch) => {
-          const selectOpts = [`<option value="">— unset / use .env —</option>`]
-            .concat((data.discordChannels || []).map((c) =>
-              `<option value="${esc(c.id)}" ${c.id === ch.value ? "selected" : ""}>#${esc(c.name)}${c.type === "voice" ? " (voice)" : ""}${c.parent ? ` · ${esc(c.parent)}` : ""}</option>`
-            )).join("");
-          return `
-          <div class="chan-row">
-            <label>${esc(ch.label)}
-              <small>${esc(ch.env)} · ${ch.source}</small>
-            </label>
-            <select data-channel-key="${esc(ch.key)}">${selectOpts}</select>
-            <input data-channel-manual="${esc(ch.key)}" placeholder="or paste channel id" value="${esc(ch.value || "")}" />
+  const tabs = `
+    <div class="subtabs">
+      ${DISCORD_SUBS.map((s) =>
+        `<button type="button" data-action="discordSub" data-sub="${s.id}" class="${sub === s.id ? "active" : ""}">${esc(s.label)}</button>`
+      ).join("")}
+    </div>`;
+
+  let body = "";
+  let saveAction = "";
+  let saveLabel = "";
+
+  if (sub === "channels") {
+    saveAction = "saveChannels";
+    saveLabel = "Save channels";
+    const blocks = Object.entries(groups).map(([group, rows]) => `
+      <div class="card" style="margin-bottom:.75rem">
+        <h3>${esc(group)}</h3>
+        <div class="chan-grid">
+          ${rows.map((ch) => {
+            const selectOpts = [`<option value="">— unset —</option>`]
+              .concat((data.discordChannels || []).map((c) =>
+                `<option value="${esc(c.id)}" ${c.id === ch.value ? "selected" : ""}>#${esc(c.name)}${c.type === "voice" ? " (voice)" : ""}${c.parent ? ` · ${esc(c.parent)}` : ""}</option>`
+              )).join("");
+            const srcClass = ch.source === "panel" ? "panel" : ch.source === "env" ? "env" : "unset";
+            return `
+            <div class="chan-row">
+              <label>${esc(ch.label)}
+                <small>${esc(ch.hint || ch.env)}
+                  <span class="chan-source ${srcClass}">${esc(ch.source)}</span>
+                </small>
+              </label>
+              <select data-channel-key="${esc(ch.key)}">${selectOpts}</select>
+              <input data-channel-manual="${esc(ch.key)}" placeholder="or paste id" value="${esc(ch.value || "")}" />
+            </div>`;
+          }).join("")}
+        </div>
+      </div>`).join("") || `<div class="card"><div class="empty">No channel slots</div></div>`;
+    body = `
+      <p class="discord-intro">Only set the channels you use. Killfeed → Feeds group. Pop / wipe renames → Status group (voice channels work best).</p>
+      ${blocks}`;
+  } else if (sub === "status") {
+    saveAction = "saveStatusDisplays";
+    saveLabel = "Save status displays";
+    const statusBlocks = (data.statusDisplays || []).map((block) => `
+      <div class="card feed-setting-card" style="margin-bottom:.75rem">
+        <h3>${esc(block.label)}</h3>
+        <p class="muted" style="font-family:var(--mono);font-size:.72rem">${esc(block.hint || "")}</p>
+        <div class="feed-field-grid">
+          ${(block.fields || []).map((f) => renderSettingField("status", block.key, f)).join("")}
+        </div>
+      </div>`).join("") || `<div class="card"><div class="empty">No status display settings</div></div>`;
+    body = `
+      <p class="discord-intro">Formats for live pop / wipe countdown channel names. Assign the channels under <b>Channels → Status</b>.</p>
+      <div class="feed-settings-grid">${statusBlocks}</div>`;
+  } else if (sub === "feeds") {
+    saveAction = "saveFeeds";
+    saveLabel = "Save feed settings";
+    const feedBlocks = (data.feeds || []).map((feed) => `
+      <div class="card feed-setting-card" style="margin-bottom:.75rem">
+        <h3>${esc(feed.label)}</h3>
+        <p class="muted" style="font-family:var(--mono);font-size:.72rem">${esc(feed.hint || "")}</p>
+        <div class="feed-field-grid">
+          ${(feed.fields || []).map((f) => renderFeedField(feed.key, f)).join("")}
+        </div>
+      </div>`).join("") || `<div class="card"><div class="empty">No feed settings</div></div>`;
+    body = `
+      <p class="discord-intro">Killfeed defaults to compact PvP only. Turn on NPC / animal / suicide lines only if you want the spam.</p>
+      <div class="feed-settings-grid">${feedBlocks}</div>`;
+  } else if (sub === "vip") {
+    saveAction = "saveVip";
+    saveLabel = "Save VIP settings";
+    const vipFields = (data.vip?.fields || []).map((field) => {
+      if (field.key === "roleId") {
+        const id = "vip-roleId";
+        const selectOpts = [`<option value="">— unset —</option>`]
+          .concat((data.discordRoles || []).map((r) =>
+            `<option value="${esc(r.id)}" ${r.id === field.value ? "selected" : ""}>${esc(r.name)}</option>`
+          )).join("");
+        return `
+          <div class="feed-field">
+            <label for="${id}">${esc(field.label)}${field.hint ? `<small>${esc(field.hint)}</small>` : ""}</label>
+            <select id="${id}" data-vip-field="roleId">${selectOpts}</select>
+            <input data-vip-field-manual="roleId" placeholder="or paste role id" value="${esc(field.value || "")}" style="margin-top:.35rem" />
           </div>`;
-        }).join("")}
-      </div>
-    </div>`).join("") || `<div class="card"><div class="empty">No channel slots configured</div></div>`;
-
-  const feedBlocks = (data.feeds || []).map((feed) => `
-    <div class="card feed-setting-card" style="margin-bottom:.75rem">
-      <h3>${esc(feed.label)}</h3>
-      <p class="muted" style="font-family:var(--mono);font-size:.72rem">${esc(feed.hint || "")}</p>
-      <div class="feed-field-grid">
-        ${(feed.fields || []).map((f) => renderFeedField(feed.key, f)).join("")}
-      </div>
-    </div>`).join("") || `<div class="card"><div class="empty">No feed settings</div></div>`;
-
-  const statusBlocks = (data.statusDisplays || []).map((block) => `
-    <div class="card feed-setting-card" style="margin-bottom:.75rem">
-      <h3>${esc(block.label)}</h3>
-      <p class="muted" style="font-family:var(--mono);font-size:.72rem">${esc(block.hint || "")}</p>
-      <div class="feed-field-grid">
-        ${(block.fields || []).map((f) => renderSettingField("status", block.key, f)).join("")}
-      </div>
-    </div>`).join("") || `<div class="card"><div class="empty">No status display settings</div></div>`;
-
-  const vipFields = (data.vip?.fields || []).map((field) => {
-    if (field.key === "roleId") {
-      const id = "vip-roleId";
-      const selectOpts = [`<option value="">— unset —</option>`]
-        .concat((data.discordRoles || []).map((r) =>
-          `<option value="${esc(r.id)}" ${r.id === field.value ? "selected" : ""}>${esc(r.name)}</option>`
-        )).join("");
-      return `
-        <div class="feed-field">
-          <label for="${id}">${esc(field.label)}${field.hint ? `<small>${esc(field.hint)}</small>` : ""}</label>
-          <select id="${id}" data-vip-field="roleId">${selectOpts}</select>
-          <input data-vip-field-manual="roleId" placeholder="or paste role id" value="${esc(field.value || "")}" style="margin-top:.35rem" />
-        </div>`;
-    }
-    return renderSettingField("vip", "vip", { ...field, key: field.key });
-  }).join("") || `<div class="empty">No VIP settings</div>`;
-
-  const commandBlocks = (data.commandGroups || []).map((g) => `
-    <div class="card cmd-group-card" style="margin-bottom:.75rem">
-      <h3>${esc(g.group)}</h3>
-      ${(g.commands || []).map((cmd) => `
-        <div class="cmd-row">
-          <div class="cmd-row-head">
-            <code>${esc(cmd.name)}</code>
-            <span class="cmd-access ${esc(cmd.access || "public")}">${esc(cmd.access || "public")}</span>
-            <span class="cmd-desc">${esc(cmd.description || "")}</span>
-          </div>
-          <div class="feed-field-grid">
-            ${(cmd.fields || []).map((f) => renderCommandField(cmd.key, f)).join("")}
-          </div>
-        </div>`).join("")}
-    </div>`).join("") || `<div class="card"><div class="empty">No slash commands registered in catalog</div></div>`;
+      }
+      return renderSettingField("vip", "vip", { ...field, key: field.key });
+    }).join("") || `<div class="empty">No VIP settings</div>`;
+    body = `
+      <p class="discord-intro">Players with the VIP role claim via quick chat (default <code>I need water</code>). Kit id defaults to <code>vipkit</code>.</p>
+      <div class="card"><div class="feed-field-grid">${vipFields}</div></div>`;
+  } else {
+    saveAction = "saveCommands";
+    saveLabel = "Save slash commands";
+    const commandBlocks = (data.commandGroups || []).map((g) => `
+      <div class="card cmd-group-card" style="margin-bottom:.75rem">
+        <h3>${esc(g.group)}</h3>
+        ${(g.commands || []).map((cmd) => `
+          <div class="cmd-row">
+            <div class="cmd-row-head">
+              <code>${esc(cmd.name)}</code>
+              <span class="cmd-access ${esc(cmd.access || "public")}">${esc(cmd.access || "public")}</span>
+              <span class="cmd-desc">${esc(cmd.description || "")}</span>
+            </div>
+            <div class="feed-field-grid">
+              ${(cmd.fields || []).map((f) => renderCommandField(cmd.key, f)).join("")}
+            </div>
+          </div>`).join("")}
+      </div>`).join("") || `<div class="card"><div class="empty">No slash commands registered</div></div>`;
+    body = `
+      <p class="discord-intro">Disable a command to block it immediately. Homes / TPR / giveaway extras apply when saved. Discord’s command list only updates after <code>npm run register-commands</code>.</p>
+      <div class="cmd-catalog">${commandBlocks}</div>`;
+  }
 
   return `
-    <div class="card" style="margin-bottom:.75rem">
-      <h3>Discord feed channels</h3>
-      <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:0 0 .85rem">
-        Pick a channel from the dropdown or paste an ID. Saved here overrides <code>.env</code> until cleared.
-        Killfeed is <code>CHANNEL_KILLFEED</code> — set it below to start posting kills.
-        Pop / wipe renames need <code>CHANNEL_POP_STATUS</code> / <code>CHANNEL_WIPE_STATUS</code> (voice channels work best).
-      </p>
-    </div>
-    ${channelBlocksClean}
-    <div class="card" style="margin-bottom:.75rem">
-      <h3>Status channel displays</h3>
-    </div>
-    <div class="feed-settings-grid">${statusBlocks}</div>
-    <div class="card" style="margin-bottom:.75rem;margin-top:1rem">
-      <h3>Feed settings</h3>
-      <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:0">
-        Killfeed defaults to compact PvP only (no NPC / animal spam). Toggle extras per feed below.
-      </p>
-    </div>
-    <div class="feed-settings-grid">${feedBlocks}</div>
-    <div class="card" style="margin-bottom:.75rem;margin-top:1rem">
-      <h3>VIP settings</h3>
-      <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:0 0 .85rem">
-        Kit ID, claim phrase, Discord role, and optional RCON grant/revoke. Saved here — no Railway env restart needed.
-        Default kit is <code>vipkit</code>. Claim phrase default is <code>I need water</code>.
-      </p>
-      <div class="feed-field-grid">${vipFields}</div>
-    </div>
-    <div class="card" style="margin-bottom:.75rem;margin-top:1rem">
-      <h3>Bot slash commands</h3>
-      <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:0">
-        Every Discord slash command the bot registers. Disable to block usage instantly; extras (homes, TPR timeout, giveaways, auto-mute) apply when saved.
-        Commands stay listed in Discord until you re-run <code>npm run register-commands</code> after removing them from code.
-      </p>
-    </div>
-    <div class="cmd-catalog">${commandBlocks}</div>
-    <div class="discord-actions">
-      <button class="primary" data-action="saveChannels">Save channels</button>
-      <button class="primary" data-action="saveStatusDisplays">Save status displays</button>
-      <button class="primary" data-action="saveFeeds">Save feed settings</button>
-      <button class="primary" data-action="saveVip">Save VIP settings</button>
-      <button class="primary" data-action="saveCommands">Save command settings</button>
+    <div class="discord-shell">
+      ${tabs}
+      ${body}
+      <div class="discord-actions">
+        <span class="hint">${esc(meta.label)}</span>
+        <button class="primary" data-action="${esc(saveAction)}">${esc(saveLabel)}</button>
+      </div>
     </div>`;
 }
 
@@ -3879,6 +3932,11 @@ function bindView() {
         }
         if (a === "autoSub") {
           state.autoSub = el.dataset.sub || "messages";
+          render();
+          return;
+        }
+        if (a === "discordSub") {
+          state.discordSub = el.dataset.sub || "channels";
           render();
           return;
         }
