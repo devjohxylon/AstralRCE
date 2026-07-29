@@ -79,6 +79,12 @@ function setCooldown(discordId, cooldownSeconds) {
   cooldowns.set(discordId, Date.now() + cooldownSeconds * 1000);
 }
 
+export function clearTeleportCooldowns() {
+  cooldowns.clear();
+  pendingTpr.clear();
+  pendingTeleports.clear();
+}
+
 async function ensureOnlineLinked(discordId) {
   const linked = await requireLinkedIgn(discordId);
   if (!linked.ok) return linked;

@@ -62,6 +62,12 @@ import {
 } from "../../modules/rcon/kits.js";
 import { getWipeAt, setWipeAt, syncWipeStatus } from "../../modules/rcon/wipe.js";
 import {
+  getWipeAutomationConfig,
+  saveWipeAutomationConfig,
+  runWipeAutomation,
+  WIPE_STEPS,
+} from "../../modules/rcon/wipe-runner.js";
+import {
   EVENT_PRESETS,
   RANK_PRESETS,
   getChannelConfig,
@@ -862,6 +868,52 @@ export async function attachAdminPanel(app, client) {
     await syncWipeStatus(client, { force: true }).catch(() => {});
     await audit(req, "wipe_set", { wipeAt: result.wipeAt });
     res.json(result);
+  });
+
+  app.get("/admin/api/wipe/automation", requireAuth, requirePerm("overview"), async (_req, res) => {
+    try {
+      const data = await getWipeAutomationConfig();
+      res.json({ ok: true, ...data, stepDefs: WIPE_STEPS });
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  app.post("/admin/api/wipe/automation", requireAuth, requirePerm("statsReset"), async (req, res) => {
+    try {
+      const { enabled, autoRunOnSchedule, checklist } = req.body ?? {};
+      const data = await saveWipeAutomationConfig({
+        enabled,
+        autoRunOnSchedule,
+        checklist,
+      });
+      await audit(req, "wipe_automation_save", {
+        autoRunOnSchedule: data.autoRunOnSchedule,
+      });
+      res.json({ ok: true, ...data });
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  app.post("/admin/api/wipe/run", requireAuth, requirePerm("statsReset"), async (req, res) => {
+    try {
+      const { steps, wipeLabel } = req.body ?? {};
+      const result = await runWipeAutomation({
+        steps,
+        wipeLabel,
+        client,
+        fromSchedule: false,
+      });
+      await audit(req, "wipe_run", {
+        wipeLabel: result.wipeLabel,
+        ok: result.ok,
+        steps: (result.results || []).map((r) => r.id),
+      });
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
   });
 
   // ——— Discord channels + Server Commands (kits / ranks / events) ———

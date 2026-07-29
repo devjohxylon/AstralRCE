@@ -1185,8 +1185,12 @@ const NAV_SECTIONS = {
   },
   server: {
     title: "Server",
-    sub: "Live telemetry, map, wipe, and connections",
-    tabs: [{ id: "status", label: "Status", perm: "overview" }],
+    sub: "Status, wipe automation, and analytics",
+    tabs: [
+      { id: "status", label: "Status", perm: "overview" },
+      { id: "wipe", label: "Wipe", perm: "overview" },
+      { id: "analytics", label: "Analytics", perm: "overview" },
+    ],
   },
 };
 
@@ -1201,7 +1205,7 @@ const ADVANCED_TABS = [
 
 const TAB_META = {
   overview: { title: "Home", sub: "Server health and quick controls", perm: "overview" },
-  map: { title: "Home", sub: "Coming soon", perm: "players" },
+  map: { title: "Home", sub: "Not available on Rust Console", perm: "players" },
   players: { title: "Players", sub: "Who's online right now", perm: "players" },
   profiles: { title: "Players", sub: "Staff dossiers — stats, notes, actions", perm: "players" },
   links: { title: "Players", sub: "Discord ↔ IGN links", perm: "links" },
@@ -1212,6 +1216,8 @@ const TAB_META = {
   automation: { title: "Community", sub: "Auto messages and scheduled commands", perm: "automation" },
   events: { title: "Community", sub: "Automate RCON commands on a schedule", perm: "schedule" },
   status: { title: "Server", sub: "Live telemetry, map, wipe, and connections", perm: "overview" },
+  wipe: { title: "Server", sub: "Checklist and one-click wipe automation", perm: "overview" },
+  analytics: { title: "Server", sub: "Pop, FPS, and weapon stats", perm: "overview" },
 };
 
 for (const t of ADVANCED_TABS) {
@@ -1220,7 +1226,6 @@ for (const t of ADVANCED_TABS) {
 
 function normalizeTab(tab) {
   if (tab === "automsg" || tab === "schedule") return "automation";
-  if (tab === "analytics") return "status";
   if (tab === "audit") return "logs";
   return tab;
 }
@@ -1575,6 +1580,8 @@ async function render() {
     if (state.tab === "console") view.innerHTML = renderConsole();
     if (state.tab === "stats") view.innerHTML = await renderStats();
     if (state.tab === "status") view.innerHTML = await renderServerStatus();
+    if (state.tab === "wipe") view.innerHTML = await renderWipe();
+    if (state.tab === "analytics") view.innerHTML = await renderAnalytics();
     if (state.tab === "warps") view.innerHTML = await renderWarps();
     if (state.tab === "links") view.innerHTML = await renderLinks();
     if (state.tab === "automation") view.innerHTML = await renderAutomation();
@@ -1585,6 +1592,9 @@ async function render() {
     if (state.tab === "keys") view.innerHTML = await renderKeys();
     if (state.tab === "logs") view.innerHTML = await renderLogs();
     bindView();
+    if (state.tab === "analytics") {
+      requestAnimationFrame(() => initAnalyticsCharts());
+    }
   } catch (e) {
     view.innerHTML = `<div class="card"><p class="muted">${e.message}</p></div>`;
   }
@@ -2505,6 +2515,13 @@ function initAnalyticsCharts() {
   const ctx2 = document.getElementById("performanceChart");
   
   const isMobile = window.innerWidth <= 900;
+
+  if (ctx1 && typeof Chart !== "undefined") {
+    Chart.getChart(ctx1)?.destroy();
+  }
+  if (ctx2 && typeof Chart !== "undefined") {
+    Chart.getChart(ctx2)?.destroy();
+  }
   
   if (ctx1 && state.analyticsData?.hourlyData) {
     const hours = state.analyticsData.hourlyData.map(h => h.hour.slice(-2) + ":00");
@@ -3445,14 +3462,12 @@ async function renderEvents() {
 }
 
 async function renderAnalytics() {
-  if (!state.analyticsData) {
-    state.analyticsData = await api("/analytics").catch(() => null);
-  }
+  state.analyticsData = await api("/analytics").catch(() => null);
   
   const data = state.analyticsData || {};
-  const weapons = (data.topWeapons || []).slice(0, 5).map(w => `
+  const weapons = (data.topWeapons || []).slice(0, 8).map(w => `
     <tr><td>${esc(w.weapon)}</td><td>${w.kills}</td></tr>
-  `).join("") || `<tr><td colspan="2" class="muted">No data yet</td></tr>`;
+  `).join("") || `<tr><td colspan="2"><div class="empty">No weapon data yet<span class="empty-hint">PvP kills with weapons will show here</span></div></td></tr>`;
 
   return `
     <div class="grid stats">
@@ -3463,7 +3478,10 @@ async function renderAnalytics() {
     </div>
     <div class="split" style="margin-top:1rem">
       <div class="card">
-        <h3>Player activity (24h)</h3>
+        <div class="card-head">
+          <h3>Player activity (24h)</h3>
+          <button data-action="refreshAnalytics">Refresh</button>
+        </div>
         <canvas id="analyticsChart" style="max-height:300px"></canvas>
       </div>
       <div class="card">
@@ -3476,12 +3494,89 @@ async function renderAnalytics() {
   `;
 }
 
+async function renderWipe() {
+  const data = await api("/wipe/automation").catch(() => null);
+  if (!data) {
+    return `<div class="card"><p class="muted">Couldn't load wipe automation.</p></div>`;
+  }
+
+  const canRun = can("statsReset");
+  const steps = data.steps || [];
+  const last = data.lastRun;
+  const lastRows = (data.lastResults || []).map((r) => `
+    <tr>
+      <td><code>${esc(r.id)}</code></td>
+      <td>${r.ok ? `<span class="pill ok">ok</span>` : `<span class="pill bad">fail</span>`}</td>
+      <td class="muted" style="font-size:.78rem">${esc(r.error || (r.detail?.warning || r.detail?.command || JSON.stringify(r.detail || {}).slice(0, 80)))}</td>
+    </tr>
+  `).join("") || `<tr><td colspan="3"><div class="empty">No wipe run yet</div></td></tr>`;
+
+  const stepRows = steps.map((s) => `
+    <label class="wipe-step" style="display:flex;gap:.75rem;align-items:flex-start;padding:.65rem 0;border-bottom:1px solid var(--line)">
+      <input type="checkbox" data-wipe-step="${esc(s.id)}" ${s.enabled !== false ? "checked" : ""} ${canRun ? "" : "disabled"} style="margin-top:.25rem" />
+      <span>
+        <strong>${esc(s.label)}</strong>
+        <span class="hint" style="display:block;margin-top:.2rem">${esc(s.hint || "")}</span>
+      </span>
+    </label>
+  `).join("");
+
+  const o = state.overview || {};
+  const wipeAt = o.wipe?.wipeAt;
+  const wipeLabel = wipeAt ? new Date(wipeAt).toLocaleString() : "Not set";
+
+  return `
+    <div class="split">
+      <div style="display:grid;gap:1rem">
+        <div class="card">
+          <div class="card-head">
+            <h3>Wipe checklist</h3>
+            ${last?.at ? `<span class="pill info">Last run ${esc(new Date(last.at).toLocaleString())}</span>` : ""}
+          </div>
+          <p class="card-desc">Toggle what runs, then hit <strong>Run wipe now</strong>. This is bot-side + RCON — it does not wipe the Nitrado map for you.</p>
+          <div id="wipeSteps">${stepRows}</div>
+          ${canRun ? `
+          <div class="form-row" style="margin-top:1rem">
+            <input id="wipeRunLabel" placeholder="Wipe label (YYYY-MM-DD)" value="${esc(new Date().toISOString().slice(0, 10))}" />
+            <button class="primary" data-action="runWipe">Run wipe now</button>
+            <button data-action="saveWipeAutomation">Save toggles</button>
+          </div>
+          <label style="display:flex;gap:.6rem;align-items:center;margin-top:.85rem;font-size:.9rem">
+            <input type="checkbox" id="wipeAutoSchedule" ${data.autoRunOnSchedule ? "checked" : ""} />
+            Auto-run when wipe countdown hits zero
+          </label>
+          ` : `<p class="hint" style="margin-top:1rem">You need stats-reset permission to run wipe automation.</p>`}
+        </div>
+
+        <div class="card">
+          <h3>Countdown</h3>
+          <p class="card-desc">Next wipe time for the status channel / website.</p>
+          <p class="hint" style="margin:0 0 .7rem">Current: ${esc(wipeLabel)} · Stats label: ${esc(o.stats?.wipe || "—")}</p>
+          <div class="form-row">
+            <input id="wipeAtInput" type="datetime-local" value="${esc(o.wipe?.localInput || "")}" />
+            <button class="primary" data-action="saveWipe">Save</button>
+            <button data-action="clearWipe">Clear</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Last run results</h3>
+        <table class="table">
+          <thead><tr><th>Step</th><th>Status</th><th>Detail</th></tr></thead>
+          <tbody>${lastRows}</tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
 async function renderMap() {
   return `
     <div class="card">
       <div class="empty" style="padding:3.5rem 1.5rem">
-        Coming soon
-        <span class="empty-hint">Live player positions on the map — not ready yet</span>
+        Not available on Console
+        <span class="empty-hint">Rust Console doesn’t expose a usable live map like PC. Kill distances still work when positions are available.</span>
       </div>
     </div>
   `;
@@ -3948,6 +4043,49 @@ function bindView() {
         if (a === "refreshServerStatus") {
           await refreshOverview();
           toast("Server status refreshed");
+          render();
+          return;
+        }
+        if (a === "refreshAnalytics") {
+          state.analyticsData = null;
+          toast("Refreshing analytics…");
+          render();
+          return;
+        }
+        if (a === "saveWipeAutomation") {
+          const enabled = {};
+          document.querySelectorAll("[data-wipe-step]").forEach((el) => {
+            enabled[el.dataset.wipeStep] = el.checked;
+          });
+          const autoRunOnSchedule = Boolean(document.getElementById("wipeAutoSchedule")?.checked);
+          await api("/wipe/automation", {
+            method: "POST",
+            body: { enabled, autoRunOnSchedule },
+          });
+          toast("Wipe automation saved");
+          render();
+          return;
+        }
+        if (a === "runWipe") {
+          if (!confirm("Run wipe automation now?\n\nThis resets selected bot data (stats, homes, cooldowns, leaderboard). It does NOT wipe the Nitrado map.")) return;
+          const enabled = {};
+          const steps = [];
+          document.querySelectorAll("[data-wipe-step]").forEach((el) => {
+            enabled[el.dataset.wipeStep] = el.checked;
+            if (el.checked) steps.push(el.dataset.wipeStep);
+          });
+          if (!steps.length) { toast("Select at least one step", true); return; }
+          const autoRunOnSchedule = Boolean(document.getElementById("wipeAutoSchedule")?.checked);
+          await api("/wipe/automation", {
+            method: "POST",
+            body: { enabled, autoRunOnSchedule },
+          });
+          const wipeLabel = document.getElementById("wipeRunLabel")?.value?.trim() || undefined;
+          toast("Running wipe…");
+          const r = await api("/wipe/run", { method: "POST", body: { steps, wipeLabel } });
+          const fails = (r.results || []).filter((x) => !x.ok).length;
+          toast(fails ? `Wipe finished with ${fails} warning(s)` : `Wipe complete — ${r.wipeLabel}`);
+          await refreshOverview().catch(() => {});
           render();
           return;
         }

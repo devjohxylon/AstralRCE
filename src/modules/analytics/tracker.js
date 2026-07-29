@@ -168,3 +168,12 @@ export async function getPlayerActivityData(ign) {
   const data = await load();
   return data.playerActivity[ign.toLowerCase()] || null;
 }
+
+/** Clear weapon kill counters for a new wipe (keeps pop/FPS history). */
+export async function resetWipeAnalytics() {
+  const data = await load();
+  data.weaponStats = {};
+  dirty = true;
+  await persist();
+  return { ok: true };
+}

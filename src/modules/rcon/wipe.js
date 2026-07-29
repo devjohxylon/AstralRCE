@@ -90,6 +90,9 @@ export function startWipeScheduler(client) {
   // Voice renames are throttled separately; website push more often
   wipeTimer = setInterval(() => {
     syncWipeStatus(client).catch(() => {});
+    import("./wipe-runner.js")
+      .then(({ maybeAutoRunWipe }) => maybeAutoRunWipe(client))
+      .catch(() => {});
   }, 60_000);
 }
 

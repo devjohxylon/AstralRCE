@@ -147,6 +147,17 @@ export async function loadPersistedGroupAlerts() {
   }
 }
 
+/** Clear alert cooldowns (and optionally history) for a fresh wipe. */
+export async function clearGroupAlertState({ clearHistory = false } = {}) {
+  recentGroupAlerts.clear();
+  if (clearHistory) {
+    groupAlerts.length = 0;
+    const settings = await getSettings();
+    settings.groupAlerts = [];
+    await saveSettings(settings);
+  }
+}
+
 /** Scan all known teams from rce.js cache. */
 export async function scanAllTeams() {
   const manager = getManager();
