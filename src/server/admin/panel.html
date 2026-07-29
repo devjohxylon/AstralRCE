@@ -1418,16 +1418,56 @@ async function boot() {
     
     if (can("overview")) await refreshOverview().catch(() => {});
     setTab(state.tab);
+    // Keep overview data fresh in memory, but never full-render the page on a timer —
+    // that wipes form inputs, scroll position, and focus while you're editing.
     setInterval(() => {
-      if (!can("overview") && !can("players")) return;
-      if (state.tab === "overview" || state.tab === "players" || state.tab === "status") {
-        refreshOverview().then(render).catch(() => {});
-      }
+      if (!can("overview")) return;
+      if (!["overview", "players", "status"].includes(state.tab)) return;
+      if (isUserEditing()) return;
+      refreshOverview()
+        .then(() => softRefreshLiveTab())
+        .catch(() => {});
     }, 15000);
   } else {
     state.session = null;
     initLoginScene();
   }
+}
+
+function isUserEditing() {
+  const el = document.activeElement;
+  if (!el || el === document.body) return false;
+  const tag = el.tagName;
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
+  if (el.isContentEditable) return true;
+  if (document.querySelector(".modal.show, .hud-modal.open, [data-modal='open']")) return true;
+  return false;
+}
+
+function softRefreshLiveTab() {
+  const o = state.overview || {};
+  const server = o.server || {};
+  const online = o.onlinePlayers || [];
+  const n = server.players ?? online.length ?? 0;
+  const max = server.maxPlayers ?? "?";
+
+  document.querySelectorAll("[data-live='pop']").forEach((el) => {
+    el.innerHTML = `${n}<span class="slash"> / ${max}</span>`;
+  });
+  document.querySelectorAll("[data-live='queued']").forEach((el) => {
+    el.textContent = String(server.queued ?? 0);
+  });
+  document.querySelectorAll("[data-live='joining']").forEach((el) => {
+    el.textContent = String(server.joining ?? 0);
+  });
+  document.querySelectorAll("[data-live='fps']").forEach((el) => {
+    el.textContent = String(server.fps ?? "—");
+  });
+  document.querySelectorAll("[data-live='online-count']").forEach((el) => {
+    el.textContent = String(online.length);
+  });
+
+  refreshStatusPills();
 }
 
 function connectWebSocket() {
@@ -1470,16 +1510,14 @@ function connectWebSocket() {
   });
 
   state.socket.on("player:join", (data) => {
-    if (state.tab === "players") {
+    if (state.tab === "players" || state.tab === "overview" || state.tab === "status") {
       toast(`📥 ${data.ign} joined`);
-      setTimeout(() => refreshOverview().then(render).catch(() => {}), 1000);
     }
   });
 
   state.socket.on("player:leave", (data) => {
-    if (state.tab === "players") {
+    if (state.tab === "players" || state.tab === "overview" || state.tab === "status") {
       toast(`📤 ${data.ign} left`);
-      setTimeout(() => refreshOverview().then(render).catch(() => {}), 1000);
     }
   });
 
@@ -1552,8 +1590,9 @@ async function render() {
   }
 }
 
-function statCard(value, label) {
-  return `<div class="card stat"><div class="metric">${value}<small>${esc(label)}</small></div></div>`;
+function statCard(value, label, liveKey) {
+  const inner = liveKey ? `<span data-live="${liveKey}">${value}</span>` : value;
+  return `<div class="card stat"><div class="metric">${inner}<small>${esc(label)}</small></div></div>`;
 }
 
 function renderOverview() {
@@ -1586,9 +1625,9 @@ function renderOverview() {
 
   return `
     <div class="grid stats">
-      ${statCard(`${s.players ?? "—"}<span class="slash"> / ${s.maxPlayers ?? "?"}</span>`, "Players online")}
-      ${statCard(s.queued ?? 0, "In queue")}
-      ${statCard(s.fps ?? "—", "Server FPS")}
+      ${statCard(`${s.players ?? "—"}<span class="slash"> / ${s.maxPlayers ?? "?"}</span>`, "Players online", "pop")}
+      ${statCard(s.queued ?? 0, "In queue", "queued")}
+      ${statCard(s.fps ?? "—", "Server FPS", "fps")}
       ${statCard(fmtUptime(s.uptime), "Server uptime")}
       ${statCard(o.stats?.totalKills ?? 0, "Total kills")}
     </div>
@@ -1795,10 +1834,10 @@ async function renderServerStatus() {
 
   return `
     <div class="grid stats">
-      ${statCard(`${s.players ?? "—"}<span class="slash"> / ${s.maxPlayers ?? "?"}</span>`, "Players online")}
-      ${statCard(s.queued ?? 0, "In queue")}
-      ${statCard(s.joining ?? 0, "Joining")}
-      ${statCard(s.fps ?? "—", "Server FPS")}
+      ${statCard(`${s.players ?? "—"}<span class="slash"> / ${s.maxPlayers ?? "?"}</span>`, "Players online", "pop")}
+      ${statCard(s.queued ?? 0, "In queue", "queued")}
+      ${statCard(s.joining ?? 0, "Joining", "joining")}
+      ${statCard(s.fps ?? "—", "Server FPS", "fps")}
       ${statCard(fmtUptime(s.uptime), "Uptime")}
       ${statCard(s.entities ?? "—", "Entities")}
     </div>
@@ -2152,7 +2191,7 @@ async function renderDiscordChannels() {
       <h3>Status channel displays</h3>
       <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:0">
         Pop used to show <code>🌐-12100</code> on text channels because Discord strips <code>/</code> from
-        <code>🌐 12/100</code>. Default is now <code>🌐 12｜100</code> — change emoji, format, queue, wipe labels below.
+        <code>12/100</code>. Default is <code>9 | 100</code>, or <code>9 | 100 | 2 Que</code> when queued.
       </p>
     </div>
     <div class="feed-settings-grid">${statusBlocks}</div>
@@ -2196,7 +2235,7 @@ async function renderServerCommands() {
   ).join("");
 
   const rankOpts = [
-    `<option value="vip">VIP (kit)</option>`,
+    `<option value="vip">VIP</option>`,
     ...(data.ranks || []).map((r) => `<option value="${esc(r.id)}">${esc(r.label)}</option>`),
   ].join("");
 

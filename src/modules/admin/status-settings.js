@@ -5,7 +5,7 @@ export const STATUS_SETTING_DEFS = [
   {
     key: "popStatus",
     label: "Pop count channel",
-    hint: "Renames CHANNEL_POP_STATUS. Avoid “/” — Discord text channels strip it (🌐 12/100 → 🌐-12100).",
+    hint: "Renames CHANNEL_POP_STATUS. Avoid “/” — Discord strips it. Default: 9 | 100, or 9 | 100 | 2 Que when queued.",
     fields: [
       {
         key: "enabled",
@@ -16,9 +16,9 @@ export const STATUS_SETTING_DEFS = [
       {
         key: "emoji",
         type: "text",
-        label: "Emoji",
-        default: "🌐",
-        placeholder: "🌐",
+        label: "Emoji (optional)",
+        default: "",
+        placeholder: "(none)",
       },
       {
         key: "style",
@@ -27,10 +27,10 @@ export const STATUS_SETTING_DEFS = [
         hint: "How online / max are shown",
         default: "pipe",
         options: [
-          { value: "pipe", label: "🌐 12｜100  (recommended)" },
-          { value: "dash", label: "🌐 12-100" },
-          { value: "of", label: "🌐 12 of 100" },
-          { value: "online-only", label: "🌐 12" },
+          { value: "pipe", label: "9 | 100  (recommended)" },
+          { value: "dash", label: "9-100" },
+          { value: "of", label: "9 of 100" },
+          { value: "online-only", label: "9" },
           { value: "custom", label: "Custom template" },
         ],
       },
@@ -38,9 +38,9 @@ export const STATUS_SETTING_DEFS = [
         key: "template",
         type: "text",
         label: "Custom template",
-        hint: "Tokens: {emoji} {online} {max} {queued} {queueEmoji}",
-        default: "{emoji} {online}｜{max}",
-        placeholder: "{emoji} {online}｜{max}",
+        hint: "Tokens: {emoji} {online} {max} {queued} {queueLabel}",
+        default: "{online} | {max}",
+        placeholder: "{online} | {max}",
       },
       {
         key: "showMax",
@@ -55,11 +55,12 @@ export const STATUS_SETTING_DEFS = [
         default: true,
       },
       {
-        key: "queueEmoji",
+        key: "queueLabel",
         type: "text",
-        label: "Queue emoji",
-        default: "🕑",
-        placeholder: "🕑",
+        label: "Queue label",
+        hint: "Appended as “ | 2 Que”",
+        default: "Que",
+        placeholder: "Que",
       },
       {
         key: "offlineLabel",
@@ -132,8 +133,10 @@ function mergeStatus(def, stored = {}) {
       const ok = field.options.some((o) => o.value === raw);
       if (ok) merged[field.key] = raw;
     } else if (field.type === "text") {
-      const s = String(raw ?? "").trim();
-      merged[field.key] = s || field.default;
+      // Allow intentionally blank (e.g. no pop emoji). Empty default stays empty.
+      if (raw == null) continue;
+      const s = String(raw).trim();
+      merged[field.key] = s.length || field.default === "" ? s : field.default;
     } else if (field.type === "number") {
       const n = Number(raw);
       if (Number.isFinite(n)) merged[field.key] = Math.trunc(n);
@@ -145,7 +148,15 @@ function mergeStatus(def, stored = {}) {
 export function normalizeStatusSettings(stored = {}) {
   const out = {};
   for (const def of STATUS_SETTING_DEFS) {
-    out[def.key] = mergeStatus(def, stored[def.key] || {});
+    const raw = { ...(stored[def.key] || {}) };
+    // Drop old globe default so renames become "9 | 100" without a panel visit.
+    if (def.key === "popStatus" && raw.emoji === "🌐") raw.emoji = "";
+    // queueEmoji → queueLabel migration
+    if (def.key === "popStatus" && raw.queueLabel == null && raw.queueEmoji != null) {
+      raw.queueLabel = "Que";
+      delete raw.queueEmoji;
+    }
+    out[def.key] = mergeStatus(def, raw);
   }
   return out;
 }
@@ -219,17 +230,30 @@ function applyTemplate(template, vars) {
   });
 }
 
+function withOptionalEmoji(emoji, rest) {
+  const e = String(emoji ?? "").trim();
+  return e ? `${e} ${rest}` : rest;
+}
+
+function queueSuffix(queued, label) {
+  const qLabel = String(label || "Que").trim() || "Que";
+  return ` | ${queued} ${qLabel}`;
+}
+
 /**
  * Build the pop status channel name from server info + panel settings.
+ * Default: "9 | 100" / with queue "9 | 100 | 2 Que"
  * @param {object|null} info RCON server info
  */
 export function formatPopChannelName(info, settings = getStatusSettingsSync().popStatus) {
   const s = settings || defaultStatusSettings().popStatus;
-  const emoji = s.emoji || "🌐";
-  const queueEmoji = s.queueEmoji || "🕑";
+  const emoji = String(s.emoji ?? "").trim();
+  const qLabel = s.queueLabel || "Que";
 
   if (!info) {
-    return sanitizeStatusChannelName(`${emoji} ${s.offlineLabel || "offline"}`);
+    return sanitizeStatusChannelName(
+      withOptionalEmoji(emoji, s.offlineLabel || "offline"),
+    );
   }
 
   const online = clampCount(info.Players);
@@ -242,42 +266,45 @@ export function formatPopChannelName(info, settings = getStatusSettingsSync().po
   let core;
   switch (s.style) {
     case "online-only":
-      core = `${emoji} ${online}`;
+      core = withOptionalEmoji(emoji, String(online));
       break;
     case "dash":
-      core =
-        s.showMax !== false
-          ? `${emoji} ${online}-${maxLabel}`
-          : `${emoji} ${online}`;
+      core = withOptionalEmoji(
+        emoji,
+        s.showMax !== false ? `${online}-${maxLabel}` : String(online),
+      );
       break;
     case "of":
-      core =
-        s.showMax !== false
-          ? `${emoji} ${online} of ${maxLabel}`
-          : `${emoji} ${online}`;
+      core = withOptionalEmoji(
+        emoji,
+        s.showMax !== false ? `${online} of ${maxLabel}` : String(online),
+      );
       break;
     case "custom":
-      core = applyTemplate(s.template || "{emoji} {online}｜{max}", {
+      core = applyTemplate(s.template || "{online} | {max}", {
         emoji,
         online,
         max: maxLabel,
         queued,
-        queueEmoji,
+        queueLabel: qLabel,
+        queueEmoji: qLabel,
       });
       break;
     case "pipe":
     default:
-      core =
-        s.showMax !== false
-          ? `${emoji} ${online}｜${maxLabel}`
-          : `${emoji} ${online}`;
+      core = withOptionalEmoji(
+        emoji,
+        s.showMax !== false ? `${online} | ${maxLabel}` : String(online),
+      );
       break;
   }
 
-  if (s.showQueue !== false && queued > 0 && s.style !== "custom") {
-    core += ` ${queueEmoji}${queued}`;
-  } else if (s.style === "custom" && s.showQueue !== false && queued > 0 && !/\{queued\}/.test(s.template || "")) {
-    core += ` ${queueEmoji}${queued}`;
+  if (s.showQueue !== false && queued > 0) {
+    if (s.style === "custom" && /\{queued\}/.test(s.template || "")) {
+      /* template already includes queue */
+    } else {
+      core += queueSuffix(queued, qLabel);
+    }
   }
 
   return sanitizeStatusChannelName(core);

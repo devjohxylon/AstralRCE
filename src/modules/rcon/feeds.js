@@ -241,16 +241,20 @@ export function feedKill(data) {
     killStreaks.set(killerKey, streak);
     killStreaks.delete(victimKey);
 
+    const showStreak = kf.showStreaks && STREAK_MILESTONES.has(streak);
+    const streakSuffix = showStreak ? ` · 🔥 ${streak} streak` : "";
+
     if (kf.style === "compact") {
       queueFeedEmbed(
         channelId,
         compactKillEmbed({
-          line: formatCompactPvp({
-            victim,
-            killer,
-            distance,
-            showDistance: kf.showDistance !== false,
-          }),
+          line:
+            formatCompactPvp({
+              victim,
+              killer,
+              distance,
+              showDistance: kf.showDistance !== false,
+            }) + streakSuffix,
         }),
       );
     } else {
@@ -259,26 +263,13 @@ export function feedKill(data) {
       if (headshot) extras.push("HS");
       if (kf.showDistance !== false && distance != null) extras.push(`${distance}m`);
       const suffix = extras.length ? ` *(${extras.join(" · ")})*` : "";
+      const streakBit = showStreak
+        ? ` · 🔥 **${streak}** streak`
+        : "";
       queueFeedLine(
         channelId,
-        `🔫 **${clean(killer.name)}** killed **${clean(victim.name)}**${suffix}`,
+        `🔫 **${clean(killer.name)}** killed **${clean(victim.name)}**${suffix}${streakBit}`,
       );
-    }
-
-    if (kf.showStreaks && STREAK_MILESTONES.has(streak)) {
-      if (kf.style === "compact") {
-        queueFeedEmbed(
-          channelId,
-          compactKillEmbed({
-            line: `🔥 ${clean(killer.name)} · ${streak} streak`,
-          }),
-        );
-      } else {
-        queueFeedLine(
-          channelId,
-          `🔥 **${clean(killer.name)}** is on a **${streak}** kill streak`,
-        );
-      }
     }
     return;
   }

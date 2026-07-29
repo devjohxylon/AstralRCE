@@ -71,7 +71,7 @@ export const FEED_SETTING_DEFS = [
         key: "showStreaks",
         type: "toggle",
         label: "Show kill streaks",
-        hint: "Announce 3 / 5 / 10+ streaks",
+        hint: "Append 🔥 3/5/10… streak on the kill that hits the milestone",
         default: true,
       },
     ],
