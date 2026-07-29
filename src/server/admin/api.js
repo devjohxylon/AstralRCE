@@ -85,6 +85,10 @@ import {
   getStatusSettingsForPanel,
   saveStatusSettings,
 } from "../../modules/admin/status-settings.js";
+import {
+  getVipSettingsForPanel,
+  saveVipSettings,
+} from "../../modules/admin/vip-settings.js";
 import { listReports, scanAllTeams, searchCombat } from "../../modules/rcon/reports.js";
 import {
   STAFF_PERMISSIONS,
@@ -927,6 +931,7 @@ export async function attachAdminPanel(app, client) {
       : client.guilds.cache.first() || null;
 
     let discordChannels = [];
+    let discordRoles = [];
     if (guild) {
       const chans = await guild.channels.fetch().catch(() => null);
       if (chans) {
@@ -940,13 +945,22 @@ export async function attachAdminPanel(app, client) {
           }))
           .sort((a, b) => a.name.localeCompare(b.name));
       }
+      const roles = await guild.roles.fetch().catch(() => null);
+      if (roles) {
+        discordRoles = [...roles.values()]
+          .filter((r) => r && !r.managed && r.id !== guild.id)
+          .map((r) => ({ id: r.id, name: r.name, color: r.hexColor }))
+          .sort((a, b) => a.name.localeCompare(b.name));
+      }
     }
     return {
       channels: await getChannelConfig(),
       discordChannels,
+      discordRoles,
       ...(await getFeedSettingsForPanel()),
       ...(await getCommandSettingsForPanel()),
       ...(await getStatusSettingsForPanel()),
+      ...(await getVipSettingsForPanel()),
     };
   }
 
@@ -997,6 +1011,21 @@ export async function attachAdminPanel(app, client) {
       const result = await saveStatusSettings(patch);
       if (!result.ok) return res.status(400).json(result);
       await audit(req, "status_displays_save", { keys: Object.keys(patch) });
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  app.post("/admin/api/vip-settings", requireAuth, requirePerm("serverCommands"), async (req, res) => {
+    const patch = req.body?.vip ?? req.body ?? {};
+    if (!patch || typeof patch !== "object") {
+      return res.status(400).json({ ok: false, error: "Missing vip settings object" });
+    }
+    try {
+      const result = await saveVipSettings(patch);
+      if (!result.ok) return res.status(400).json(result);
+      await audit(req, "vip_settings_save", { keys: Object.keys(patch) });
       res.json(result);
     } catch (error) {
       res.status(500).json({ ok: false, error: error.message });
@@ -1054,7 +1083,7 @@ export async function attachAdminPanel(app, client) {
           if (!config.vip.revokeCommand) {
             return res.status(400).json({
               ok: false,
-              error: "Set VIP_RCON_REVOKE in .env to revoke VIP via RCON",
+              error: "Set a VIP revoke RCON command in Discord → VIP settings (or VIP_RCON_REVOKE)",
             });
           }
           const cmd = config.vip.revokeCommand
@@ -1074,7 +1103,7 @@ export async function attachAdminPanel(app, client) {
           return res.json({ ok: true, result: result ?? "", command: cmd });
         }
 
-        const kitResult = await giveKit(ign, config.vip.kitId || "vip");
+        const kitResult = await giveKit(ign, config.vip.kitId || "vipkit");
         await audit(req, "rank_grant", { rank: "vip", ign, via: "kit" });
         if (!kitResult.ok) return res.status(400).json(kitResult);
         return res.json(kitResult);

@@ -2360,6 +2360,23 @@ async function renderDiscordChannels() {
       </div>
     </div>`).join("") || `<div class="card"><div class="empty">No status display settings</div></div>`;
 
+  const vipFields = (data.vip?.fields || []).map((field) => {
+    if (field.key === "roleId") {
+      const id = "vip-roleId";
+      const selectOpts = [`<option value="">— unset —</option>`]
+        .concat((data.discordRoles || []).map((r) =>
+          `<option value="${esc(r.id)}" ${r.id === field.value ? "selected" : ""}>${esc(r.name)}</option>`
+        )).join("");
+      return `
+        <div class="feed-field">
+          <label for="${id}">${esc(field.label)}${field.hint ? `<small>${esc(field.hint)}</small>` : ""}</label>
+          <select id="${id}" data-vip-field="roleId">${selectOpts}</select>
+          <input data-vip-field-manual="roleId" placeholder="or paste role id" value="${esc(field.value || "")}" style="margin-top:.35rem" />
+        </div>`;
+    }
+    return renderSettingField("vip", "vip", { ...field, key: field.key });
+  }).join("") || `<div class="empty">No VIP settings</div>`;
+
   const commandBlocks = (data.commandGroups || []).map((g) => `
     <div class="card cmd-group-card" style="margin-bottom:.75rem">
       <h3>${esc(g.group)}</h3>
@@ -2398,6 +2415,14 @@ async function renderDiscordChannels() {
     </div>
     <div class="feed-settings-grid">${feedBlocks}</div>
     <div class="card" style="margin-bottom:.75rem;margin-top:1rem">
+      <h3>VIP settings</h3>
+      <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:0 0 .85rem">
+        Kit ID, claim phrase, Discord role, and optional RCON grant/revoke. Saved here — no Railway env restart needed.
+        Default kit is <code>vipkit</code>. Claim phrase default is <code>I need water</code>.
+      </p>
+      <div class="feed-field-grid">${vipFields}</div>
+    </div>
+    <div class="card" style="margin-bottom:.75rem;margin-top:1rem">
       <h3>Bot slash commands</h3>
       <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:0">
         Every Discord slash command the bot registers. Disable to block usage instantly; extras (homes, TPR timeout, giveaways, auto-mute) apply when saved.
@@ -2409,6 +2434,7 @@ async function renderDiscordChannels() {
       <button class="primary" data-action="saveChannels">Save channels</button>
       <button class="primary" data-action="saveStatusDisplays">Save status displays</button>
       <button class="primary" data-action="saveFeeds">Save feed settings</button>
+      <button class="primary" data-action="saveVip">Save VIP settings</button>
       <button class="primary" data-action="saveCommands">Save command settings</button>
     </div>`;
 }
@@ -2464,7 +2490,7 @@ async function renderServerCommands() {
         <div class="card" style="margin-bottom:.75rem">
           <h3>In-game ranks</h3>
           <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:0 0 .6rem">
-            Moderator uses vanilla auth. VIP grants the VIP kit from <code>VIP_KIT_ID</code>.
+            Moderator uses vanilla auth. VIP grants the VIP kit from Discord → VIP settings (default <code>vipkit</code>).
             ${state.session?.role === "owner" ? "Owner rank is available to you only." : "In-game Owner can only be granted by the panel owner."}
           </p>
           <input id="cmdRankIgn" list="cmdOnlineList" placeholder="Player IGN" />
@@ -4034,6 +4060,24 @@ function bindView() {
           });
           const r = await api("/status-displays", { method: "POST", body: { statusDisplays } });
           toast(r.ok ? "Status displays saved" : (r.error || "Failed"), !r.ok);
+          if (r.ok) render();
+        }
+        if (a === "saveVip") {
+          const vip = {};
+          document.querySelectorAll("[data-vip][data-vip-field]").forEach((el) => {
+            const field = el.dataset.vipField;
+            if (el.type === "checkbox") vip[field] = el.checked;
+            else if (el.type === "number") vip[field] = Number(el.value);
+            else vip[field] = el.value;
+          });
+          // Role picker: prefer pasted id, else select
+          const roleSel = document.querySelector('[data-vip-field="roleId"]');
+          const roleManual = document.querySelector('[data-vip-field-manual="roleId"]');
+          if (roleSel || roleManual) {
+            vip.roleId = (roleManual?.value || roleSel?.value || "").trim();
+          }
+          const r = await api("/vip-settings", { method: "POST", body: { vip } });
+          toast(r.ok ? "VIP settings saved" : (r.error || "Failed"), !r.ok);
           if (r.ok) render();
         }
         if (a === "cmdRankGrant" || a === "cmdRankRevoke") {

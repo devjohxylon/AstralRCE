@@ -14,6 +14,7 @@ import { loadChannelOverrides } from "./modules/admin/channel-settings.js";
 import { loadFeedSettings } from "./modules/admin/feed-settings.js";
 import { loadCommandSettings } from "./modules/admin/command-settings.js";
 import { loadStatusSettings } from "./modules/admin/status-settings.js";
+import { loadVipSettings } from "./modules/admin/vip-settings.js";
 import { assertDataPersistence } from "./data/store.js";
 import { attachWebSocket, attachAnalytics } from "./modules/rcon/feeds.js";
 import * as websocketModule from "./server/websocket.js";
@@ -57,6 +58,9 @@ export function createBotClient() {
     );
     await loadStatusSettings().catch((e) =>
       console.error("Status display settings failed:", e.message),
+    );
+    await loadVipSettings().catch((e) =>
+      console.error("VIP settings failed:", e.message),
     );
     console.log(`Watching ${config.channels.watch.size} relay channel(s)`);
 

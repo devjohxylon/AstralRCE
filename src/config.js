@@ -248,7 +248,8 @@ export const config = {
     logoUrl: optional("BRAND_LOGO_URL") || null,
   },
   vip: {
-    kitId: optional("VIP_KIT_ID", "vip") || "vip",
+    // Defaults; admin panel VIP settings override these at runtime (settings.json).
+    kitId: optional("VIP_KIT_ID", "vipkit") || "vipkit",
     grantCommand: optional("VIP_RCON_GRANT") || null,
     revokeCommand: optional("VIP_RCON_REVOKE") || null,
     // Claim via in-game quick chat (default: "I need water"). Requires Discord VIP + link.
