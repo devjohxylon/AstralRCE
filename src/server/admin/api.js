@@ -592,7 +592,73 @@ export async function attachAdminPanel(app, client) {
   });
 
   app.get("/admin/api/links", requireAuth, requirePerm("links"), async (_req, res) => {
-    res.json({ ok: true, links: await listLinks() });
+    try {
+      const links = await listLinks();
+      const { config } = await import("../../config.js");
+      const guild = config.discord.guildId
+        ? await client.guilds.fetch(config.discord.guildId).catch(() => null)
+        : client.guilds.cache.first() || null;
+
+      const snowflakeIds = [
+        ...new Set(
+          links
+            .map((l) => String(l.discordId || "").trim())
+            .filter((id) => /^\d{5,32}$/.test(id)),
+        ),
+      ];
+
+      const nameById = new Map();
+      if (guild && snowflakeIds.length) {
+        // Bulk-fetch guild members when possible; fall back per-id.
+        try {
+          const fetched = await guild.members.fetch({ user: snowflakeIds });
+          for (const [, member] of fetched) {
+            nameById.set(member.id, {
+              discordName: member.displayName || member.user?.username || null,
+              discordUsername: member.user?.username || null,
+            });
+          }
+        } catch {
+          /* per-id below */
+        }
+      }
+
+      for (const id of snowflakeIds) {
+        if (nameById.has(id)) continue;
+        const member = guild
+          ? await guild.members.fetch(id).catch(() => null)
+          : null;
+        if (member) {
+          nameById.set(id, {
+            discordName: member.displayName || member.user?.username || null,
+            discordUsername: member.user?.username || null,
+          });
+          continue;
+        }
+        const user = await client.users.fetch(id).catch(() => null);
+        if (user) {
+          nameById.set(id, {
+            discordName: user.globalName || user.username || null,
+            discordUsername: user.username || null,
+          });
+        }
+      }
+
+      const enriched = links.map((l) => {
+        const id = String(l.discordId || "").trim();
+        const resolved = nameById.get(id);
+        if (resolved) return { ...l, ...resolved };
+        // Non-snowflake keys (legacy force-links with a username) — show as-is
+        if (id && !/^\d{5,32}$/.test(id)) {
+          return { ...l, discordName: id, discordUsername: id };
+        }
+        return { ...l, discordName: null, discordUsername: null };
+      });
+
+      res.json({ ok: true, links: enriched });
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
   });
 
   app.post("/admin/api/links", requireAuth, requirePerm("links"), async (req, res) => {

@@ -2168,18 +2168,30 @@ async function renderWarps() {
 
 async function renderLinks() {
   const data = await api("/links");
-  const rows = data.links.map((l) => `
+  const rows = data.links.map((l) => {
+    const name = l.discordName || l.discordUsername;
+    const userLabel = name
+      ? `@${String(name).replace(/^@/, "")}`
+      : String(l.discordId || "");
+    const idHint = name && /^\d{5,32}$/.test(String(l.discordId || ""))
+      ? `<div class="muted" style="font-size:.68rem;margin-top:.15rem">${esc(l.discordId)}</div>`
+      : "";
+    return `
     <tr>
       <td data-label="IGN">${esc(l.ign)}</td>
-      <td data-label="Discord ID"><code>${esc(l.discordId)}</code></td>
+      <td data-label="Discord">
+        <code title="${esc(l.discordId || "")}">${esc(userLabel)}</code>
+        ${idHint}
+      </td>
       <td data-label="Linked">${new Date(l.linkedAt).toLocaleString()}</td>
       <td data-label="Actions" class="actions"><button class="danger" data-action="unlink" data-id="${esc(l.discordId)}">Unlink</button></td>
-    </tr>`).join("") || `<tr><td colspan="4" class="muted">No links</td></tr>`;
+    </tr>`;
+  }).join("") || `<tr><td colspan="4" class="muted">No links</td></tr>`;
   return `
     <div class="split">
       <div class="card">
         <h3>Linked accounts</h3>
-        <table class="table"><thead><tr><th>IGN</th><th>Discord ID</th><th>Linked</th><th></th></tr></thead><tbody>${rows}</tbody></table>
+        <table class="table"><thead><tr><th>IGN</th><th>Discord</th><th>Linked</th><th></th></tr></thead><tbody>${rows}</tbody></table>
       </div>
       <div class="card">
         <h3>Force link</h3>
