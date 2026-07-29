@@ -6,7 +6,6 @@ import { resetStats, statsSummary } from "./stats.js";
 import { clearTeleportCooldowns } from "./teleports.js";
 import { clearKillStreaks } from "./feeds.js";
 import { clearGroupAlertState } from "./reports.js";
-import { resetWipeAnalytics } from "../analytics/tracker.js";
 import { setWipeAt, syncWipeStatus } from "./wipe.js";
 import { publishLeaderboardToDiscord } from "./leaderboard-publish.js";
 
@@ -47,12 +46,6 @@ export const WIPE_STEPS = [
     label: "Group alerts",
     hint: "Trio alert cooldowns",
     defaultOn: true,
-  },
-  {
-    id: "resetAnalytics",
-    label: "Weapon analytics",
-    hint: "Top weapon counters",
-    defaultOn: false,
   },
   {
     id: "publishLeaderboard",
@@ -241,10 +234,6 @@ export async function runWipeAutomation({
   });
   await runStep("clearGroupAlerts", async () => {
     await clearGroupAlertState();
-    return { ok: true };
-  });
-  await runStep("resetAnalytics", async () => {
-    await resetWipeAnalytics();
     return { ok: true };
   });
   await runStep("publishLeaderboard", () => stepPublishLeaderboard(client));
