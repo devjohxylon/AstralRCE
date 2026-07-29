@@ -90,7 +90,7 @@ export async function handleLinkPanelButton(interaction) {
         ephemeral: true,
         content:
           "You're **not linked** yet.\n\n" +
-          "Join the server, press **Link Account**, and enter your exact IGN.",
+          "Press **Link Account** and enter your exact IGN.",
       });
     }
     const when = Math.floor(new Date(link.linkedAt).getTime() / 1000);
@@ -144,7 +144,7 @@ export async function handleLinkModal(interaction) {
     await interaction.editReply({
       content:
         `❌ **Couldn't link**\n${result.error}\n\n` +
-        "Make sure you're online and the name matches exactly.",
+        "Double-check the spelling of your IGN.",
     });
     return true;
   }
