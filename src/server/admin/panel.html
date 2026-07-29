@@ -1461,6 +1461,21 @@ const state = {
   kitBuilderOpen: false,
   statsCategory: "kills",
   analyticsData: null,
+  mapCal: (() => {
+    try {
+      return {
+        pad: 0,
+        flipX: false,
+        flipZ: false,
+        rot180: false,
+        swapXZ: false,
+        sizeOverride: 0,
+        ...JSON.parse(localStorage.getItem("astralMapCal") || "{}"),
+      };
+    } catch {
+      return { pad: 0, flipX: false, flipZ: false, rot180: false, swapXZ: false, sizeOverride: 0 };
+    }
+  })(),
 };
 
 const NAV_SECTIONS = {
@@ -3157,6 +3172,57 @@ function drawProceduralTerrain(ctx, w, h, seed) {
   }
 }
 
+function saveMapCal() {
+  localStorage.setItem("astralMapCal", JSON.stringify(state.mapCal || {}));
+}
+
+function fitContain(imgW, imgH, boxW, boxH) {
+  if (!imgW || !imgH) return { dx: 0, dy: 0, dw: boxW, dh: boxH };
+  const scale = Math.min(boxW / imgW, boxH / imgH);
+  const dw = imgW * scale;
+  const dh = imgH * scale;
+  return {
+    dx: (boxW - dw) / 2,
+    dy: (boxH - dh) / 2,
+    dw,
+    dh,
+  };
+}
+
+/** Map Rust world X/Z into the drawn map image rect. */
+function worldToMapPixel(wx, wz, mapSize, rect, cal = state.mapCal) {
+  let x = Number(wx);
+  let z = Number(wz);
+  if (!Number.isFinite(x) || !Number.isFinite(z)) return null;
+
+  if (cal?.swapXZ) {
+    const t = x;
+    x = z;
+    z = t;
+  }
+  if (cal?.rot180) {
+    x = -x;
+    z = -z;
+  }
+  if (cal?.flipX) x = -x;
+  if (cal?.flipZ) z = -z;
+
+  const size = Number(cal?.sizeOverride) > 0 ? Number(cal.sizeOverride) : mapSize;
+  if (!size || size <= 0) return null;
+
+  let nx = (x + size / 2) / size;
+  let nz = (z + size / 2) / size;
+  const pad = Math.max(0, Math.min(0.3, (Number(cal?.pad) || 0) / 100));
+  const usable = 1 - 2 * pad;
+  nx = pad + nx * usable;
+  nz = pad + nz * usable;
+
+  return {
+    x: rect.dx + nx * rect.dw,
+    y: rect.dy + (1 - nz) * rect.dh,
+  };
+}
+
 function drawMap() {
   const canvas = document.getElementById("mapCanvas");
   if (!canvas) return;
@@ -3175,23 +3241,35 @@ function drawMap() {
   canvas.style.width = "100%";
   canvas.style.height = "100%";
 
-  ctx.clearRect(0, 0, px, px);
+  ctx.fillStyle = "#0a0a0a";
+  ctx.fillRect(0, 0, px, px);
 
-  const hasPhoto = img && img.style.display !== "none" && img.complete && img.naturalWidth > 0;
-  if (!hasPhoto) {
+  const hasPhoto = img && img.complete && img.naturalWidth > 0;
+  let rect = { dx: 0, dy: 0, dw: px, dh: px };
+
+  if (hasPhoto) {
+    // Draw image into canvas with contain-fit so dots share the same rect
+    // (avoids object-fit letterbox mismatch with an overlay canvas).
+    rect = fitContain(img.naturalWidth, img.naturalHeight, px, px);
+    ctx.drawImage(img, rect.dx, rect.dy, rect.dw, rect.dh);
+    img.style.display = "none";
+  } else {
     const seed = state.overview?.server?.mapSeed || 1;
     drawProceduralTerrain(ctx, px, px, seed);
   }
 
   const MAP_SIZE = Number(state.overview?.server?.mapSize) || 4000;
   const players = state.playerPositions || [];
+  const cal = state.mapCal || {};
 
   players.forEach((p) => {
     if (!p.coords) return;
+    const pt = worldToMapPixel(p.coords.x, p.coords.z, MAP_SIZE, rect, cal);
+    if (!pt) return;
 
-    const x = ((p.coords.x + MAP_SIZE / 2) / MAP_SIZE) * px;
-    const y = px - ((p.coords.z + MAP_SIZE / 2) / MAP_SIZE) * px;
-    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+    // Soft-clamp so edge players (oil rig) stay on the drawn map, not in the gutter
+    const x = Math.min(rect.dx + rect.dw - 2, Math.max(rect.dx + 2, pt.x));
+    const y = Math.min(rect.dy + rect.dh - 2, Math.max(rect.dy + 2, pt.y));
 
     ctx.shadowColor = "rgba(0,0,0,0.8)";
     ctx.shadowBlur = 4;
@@ -3206,13 +3284,20 @@ function drawMap() {
     ctx.arc(x, y, 3, 0, Math.PI * 2);
     ctx.fill();
 
+    const label = p.ign;
+    ctx.font = "bold 12px sans-serif";
+    const tw = ctx.measureText(label).width;
+    let lx = x + 10;
+    if (lx + tw > rect.dx + rect.dw - 4) lx = x - tw - 10;
+    lx = Math.max(rect.dx + 2, Math.min(lx, rect.dx + rect.dw - tw - 2));
+    const ly = Math.max(rect.dy + 12, Math.min(y + 4, rect.dy + rect.dh - 4));
+
     ctx.shadowBlur = 2;
     ctx.fillStyle = "#fff";
     ctx.strokeStyle = "#000";
     ctx.lineWidth = 3;
-    ctx.font = "bold 12px sans-serif";
-    ctx.strokeText(p.ign, x + 10, y + 4);
-    ctx.fillText(p.ign, x + 10, y + 4);
+    ctx.strokeText(label, lx, ly);
+    ctx.fillText(label, lx, ly);
 
     ctx.shadowBlur = 0;
   });
@@ -4024,8 +4109,11 @@ async function renderMap() {
   const mapName = server?.map || "Unknown";
   const withCoords = players.filter((p) => p.coords).length;
 
+  const cal = state.mapCal || { pad: 0, flipX: false, flipZ: false, rot180: false, swapXZ: false, sizeOverride: 0 };
+  const serverSize = mapSize;
+
   const statusHint = imageReady
-    ? `Showing your uploaded map${imageSource ? ` (${esc(imageSource)})` : ""}. Dots update ~every 3–5s from RCON positions.`
+    ? `Showing your uploaded map${imageSource ? ` (${esc(imageSource)})` : ""}. If dots are wrong, tweak Align below — oil-rig players should sit on the water icons.`
     : `Upload a screenshot of your <strong>in-game map</strong> (full square map). Console maps aren’t on RustMaps — the photo is required for dots to line up.`;
 
   return `
@@ -4044,14 +4132,33 @@ async function renderMap() {
         </div>
         <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:0 0 .75rem">
           ${mapSeed
-            ? `Map: ${esc(mapName)} · Seed: ${mapSeed} · Size: ${mapSize}m · <span id="mapTrackedHint">Tracked: ${withCoords}/${players.length}</span>`
+            ? `Map: ${esc(mapName)} · Seed: ${mapSeed} · Size: ${serverSize}m · <span id="mapTrackedHint">Tracked: ${withCoords}/${players.length}</span>`
             : "Waiting for seed/size — click Refresh seed once RCON is up"}
         </p>
         <div class="map-stage" style="position:relative;max-width:560px;margin:0 auto;aspect-ratio:1;background:#0a0a0a;border:1px solid var(--line);overflow:hidden">
           ${mapImageUrl
-            ? `<img id="mapImage" src="${esc(mapImageUrl)}&t=${Date.now()}" alt="Map" style="width:100%;height:100%;object-fit:contain;display:block;position:absolute;inset:0" />`
+            ? `<img id="mapImage" src="${esc(mapImageUrl)}&t=${Date.now()}" alt="Map" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none" />`
             : `<img id="mapImage" alt="" style="display:none" />`}
           <canvas id="mapCanvas" width="560" height="560" style="position:absolute;inset:0;width:100%;height:100%"></canvas>
+        </div>
+        <div class="map-cal" style="margin-top:.85rem;display:grid;gap:.55rem">
+          <p class="hint" style="margin:0">Align — start with <b>Padding</b> if oil-rig / edge players sit in the black gutter. Use Flip / Rotate if the whole island is mirrored.</p>
+          <div style="display:flex;flex-wrap:wrap;gap:.65rem;align-items:center">
+            <label style="font-size:.72rem;font-family:var(--mono);color:var(--muted)">Padding
+              <input id="mapCalPad" type="range" min="0" max="20" step="1" value="${Number(cal.pad) || 0}" style="width:120px;vertical-align:middle;margin-left:.35rem" />
+              <span id="mapCalPadVal">${Number(cal.pad) || 0}%</span>
+            </label>
+            <label style="font-size:.72rem;font-family:var(--mono);color:var(--muted)">World size
+              <input id="mapCalSize" type="number" min="0" step="50" placeholder="${serverSize}" value="${cal.sizeOverride || ""}" style="width:88px;margin-left:.35rem" />
+            </label>
+          </div>
+          <div class="actions" style="margin:0">
+            <button type="button" data-action="mapCalToggle" data-key="flipX" class="${cal.flipX ? "primary" : ""}">Flip X</button>
+            <button type="button" data-action="mapCalToggle" data-key="flipZ" class="${cal.flipZ ? "primary" : ""}">Flip Z</button>
+            <button type="button" data-action="mapCalToggle" data-key="rot180" class="${cal.rot180 ? "primary" : ""}">Rotate 180°</button>
+            <button type="button" data-action="mapCalToggle" data-key="swapXZ" class="${cal.swapXZ ? "primary" : ""}">Swap X/Z</button>
+            <button type="button" data-action="mapCalReset">Reset align</button>
+          </div>
         </div>
         <p class="hint" style="margin-top:.75rem">${statusHint}${imageMessage && !imageReady ? ` <span class="muted">(${esc(imageMessage)})</span>` : ""}</p>
       </div>
@@ -4082,6 +4189,28 @@ function bindView() {
       drawMap();
     }
     requestAnimationFrame(() => drawMap());
+
+    const pad = document.getElementById("mapCalPad");
+    const padVal = document.getElementById("mapCalPadVal");
+    if (pad) {
+      pad.oninput = () => {
+        state.mapCal = state.mapCal || {};
+        state.mapCal.pad = Number(pad.value) || 0;
+        if (padVal) padVal.textContent = `${state.mapCal.pad}%`;
+        saveMapCal();
+        drawMap();
+      };
+    }
+    const sizeIn = document.getElementById("mapCalSize");
+    if (sizeIn) {
+      sizeIn.onchange = () => {
+        state.mapCal = state.mapCal || {};
+        const n = Number(sizeIn.value);
+        state.mapCal.sizeOverride = Number.isFinite(n) && n > 0 ? n : 0;
+        saveMapCal();
+        drawMap();
+      };
+    }
 
     const upload = document.getElementById("mapUploadInput");
     if (upload) {
@@ -4145,6 +4274,21 @@ function bindView() {
           if (!confirm("Remove the uploaded map image?")) return;
           const r = await api("/map/image", { method: "DELETE", body: {} });
           toast(r.ok ? "Map image cleared" : (r.error || "Failed"), !r.ok);
+          render();
+          return;
+        }
+        if (a === "mapCalToggle") {
+          const key = el.dataset.key;
+          if (!key) return;
+          state.mapCal = state.mapCal || {};
+          state.mapCal[key] = !state.mapCal[key];
+          saveMapCal();
+          render();
+          return;
+        }
+        if (a === "mapCalReset") {
+          state.mapCal = { pad: 0, flipX: false, flipZ: false, rot180: false, swapXZ: false, sizeOverride: 0 };
+          saveMapCal();
           render();
           return;
         }
