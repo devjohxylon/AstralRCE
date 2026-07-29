@@ -197,7 +197,7 @@ export const config = {
     chatBridge: parseBool("RCON_CHAT_BRIDGE"),
     ingameKillfeed: parseBool("RCON_INGAME_KILLFEED"),
     statusUpdateMs: Number(optional("RCON_STATUS_UPDATE_MS", "300000")) || 300000,
-    leaderboardPushMs: Number(optional("RCON_LEADERBOARD_PUSH_MS", "600000")) || 600000,
+    leaderboardPushMs: Number(optional("RCON_LEADERBOARD_PUSH_MS", "120000")) || 120000,
   },
   teleports: {
     enabled: parseBool("TP_ENABLED", true),
