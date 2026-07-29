@@ -2191,7 +2191,7 @@ async function renderDiscordChannels() {
       <h3>Status channel displays</h3>
       <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:0">
         Pop used to show <code>🌐-12100</code> on text channels because Discord strips <code>/</code> from
-        <code>12/100</code>. Default is <code>9 | 100</code>, or <code>9 | 100 | 2 Que</code> when queued.
+        <code>12/100</code>. Text channels turn <code>9 | 100</code> into <code>9--100</code> — we use <code>9｜100</code> / <code>9｜100｜2Que</code> instead. Voice channels allow nicer names.
       </p>
     </div>
     <div class="feed-settings-grid">${statusBlocks}</div>

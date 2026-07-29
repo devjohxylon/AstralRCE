@@ -5,7 +5,7 @@ export const STATUS_SETTING_DEFS = [
   {
     key: "popStatus",
     label: "Pop count channel",
-    hint: "Renames CHANNEL_POP_STATUS. Avoid “/” — Discord strips it. Default: 9 | 100, or 9 | 100 | 2 Que when queued.",
+    hint: "Renames CHANNEL_POP_STATUS. Text channels strip “|” and spaces → use fullwidth ｜ with no spaces (shows as 9｜100).",
     fields: [
       {
         key: "enabled",
@@ -27,9 +27,9 @@ export const STATUS_SETTING_DEFS = [
         hint: "How online / max are shown",
         default: "pipe",
         options: [
-          { value: "pipe", label: "9 | 100  (recommended)" },
+          { value: "pipe", label: "9｜100  (recommended)" },
           { value: "dash", label: "9-100" },
-          { value: "of", label: "9 of 100" },
+          { value: "of", label: "9-of-100" },
           { value: "online-only", label: "9" },
           { value: "custom", label: "Custom template" },
         ],
@@ -38,9 +38,9 @@ export const STATUS_SETTING_DEFS = [
         key: "template",
         type: "text",
         label: "Custom template",
-        hint: "Tokens: {emoji} {online} {max} {queued} {queueLabel}",
-        default: "{online} | {max}",
-        placeholder: "{online} | {max}",
+        hint: "Tokens: {emoji} {online} {max} {queued} {queueLabel}. No spaces — Discord turns them into -",
+        default: "{online}｜{max}",
+        placeholder: "{online}｜{max}",
       },
       {
         key: "showMax",
@@ -58,7 +58,7 @@ export const STATUS_SETTING_DEFS = [
         key: "queueLabel",
         type: "text",
         label: "Queue label",
-        hint: "Appended as “ | 2 Que”",
+        hint: "Appended as “｜2Que”",
         default: "Que",
         placeholder: "Que",
       },
@@ -214,12 +214,14 @@ function clampCount(value) {
   return Math.max(0, Math.trunc(n));
 }
 
-/** Discord text channels strip "/" and turn spaces into "-". Never emit "/". */
+/** Discord text channels strip "/" and "|", and turn spaces into "-". */
 export function sanitizeStatusChannelName(raw) {
   return String(raw ?? "")
     .replace(/\//g, "｜")
-    .replace(/\s+/g, " ")
-    .trim()
+    .replace(/\|/g, "｜")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
     .slice(0, 90);
 }
 
@@ -232,18 +234,18 @@ function applyTemplate(template, vars) {
 
 function withOptionalEmoji(emoji, rest) {
   const e = String(emoji ?? "").trim();
-  return e ? `${e} ${rest}` : rest;
+  return e ? `${e}-${rest}` : rest;
 }
 
 function queueSuffix(queued, label) {
-  const qLabel = String(label || "Que").trim() || "Que";
-  return ` | ${queued} ${qLabel}`;
+  const qLabel = String(label || "Que").trim().replace(/\s+/g, "") || "Que";
+  return `｜${queued}${qLabel}`;
 }
 
 /**
  * Build the pop status channel name from server info + panel settings.
- * Default: "9 | 100" / with queue "9 | 100 | 2 Que"
- * @param {object|null} info RCON server info
+ * Default: "9｜100" / with queue "9｜100｜2Que"
+ * (ASCII "9 | 100" becomes "9--100" on Discord text channels.)
  */
 export function formatPopChannelName(info, settings = getStatusSettingsSync().popStatus) {
   const s = settings || defaultStatusSettings().popStatus;
@@ -277,11 +279,11 @@ export function formatPopChannelName(info, settings = getStatusSettingsSync().po
     case "of":
       core = withOptionalEmoji(
         emoji,
-        s.showMax !== false ? `${online} of ${maxLabel}` : String(online),
+        s.showMax !== false ? `${online}-of-${maxLabel}` : String(online),
       );
       break;
     case "custom":
-      core = applyTemplate(s.template || "{online} | {max}", {
+      core = applyTemplate(s.template || "{online}｜{max}", {
         emoji,
         online,
         max: maxLabel,
@@ -294,7 +296,7 @@ export function formatPopChannelName(info, settings = getStatusSettingsSync().po
     default:
       core = withOptionalEmoji(
         emoji,
-        s.showMax !== false ? `${online} | ${maxLabel}` : String(online),
+        s.showMax !== false ? `${online}｜${maxLabel}` : String(online),
       );
       break;
   }
