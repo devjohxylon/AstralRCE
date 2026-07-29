@@ -372,7 +372,8 @@ export function feedAdminAction(text) {
 }
 
 export function feedPlayerBanned({ player, admin }) {
-  const by = admin?.ign ? ` by **${clean(admin.ign)}**` : "";
+  const byName = realAdminName(admin);
+  const by = byName ? ` by **${byName}**` : "";
   feedAdminAction(`🔨 **${clean(player?.ign)}** was banned${by}`);
   if (player?.ign) {
     import("../bans/manager.js")
@@ -380,7 +381,7 @@ export function feedPlayerBanned({ player, admin }) {
         upsertActiveBan({
           ign: player.ign,
           reason: "Banned in-game",
-          admin: admin?.ign || "Game server",
+          admin: byName || "Game server",
           steamId: player.id || player.steamId || null,
           source: "rcon_event",
         }),
@@ -390,12 +391,13 @@ export function feedPlayerBanned({ player, admin }) {
 }
 
 export function feedPlayerUnbanned({ player, admin }) {
-  const by = admin?.ign ? ` by **${clean(admin.ign)}**` : "";
+  const byName = realAdminName(admin);
+  const by = byName ? ` by **${byName}**` : "";
   feedAdminAction(`♻️ **${clean(player?.ign)}** was unbanned${by}`);
   if (player?.ign) {
     import("../bans/manager.js")
       .then(({ unbanPlayer }) =>
-        unbanPlayer(player.ign, admin?.ign || "Game server", "Unbanned in-game"),
+        unbanPlayer(player.ign, byName || "Game server", "Unbanned in-game"),
       )
       .catch(() => {});
   }
@@ -405,13 +407,47 @@ export function feedItemSpawn({ player, item, quantity }) {
   feedAdminAction(`🎁 **${clean(player?.ign)}** spawned \`${quantity}x ${clean(item)}\``);
 }
 
+/** RCE reports console / KitManager grants as ign "SERVER" — not a real staff name. */
+function realAdminName(admin) {
+  const ign = String(admin?.ign ?? "").trim();
+  if (!ign) return null;
+  if (/^(server|console|system|null|unknown|nitrado)$/i.test(ign)) return null;
+  return clean(ign);
+}
+
 export function feedKitSpawn({ player, kit, admin }) {
-  const by = admin?.ign ? ` (given by **${clean(admin.ign)}**)` : "";
-  feedAdminAction(`📦 **${clean(player?.ign)}** redeemed kit \`${clean(kit)}\`${by}`);
+  if (!feedEnabled("adminLog")) return;
+  const channelId = config.channels.adminLog;
+  if (!channelId) return;
+
+  const playerName = clean(player?.ign);
+  const kitName = clean(kit);
+  const givenBy = realAdminName(admin);
+
+  const embed = new EmbedBuilder()
+    .setColor(0x3498db)
+    .setTitle("📦 Kit Redeemed")
+    .setDescription(
+      givenBy
+        ? `**${playerName}** received \`${kitName}\``
+        : `**${playerName}** redeemed \`${kitName}\``,
+    )
+    .addFields(
+      { name: "Player", value: playerName, inline: true },
+      { name: "Kit", value: `\`${kitName}\``, inline: true },
+      ...(givenBy
+        ? [{ name: "Given by", value: givenBy, inline: true }]
+        : []),
+    )
+    .setFooter({ text: "Astral | Vanilla+" })
+    .setTimestamp();
+
+  queueFeedEmbed(channelId, embed);
 }
 
 export function feedRoleChange({ player, role, admin, added }) {
-  const by = admin?.ign ? ` by **${clean(admin.ign)}**` : "";
+  const byName = realAdminName(admin);
+  const by = byName ? ` by **${byName}**` : "";
   const verb = added ? "was given" : "lost";
   feedAdminAction(`🛡️ **${clean(player?.ign)}** ${verb} role \`${clean(role)}\`${by}`);
 }
