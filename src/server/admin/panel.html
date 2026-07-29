@@ -1469,7 +1469,7 @@ const NAV_SECTIONS = {
     sub: "Server health and quick controls",
     tabs: [
       { id: "overview", label: "Overview", perm: "overview" },
-      { id: "map", label: "Map", perm: "players" },
+      { id: "map", label: "Map", perm: "overview" },
     ],
   },
   players: {
@@ -1522,7 +1522,7 @@ const ADVANCED_TABS = [
 
 const TAB_META = {
   overview: { title: "Home", sub: "Server health and quick controls", perm: "overview" },
-  map: { title: "Home", sub: "Not available on Rust Console", perm: "players" },
+  map: { title: "Home", sub: "Upload your console map — live player dots on top", perm: "overview" },
   players: { title: "Players", sub: "Search anyone — online roster below", perm: "players" },
   profiles: { title: "Players", sub: "Staff dossiers — stats, notes, actions", perm: "players" },
   links: { title: "Players", sub: "Discord ↔ IGN links", perm: "links" },
@@ -1814,6 +1814,17 @@ function connectWebSocket() {
 
   state.socket.on("players:update", (players) => {
     state.playerPositions = players || [];
+    if (state.tab !== "map" || isUserEditing()) return;
+    const rows = document.getElementById("mapPlayerRows");
+    const count = document.getElementById("mapOnlineCount");
+    if (rows) rows.innerHTML = mapPlayerRowsHtml(state.playerPositions);
+    if (count) count.textContent = `Online (${state.playerPositions.length})`;
+    const tracked = document.getElementById("mapTrackedHint");
+    if (tracked) {
+      const withCoords = state.playerPositions.filter((p) => p.coords).length;
+      tracked.textContent = `Tracked: ${withCoords}/${state.playerPositions.length}`;
+    }
+    drawMap();
   });
 
   // Live toasts only when you're looking at those tabs — otherwise they feel like random UI jumps.
@@ -3149,62 +3160,52 @@ function drawProceduralTerrain(ctx, w, h, seed) {
 function drawMap() {
   const canvas = document.getElementById("mapCanvas");
   if (!canvas) return;
-  
+
   const ctx = canvas.getContext("2d");
   const img = document.getElementById("mapImage");
-  
-  const isMobile = window.innerWidth <= 900;
-  const maxSize = isMobile ? window.innerWidth - 40 : 600;
-  
-  let w = Math.min(canvas.clientWidth || canvas.width || 500, maxSize);
-  let h = Math.min(canvas.clientHeight || canvas.height || 500, maxSize);
-  if (img && img.clientWidth && img.style.display !== "none") {
-    w = Math.min(img.clientWidth, maxSize);
-    h = Math.min(img.clientHeight || img.clientWidth, maxSize);
-  }
-  if (!w || !h) {
-    w = Math.min(500, maxSize);
-    h = w;
-  }
-  
-  // Cap procedural resolution for speed
-  const drawW = Math.min(Math.round(w), 520);
-  const drawH = Math.min(Math.round(h), 520);
-  canvas.width = drawW;
-  canvas.height = drawH;
+  const stage = canvas.parentElement;
+  const size = Math.min(
+    stage?.clientWidth || 560,
+    window.innerWidth <= 900 ? window.innerWidth - 48 : 560,
+  );
+  const px = Math.max(280, Math.round(size));
+
+  canvas.width = px;
+  canvas.height = px;
   canvas.style.width = "100%";
   canvas.style.height = "100%";
-  
-  ctx.clearRect(0, 0, drawW, drawH);
-  
+
+  ctx.clearRect(0, 0, px, px);
+
   const hasPhoto = img && img.style.display !== "none" && img.complete && img.naturalWidth > 0;
   if (!hasPhoto) {
     const seed = state.overview?.server?.mapSeed || 1;
-    drawProceduralTerrain(ctx, drawW, drawH, seed);
+    drawProceduralTerrain(ctx, px, px, seed);
   }
-  
-  const MAP_SIZE = state.overview?.server?.mapSize || 4000;
+
+  const MAP_SIZE = Number(state.overview?.server?.mapSize) || 4000;
   const players = state.playerPositions || [];
-  
-  players.forEach(p => {
+
+  players.forEach((p) => {
     if (!p.coords) return;
-    
-    const x = ((p.coords.x + MAP_SIZE / 2) / MAP_SIZE) * drawW;
-    const y = drawH - ((p.coords.z + MAP_SIZE / 2) / MAP_SIZE) * drawH;
-    
+
+    const x = ((p.coords.x + MAP_SIZE / 2) / MAP_SIZE) * px;
+    const y = px - ((p.coords.z + MAP_SIZE / 2) / MAP_SIZE) * px;
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+
     ctx.shadowColor = "rgba(0,0,0,0.8)";
     ctx.shadowBlur = 4;
-    
+
     ctx.fillStyle = "#ff6b73";
     ctx.beginPath();
     ctx.arc(x, y, 6, 0, Math.PI * 2);
     ctx.fill();
-    
+
     ctx.fillStyle = "#fff";
     ctx.beginPath();
     ctx.arc(x, y, 3, 0, Math.PI * 2);
     ctx.fill();
-    
+
     ctx.shadowBlur = 2;
     ctx.fillStyle = "#fff";
     ctx.strokeStyle = "#000";
@@ -3212,7 +3213,7 @@ function drawMap() {
     ctx.font = "bold 12px sans-serif";
     ctx.strokeText(p.ign, x + 10, y + 4);
     ctx.fillText(p.ign, x + 10, y + 4);
-    
+
     ctx.shadowBlur = 0;
   });
 }
@@ -3994,11 +3995,70 @@ async function renderWipe() {
 }
 
 async function renderMap() {
+  let imageReady = false;
+  let imageMessage = null;
+  let imageSource = null;
+  let mapImageUrl = null;
+
+  try {
+    const live = await api("/map");
+    if (live?.ok) {
+      if (Array.isArray(live.players)) state.playerPositions = live.players;
+      if (state.overview?.server) {
+        if (live.seed) state.overview.server.mapSeed = live.seed;
+        if (live.size) state.overview.server.mapSize = live.size;
+      }
+      imageReady = Boolean(live.imageReady);
+      imageMessage = live.imageMessage;
+      imageSource = live.imageSource;
+      mapImageUrl = live.imageUrl || null;
+    }
+  } catch {
+    /* websocket / overview fallback */
+  }
+
+  const players = state.playerPositions || [];
+  const server = state.overview?.server;
+  const mapSeed = server?.mapSeed || 0;
+  const mapSize = server?.mapSize || 4000;
+  const mapName = server?.map || "Unknown";
+  const withCoords = players.filter((p) => p.coords).length;
+
+  const statusHint = imageReady
+    ? `Showing your uploaded map${imageSource ? ` (${esc(imageSource)})` : ""}. Dots update ~every 3–5s from RCON positions.`
+    : `Upload a screenshot of your <strong>in-game map</strong> (full square map). Console maps aren’t on RustMaps — the photo is required for dots to line up.`;
+
   return `
-    <div class="card">
-      <div class="empty" style="padding:3.5rem 1.5rem">
-        Not available on Console
-        <span class="empty-hint">Rust Console doesn’t expose a usable live map like PC. Kill distances still work when positions are available.</span>
+    <div class="split">
+      <div class="card">
+        <div class="card-head" style="flex-wrap:wrap;gap:.5rem">
+          <h3 style="margin:0">Live map</h3>
+          <div class="actions" style="margin:0">
+            <label class="button" style="padding:.35rem .65rem;font-size:.72rem;cursor:pointer;margin:0;display:inline-flex;align-items:center">
+              Upload map
+              <input id="mapUploadInput" type="file" accept="image/png,image/jpeg,image/webp" style="display:none" />
+            </label>
+            ${imageReady ? `<button data-action="clearMapImage" style="padding:.35rem .65rem;font-size:.72rem">Clear</button>` : ""}
+            <button data-action="refreshMap" style="padding:.35rem .65rem;font-size:.72rem">Refresh seed</button>
+          </div>
+        </div>
+        <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:0 0 .75rem">
+          ${mapSeed
+            ? `Map: ${esc(mapName)} · Seed: ${mapSeed} · Size: ${mapSize}m · <span id="mapTrackedHint">Tracked: ${withCoords}/${players.length}</span>`
+            : "Waiting for seed/size — click Refresh seed once RCON is up"}
+        </p>
+        <div class="map-stage" style="position:relative;max-width:560px;margin:0 auto;aspect-ratio:1;background:#0a0a0a;border:1px solid var(--line);overflow:hidden">
+          ${mapImageUrl
+            ? `<img id="mapImage" src="${esc(mapImageUrl)}&t=${Date.now()}" alt="Map" style="width:100%;height:100%;object-fit:contain;display:block;position:absolute;inset:0" />`
+            : `<img id="mapImage" alt="" style="display:none" />`}
+          <canvas id="mapCanvas" width="560" height="560" style="position:absolute;inset:0;width:100%;height:100%"></canvas>
+        </div>
+        <p class="hint" style="margin-top:.75rem">${statusHint}${imageMessage && !imageReady ? ` <span class="muted">(${esc(imageMessage)})</span>` : ""}</p>
+      </div>
+      <div class="card">
+        <h3 id="mapOnlineCount">Online (${players.length})</h3>
+        <p class="card-desc">Positions from RCON <code>printpos</code>. “…” means not polled yet.</p>
+        <div class="table-wrap"><table class="table"><thead><tr><th>IGN</th><th>Position</th><th></th></tr></thead><tbody id="mapPlayerRows">${mapPlayerRowsHtml(players)}</tbody></table></div>
       </div>
     </div>
   `;
@@ -4009,12 +4069,83 @@ function esc(s) {
 }
 
 function bindView() {
+  if (state.tab === "map") {
+    const img = document.getElementById("mapImage");
+    if (img) {
+      if (img.complete && img.naturalWidth) drawMap();
+      else img.onload = () => drawMap();
+      img.onerror = () => {
+        img.style.display = "none";
+        drawMap();
+      };
+    } else {
+      drawMap();
+    }
+    requestAnimationFrame(() => drawMap());
+
+    const upload = document.getElementById("mapUploadInput");
+    if (upload) {
+      upload.onchange = async () => {
+        const file = upload.files?.[0];
+        if (!file) return;
+        if (file.size > 7 * 1024 * 1024) {
+          toast("Image too large (max ~7MB)", true);
+          return;
+        }
+        toast("Uploading map…");
+        const reader = new FileReader();
+        reader.onload = async () => {
+          try {
+            const r = await api("/map/image", {
+              method: "POST",
+              body: { image: reader.result, filename: file.name },
+            });
+            toast(r.ok ? "Map image saved — dots should line up now" : (r.error || "Upload failed"), !r.ok);
+            if (r.ok) render();
+          } catch (e) {
+            toast(e.message || "Upload failed", true);
+          }
+        };
+        reader.readAsDataURL(file);
+      };
+    }
+  }
+
   document.querySelectorAll("[data-action]").forEach((el) => {
     el.onclick = async () => {
       const a = el.dataset.action;
       try {
         if (a === "pageSub") {
           setTab(el.dataset.tab || "overview");
+          return;
+        }
+        if (a === "refreshMap") {
+          el.disabled = true;
+          const prev = el.textContent;
+          el.textContent = "Refreshing…";
+          try {
+            const r = await api("/map/refresh", { method: "POST", body: {} });
+            toast(
+              r.ok
+                ? `Seed ${r.seed || "?"} · ${r.size || "?"}m${r.imageReady ? " · map ready" : " · upload a map screenshot"}`
+                : (r.error || "Refresh failed"),
+              !r.ok,
+            );
+            if (r.ok) {
+              await refreshOverview();
+              render();
+            }
+          } finally {
+            el.disabled = false;
+            el.textContent = prev || "Refresh seed";
+          }
+          return;
+        }
+        if (a === "clearMapImage") {
+          if (!confirm("Remove the uploaded map image?")) return;
+          const r = await api("/map/image", { method: "DELETE", body: {} });
+          toast(r.ok ? "Map image cleared" : (r.error || "Failed"), !r.ok);
+          render();
           return;
         }
         if (a === "goTab") {
