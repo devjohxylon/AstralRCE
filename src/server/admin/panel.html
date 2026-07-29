@@ -737,6 +737,50 @@ button { transition: all .15s ease; }
 .cmd-access.admin { color: #f87171; border-color: rgba(248,113,113,.25); }
 .cmd-access.public { color: #4ade80; border-color: rgba(74,222,128,.2); }
 .cmd-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+.actions-shell { display: grid; gap: 1rem; max-width: 1100px; }
+.actions-player-bar {
+  display: flex; flex-wrap: wrap; gap: .65rem .85rem;
+  align-items: center;
+  padding: .85rem 1rem;
+}
+.actions-player-bar .pill { flex: none; }
+.actions-player-bar label {
+  flex: none; font-size: .72rem; font-family: var(--mono);
+  color: var(--muted); letter-spacing: .03em; text-transform: uppercase;
+}
+.actions-player-bar input {
+  flex: 1; min-width: 180px; margin: 0; max-width: 320px;
+}
+.actions-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  align-items: stretch;
+}
+.actions-grid > .card {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: .55rem;
+}
+.actions-grid .card-desc,
+.actions-grid .hint { margin: 0; }
+.actions-grid label.field-label {
+  display: block; font-size: .7rem; color: var(--muted);
+  font-family: var(--mono); margin: .15rem 0 0;
+}
+.actions-grid select, .actions-grid input { margin: 0; width: 100%; }
+.actions-grid .primary,
+.actions-grid .cmd-actions { margin-top: auto; padding-top: .35rem; }
+.actions-events .event-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: .45rem;
+}
+.actions-events .event-grid button {
+  width: 100%; justify-content: center; min-height: 40px;
+}
+.actions-events .form-row { margin-top: .75rem; }
 .kit-builder { display: grid; gap: 1.5rem; }
 .kit-picked {
   display: flex; flex-direction: column; gap: .5rem;
@@ -1256,8 +1300,8 @@ button { transition: all .15s ease; }
     max-width: none;
   }
 
-  .health-strip { grid-template-columns: 1fr 1fr; }
-  .player-hub-search { grid-template-columns: 1fr; }
+  .actions-grid { grid-template-columns: 1fr; }
+  .actions-player-bar input { max-width: none; width: 100%; flex: 1 1 100%; }
   .wipe-row, .wipe-auto { padding: .8rem .85rem; min-height: 52px; }
   .wipe-actions { flex-direction: column; align-items: stretch; }
   .wipe-actions input[type="text"] { width: 100% !important; flex: none; }
@@ -2652,55 +2696,53 @@ async function renderServerCommands() {
 
   const canCustom = Boolean(data.canCustomRcon || can("rcon"));
   const customRconRow = canCustom
-    ? `<div class="form-row" style="margin-top:.85rem">
-            <input id="cmdCustomEvent" placeholder="Custom RCON command" />
-            <button data-action="runCustomEvent">Run</button>
+    ? `<div class="form-row">
+            <input id="cmdCustomEvent" placeholder="Custom RCON…" />
+            <button class="primary" data-action="runCustomEvent">Run</button>
           </div>`
-    : `<p class="hint" style="margin-top:.85rem">Custom RCON is owner-only (requires <code>rcon</code> permission).</p>`;
+    : `<p class="hint">Custom RCON needs the <code>rcon</code> permission.</p>`;
 
   const rconOk = data.rcon?.connected;
+  const onlineCount = (data.onlinePlayers || []).length;
 
   return `
-    <div class="split">
-      <div class="card" style="margin-bottom:.75rem">
-        <h3>Give kit</h3>
-        <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:0 0 .6rem">
-          ${rconOk ? `<span class="pill ok">RCON online</span>` : `<span class="pill bad">RCON offline</span>`}
-          In-game kit grant for an online player.
-        </p>
-        <label class="muted" style="font-size:.7rem">Player</label>
-        <input id="cmdKitIgn" list="cmdOnlineList" placeholder="Online IGN" />
+    <div class="actions-shell">
+      <div class="card actions-player-bar">
+        ${rconOk ? `<span class="pill ok">RCON online</span>` : `<span class="pill bad">RCON offline</span>`}
+        <label for="cmdPlayerIgn">Player</label>
+        <input id="cmdPlayerIgn" list="cmdOnlineList" placeholder="IGN — ${onlineCount} online" autocomplete="off" />
         <datalist id="cmdOnlineList">${onlineOpts}</datalist>
-        <label class="muted" style="font-size:.7rem;display:block;margin-top:.55rem">Kit</label>
-        <select id="cmdKitId">${kitOpts}</select>
-        <button class="primary" style="margin-top:.7rem;width:100%" data-action="cmdGiveKit">Give kit</button>
       </div>
 
-      <div>
-        <div class="card" style="margin-bottom:.75rem">
-          <h3>In-game ranks</h3>
-          <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:0 0 .6rem">
-            Moderator uses vanilla auth. VIP grants the VIP kit from Discord → VIP settings (default <code>vipkit</code>).
-            ${state.session?.role === "owner" ? "Owner rank is available to you only." : "In-game Owner can only be granted by the panel owner."}
-          </p>
-          <input id="cmdRankIgn" list="cmdOnlineList" placeholder="Player IGN" />
-          <select id="cmdRank" style="margin-top:.55rem">
-            ${rankOpts}
-          </select>
-          <div class="cmd-actions" style="margin-top:.7rem">
+      <div class="actions-grid">
+        <div class="card">
+          <h3>Give kit</h3>
+          <p class="card-desc">Grant a panel or server kit to the player above.</p>
+          <label class="field-label" for="cmdKitId">Kit</label>
+          <select id="cmdKitId">${kitOpts}</select>
+          <button class="primary" data-action="cmdGiveKit">Give kit</button>
+        </div>
+
+        <div class="card">
+          <h3>Rank</h3>
+          <p class="card-desc">VIP uses kit <code>vipkit</code>. Mod / Owner use vanilla auth.</p>
+          <label class="field-label" for="cmdRank">Rank</label>
+          <select id="cmdRank">${rankOpts}</select>
+          <div class="cmd-actions">
             <button class="primary" data-action="cmdRankGrant">Grant</button>
             <button class="danger" data-action="cmdRankRevoke">Revoke</button>
           </div>
         </div>
+      </div>
 
-        <div class="card">
-          <h3>Trigger events</h3>
-          <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:0 0 .6rem">
-            Runs preset RCON on the live server. Some events need plugins / console support.
-          </p>
-          <div class="cmd-actions">${eventBtns}</div>
-          ${customRconRow}
+      <div class="card actions-events">
+        <div class="card-head">
+          <h3>Events</h3>
+          <span class="pill info plain">RCON presets</span>
         </div>
+        <p class="card-desc">Call world events on the live server. Some need console / plugin support.</p>
+        <div class="event-grid">${eventBtns}</div>
+        ${customRconRow}
       </div>
     </div>`;
 }
@@ -4199,7 +4241,8 @@ function bindView() {
           return;
         }
         if (a === "cmdGiveKit") {
-          const ign = document.getElementById("cmdKitIgn")?.value?.trim();
+          const ign = document.getElementById("cmdPlayerIgn")?.value?.trim()
+            || document.getElementById("cmdKitIgn")?.value?.trim();
           const sel = document.getElementById("cmdKitId");
           const id = sel?.value;
           const source = sel?.selectedOptions?.[0]?.dataset?.source || "auto";
@@ -4290,7 +4333,8 @@ function bindView() {
           if (r.ok) render();
         }
         if (a === "cmdRankGrant" || a === "cmdRankRevoke") {
-          const ign = document.getElementById("cmdRankIgn")?.value?.trim();
+          const ign = document.getElementById("cmdPlayerIgn")?.value?.trim()
+            || document.getElementById("cmdRankIgn")?.value?.trim();
           const rank = document.getElementById("cmdRank")?.value;
           if (!ign || !rank) { toast("Need player + rank", true); return; }
           const r = await api("/ranks", {
