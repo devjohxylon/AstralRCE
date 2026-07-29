@@ -27,7 +27,7 @@ export async function requireLinkedIgn(discordId) {
   if (!link) {
     return {
       ok: false,
-      error: "Not linked yet. Join the server and run `/link YourExactIGN`.",
+      error: "Not linked yet. Use the **Link Account** panel or `/link start` with your IGN.",
     };
   }
   return { ok: true, ign: link.ign, link };
@@ -38,8 +38,8 @@ export function findOnlinePlayer(ign) {
   return online.find((p) => p.ign.toLowerCase() === ign.toLowerCase()) ?? null;
 }
 
-// Instant link: claim an online IGN to this Discord account. No note codes.
-export async function linkIgn(discordId, ign, { requireOnline = true } = {}) {
+// Instant link: claim an IGN to this Discord account. Online check optional (off by default).
+export async function linkIgn(discordId, ign, { requireOnline = false } = {}) {
   const trimmed = String(ign ?? "").trim();
   if (!trimmed || trimmed.length > 32) {
     return { ok: false, error: "That doesn't look like a valid in-game name." };
@@ -77,6 +77,10 @@ export async function linkIgn(discordId, ign, { requireOnline = true } = {}) {
       error: `\`${resolvedName}\` is already linked to another Discord. Staff can \`/link force\` if needed.`,
     };
   }
+
+  // Prefer exact casing from the live player list when they're online
+  const online = findOnlinePlayer(resolvedName);
+  if (online?.ign) resolvedName = online.ign;
 
   data.byDiscord[discordId] = {
     ign: resolvedName,

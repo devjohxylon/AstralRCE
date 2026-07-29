@@ -46,8 +46,8 @@ export function buildLinkPanelEmbed(guild) {
         "1️⃣ Click **Link Account** below\n" +
         "2️⃣ Enter your **exact** in-game username\n" +
         "3️⃣ Confirm — you're done!\n\n" +
-        "> You can only link once.\n" +
-        "> Contact an admin if you need help.",
+        "> You don’t need to be online to link.\n" +
+        "> You can only link once — contact staff if you need a change.",
     )
     .setFooter({
       text: "Astral | Vanilla+",
@@ -122,7 +122,7 @@ export async function handleLinkPanelButton(interaction) {
   const ignInput = new TextInputBuilder()
     .setCustomId(IGN_FIELD)
     .setLabel("Exact in-game name")
-    .setPlaceholder("Must match your name on the server")
+    .setPlaceholder("Your exact in-game name")
     .setStyle(TextInputStyle.Short)
     .setMinLength(1)
     .setMaxLength(32)
