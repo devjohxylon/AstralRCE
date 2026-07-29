@@ -329,7 +329,7 @@ input:focus, textarea:focus, select:focus {
   margin-top: .25rem;
 }
 
-/* ── Fullscreen GTA-style live map ── */
+/* ── Fullscreen live map — minimal HUD ── */
 body.map-mode #app {
   height: 100vh;
   height: 100dvh;
@@ -346,17 +346,17 @@ body.map-mode .main {
 }
 body.map-mode .topbar {
   margin: 0;
-  padding: .55rem 1rem .55rem 1.1rem;
-  border-bottom: 1px solid rgba(255,255,255,.06);
+  padding: .4rem .85rem;
+  border-bottom: 1px solid rgba(255,255,255,.05);
   flex-shrink: 0;
-  background: rgba(5,5,6,.92);
-  backdrop-filter: blur(10px);
+  background: #08090b;
   z-index: 5;
 }
-body.map-mode .topbar h2 { font-size: 1.05rem; letter-spacing: -.02em; }
+body.map-mode .topbar h2 { font-size: .95rem; letter-spacing: -.02em; font-weight: 600; }
 body.map-mode .page-sub { display: none; }
 body.map-mode .topbar::after { display: none; }
 body.map-mode .subtabs.page-subtabs { display: none; }
+body.map-mode .pills { display: none; }
 body.map-mode #view {
   flex: 1;
   min-height: 0;
@@ -379,160 +379,220 @@ body.map-mode #view {
   cursor: default;
 }
 .map-fs .map-stage.map-calibrating { cursor: crosshair; }
-.map-hud {
+
+.map-bar {
   position: absolute;
-  z-index: 4;
+  z-index: 5;
+  top: .55rem;
+  left: .55rem;
+  right: .55rem;
+  display: flex;
+  align-items: center;
+  gap: .35rem;
   pointer-events: none;
 }
-.map-hud > * { pointer-events: auto; }
-.map-hud-top {
-  top: .75rem;
-  left: .75rem;
-  right: .75rem;
-  display: flex;
-  flex-wrap: wrap;
-  gap: .5rem;
-  align-items: center;
-  justify-content: space-between;
-}
-.map-hud-panel {
-  background: rgba(12, 14, 18, .94);
-  border: 1px solid rgba(255,255,255,.08);
-  border-radius: var(--radius);
-  box-shadow: 0 10px 28px rgba(0,0,0,.4);
-}
-.map-hud-top .map-hud-meta {
+.map-bar > * { pointer-events: auto; }
+.map-bar-meta {
   font-family: var(--mono);
-  font-size: .65rem;
-  color: rgba(215,221,230,.7);
-  padding: .4rem .65rem;
-  letter-spacing: .03em;
+  font-size: .58rem;
+  letter-spacing: .04em;
   text-transform: uppercase;
+  color: rgba(215,221,230,.55);
+  padding: .28rem .5rem;
+  background: rgba(5,6,8,.72);
+  border: 1px solid rgba(255,255,255,.06);
+  border-radius: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: min(42vw, 420px);
 }
-.map-hud-top .map-hud-actions {
+.map-bar-grow { flex: 1; min-width: .25rem; }
+.map-bar-btn {
+  appearance: none;
+  margin: 0;
+  padding: .28rem .55rem;
+  font-family: var(--mono);
+  font-size: .58rem;
+  font-weight: 600;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: rgba(240,242,245,.85);
+  background: rgba(5,6,8,.78);
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 3px;
+  cursor: pointer;
+  transform: none;
+  box-shadow: none;
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  white-space: nowrap;
+}
+.map-bar-btn:hover {
+  transform: none;
+  box-shadow: none;
+  background: rgba(18,20,26,.92);
+  border-color: rgba(255,255,255,.14);
+  color: #fff;
+}
+.map-bar-btn.on {
+  border-color: rgba(215,221,230,.28);
+  background: rgba(215,221,230,.1);
+  color: #fff;
+}
+.map-bar-btn.ok-dot::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #5ed9a0;
+  flex-shrink: 0;
+}
+.map-bar label.map-bar-btn { cursor: pointer; }
+
+.map-pop {
+  position: absolute;
+  z-index: 6;
+  display: none;
+  background: rgba(8,9,12,.94);
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 4px;
+  box-shadow: 0 12px 32px rgba(0,0,0,.5);
+  pointer-events: auto;
+}
+.map-pop.open { display: block; }
+.map-pop-roster {
+  top: 2.55rem;
+  right: .55rem;
+  width: min(200px, 46vw);
+  max-height: min(52vh, 360px);
+  overflow: auto;
+  padding: .35rem;
+}
+.map-pop-cal {
+  bottom: .55rem;
+  left: .55rem;
+  top: auto;
+  right: auto;
+  width: min(280px, 72vw);
+  padding: .55rem .6rem;
+  display: none;
+  grid-template-columns: 1fr;
+  gap: .4rem;
+}
+.map-pop-cal.open { display: grid; }
+.map-pop-cal .map-cal-row {
   display: flex;
   flex-wrap: wrap;
   gap: .35rem;
   align-items: center;
-  padding: .3rem;
 }
-.map-hud-top .map-hud-actions label,
-.map-hud-top .map-hud-actions button {
-  padding: .38rem .6rem;
-  font-size: .68rem;
-  margin: 0;
-  border-radius: var(--radius-sm);
-}
-.map-hud-right {
-  top: 3.35rem;
-  right: .75rem;
-  bottom: auto;
-  width: min(240px, 34vw);
-  max-height: min(48vh, 420px);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-.map-hud-right .map-hud-panel {
+.map-pop-cal select {
   flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  padding: .65rem .7rem;
+  min-width: 0;
+  margin: 0;
+  padding: .32rem .4rem;
+  font-size: .68rem;
 }
-.map-hud-right h3 {
-  margin: 0 0 .25rem;
-  font-size: .62rem;
-  letter-spacing: .12em;
+.map-pop-cal .map-bar-btn,
+.map-pop-cal button {
+  padding: .32rem .5rem;
+  font-size: .58rem;
+  margin: 0;
+  transform: none;
+  box-shadow: none;
+}
+.map-pop-cal button:hover { transform: none; }
+.map-pop-cal .map-cal-status {
+  font-family: var(--mono);
+  font-size: .55rem;
+  letter-spacing: .06em;
   text-transform: uppercase;
-  color: var(--chrome);
-  font-weight: 600;
+  color: var(--info);
 }
-.map-hud-right .card-desc {
-  margin: 0 0 .5rem;
-  font-size: .62rem;
+.map-pop-cal .map-cal-hint {
+  margin: 0;
+  font-size: .65rem;
+  color: var(--muted);
+  line-height: 1.35;
+}
+.map-pop-cal .map-cal-arm {
+  margin: 0;
+  font-size: .65rem;
+  color: #fbbf24;
+}
+.map-pop-cal details {
+  margin: 0;
+  border-top: 1px solid rgba(255,255,255,.06);
+  padding-top: .35rem;
+}
+.map-pop-cal summary {
+  cursor: pointer;
+  font-size: .58rem;
+  font-family: var(--mono);
+  letter-spacing: .05em;
+  text-transform: uppercase;
   color: var(--faint);
 }
 .map-player-list {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
   display: flex;
   flex-direction: column;
-  gap: .28rem;
-  padding-right: .1rem;
+  gap: .15rem;
 }
 .map-player-chip {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: .45rem;
+  gap: .35rem;
   width: 100%;
   text-align: left;
-  padding: .38rem .45rem;
-  border-radius: var(--radius-sm);
-  border: 1px solid rgba(255,255,255,.05);
-  background: rgba(255,255,255,.025);
+  padding: .28rem .35rem;
+  border-radius: 3px;
+  border: none;
+  background: transparent;
   color: #fff;
-  font-size: .74rem;
+  font-size: .7rem;
   transform: none;
   box-shadow: none;
 }
 .map-player-chip:hover {
   transform: none;
-  background: rgba(255,255,255,.06);
-  border-color: rgba(255,255,255,.1);
   box-shadow: none;
+  background: rgba(255,255,255,.05);
 }
-.map-player-chip .name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
+.map-player-chip .name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .map-player-chip .pos {
   font-family: var(--mono);
-  font-size: .58rem;
-  color: var(--muted);
+  font-size: .55rem;
+  color: var(--faint);
   white-space: nowrap;
   flex-shrink: 0;
 }
-.map-hud-bottom {
-  left: .75rem;
-  bottom: .75rem;
-  width: min(380px, calc(100% - 1.5rem - min(240px, 34vw) - .75rem));
-  max-height: min(38vh, 300px);
-  overflow: auto;
-}
-.map-hud-bottom .map-hud-panel {
-  padding: .7rem .75rem;
-  display: grid;
-  gap: .45rem;
-}
-.map-hud-bottom strong {
-  font-size: .72rem;
-  letter-spacing: .04em;
-  text-transform: uppercase;
-  color: var(--chrome);
-}
-.map-hud-bottom .hint { font-size: .68rem; color: var(--muted); }
-.map-hud-bottom select { width: auto; min-width: 130px; margin: 0; font-size: .72rem; padding: .4rem .5rem; }
-.map-stage canvas {
-  image-rendering: auto;
-}
+.map-stage canvas { image-rendering: auto; }
+
 @media (max-width: 900px) {
-  body.map-mode .topbar { padding: .45rem .7rem; }
-  .map-hud-right {
+  body.map-mode .topbar { padding: .35rem .6rem; }
+  .map-bar { top: .4rem; left: .4rem; right: .4rem; }
+  .map-bar-meta { max-width: 34vw; }
+  .map-pop-roster {
+    top: 2.35rem;
+    right: .4rem;
+    left: auto;
+    width: min(200px, 55vw);
+  }
+  .map-pop-cal {
     top: auto;
-    right: .55rem;
-    left: .55rem;
-    bottom: .55rem;
+    bottom: .4rem;
+    left: .4rem;
+    right: .4rem;
     width: auto;
-    max-height: 32vh;
   }
-  .map-hud-bottom {
-    left: .55rem;
-    right: .55rem;
-    bottom: calc(32vh + 1rem);
-    width: auto;
-    max-height: 28vh;
-  }
-  .map-hud-top { left: .55rem; right: .55rem; top: .55rem; }
 }
 @keyframes viewIn {
   from { opacity: 0; transform: translateY(8px); }
@@ -1701,6 +1761,8 @@ const state = {
   mapCssSize: null,
   mapImageBust: 0,
   mapResizeObs: null,
+  mapCalOpen: false,
+  mapRosterOpen: false,
 };
 
 const NAV_SECTIONS = {
@@ -2056,14 +2118,13 @@ function connectWebSocket() {
     state.playerPositions = players || [];
     if (state.tab !== "map" || isUserEditing()) return;
     const rows = document.getElementById("mapPlayerRows");
-    const count = document.getElementById("mapOnlineCount");
     if (rows) rows.innerHTML = mapPlayerHudHtml(state.playerPositions);
-    if (count) count.textContent = `Online (${state.playerPositions.length})`;
     const tracked = document.getElementById("mapTrackedHint");
     if (tracked) {
       const withCoords = state.playerPositions.filter((p) => p.coords).length;
-      tracked.textContent = `${withCoords}/${state.playerPositions.length} tracked`;
+      tracked.textContent = `${withCoords}/${state.playerPositions.length}`;
     }
+    updateMapCalChrome();
     drawMap();
   });
 
@@ -3633,7 +3694,7 @@ function updateMapCalChrome() {
   if (arm) {
     if (state.mapCalibrateIgn) {
       arm.style.display = "";
-      arm.innerHTML = `Click the map where <b>${esc(state.mapCalibrateIgn)}</b> actually is…`;
+      arm.innerHTML = `Click where <b>${esc(state.mapCalibrateIgn)}</b> is…`;
     } else {
       arm.style.display = "none";
       arm.textContent = "";
@@ -3644,10 +3705,27 @@ function updateMapCalChrome() {
     stage.classList.toggle("map-calibrating", Boolean(state.mapCalibrateIgn));
     stage.style.cursor = state.mapCalibrateIgn ? "crosshair" : "default";
   }
-  const locked = Boolean(state.mapCal?.transform);
+  if (state.mapCalibrateIgn) state.mapCalOpen = true;
+  const calPop = document.getElementById("mapCalPop");
+  const rosterPop = document.getElementById("mapRosterPop");
+  const calBtn = document.getElementById("mapCalToggleBtn");
+  const rosterBtn = document.getElementById("mapRosterToggleBtn");
+  if (calPop) calPop.classList.toggle("open", Boolean(state.mapCalOpen));
+  if (rosterPop) rosterPop.classList.toggle("open", Boolean(state.mapRosterOpen));
+  if (calBtn) {
+    calBtn.classList.toggle("on", Boolean(state.mapCalOpen));
+    const locked = Boolean(state.mapCal?.transform);
+    calBtn.textContent = locked ? "Calibrated" : "Calibrate";
+    calBtn.classList.toggle("ok-dot", locked);
+  }
+  if (rosterBtn) {
+    rosterBtn.classList.toggle("on", Boolean(state.mapRosterOpen));
+    const n = (state.playerPositions || []).length;
+    rosterBtn.textContent = `${n} online`;
+  }
   document.querySelectorAll("[data-map-advanced]").forEach((el) => {
-    el.style.opacity = locked ? "0.45" : "1";
-    el.title = locked ? "Clear marks to use padding / flips (click-cal owns alignment)" : "";
+    const locked = Boolean(state.mapCal?.transform);
+    el.style.opacity = locked ? "0.5" : "1";
   });
 }
 
@@ -4628,8 +4706,8 @@ async function renderMap() {
     : "";
 
   const statusHint = imageReady
-    ? `Uploaded map${imageSource ? ` (${esc(imageSource)})` : ""}. Clear old marks & recalibrate after this fix. Sharper if you upload a high-res screenshot.`
-    : `Upload a full in-game map screenshot — required for dots to line up.`;
+    ? (imageMessage ? esc(imageMessage) : "")
+    : "Upload an in-game map screenshot to place dots.";
 
   return `
     <div class="map-fs">
@@ -4640,68 +4718,59 @@ async function renderMap() {
         <canvas id="mapCanvas" width="800" height="800" style="position:absolute;inset:0;width:100%;height:100%"></canvas>
       </div>
 
-      <div class="map-hud map-hud-top">
-        <div class="map-hud-panel map-hud-meta">
+      <div class="map-bar">
+        <div class="map-bar-meta">
           ${mapSeed
-            ? `${esc(mapName)} · seed ${mapSeed} · ${serverSize}m · <span id="mapTrackedHint">${withCoords}/${players.length} tracked</span>`
-            : "Waiting for seed — Refresh once RCON is up"}
+            ? `${esc(mapName)} · ${mapSeed} · ${serverSize}m · <span id="mapTrackedHint">${withCoords}/${players.length}</span>`
+            : "Waiting for seed"}
         </div>
-        <div class="map-hud-panel map-hud-actions">
-          <label style="cursor:pointer;display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:6px;background:rgba(255,255,255,.04)">
-            Upload
-            <input id="mapUploadInput" type="file" accept="image/png,image/jpeg,image/webp" style="display:none" />
-          </label>
-          ${imageReady ? `<button data-action="clearMapImage">Clear</button>` : ""}
-          <button data-action="refreshMap">Refresh</button>
-        </div>
+        <div class="map-bar-grow"></div>
+        <button type="button" class="map-bar-btn${state.mapCal?.transform ? " ok-dot" : ""}${state.mapCalOpen ? " on" : ""}" id="mapCalToggleBtn" data-action="mapToggleCal">${state.mapCal?.transform ? "Calibrated" : "Calibrate"}</button>
+        <button type="button" class="map-bar-btn${state.mapRosterOpen ? " on" : ""}" id="mapRosterToggleBtn" data-action="mapToggleRoster">${players.length} online</button>
+        <label class="map-bar-btn">
+          Upload
+          <input id="mapUploadInput" type="file" accept="image/png,image/jpeg,image/webp" style="display:none" />
+        </label>
+        ${imageReady ? `<button type="button" class="map-bar-btn" data-action="clearMapImage">Clear</button>` : ""}
+        <button type="button" class="map-bar-btn" data-action="refreshMap">Refresh</button>
       </div>
 
-      <div class="map-hud map-hud-right">
-        <div class="map-hud-panel">
-          <h3 id="mapOnlineCount">Online (${players.length})</h3>
-          <p class="card-desc">Live <code>printpos</code> radar</p>
-          <div class="map-player-list" id="mapPlayerRows">${mapPlayerHudHtml(players)}</div>
-        </div>
+      <div class="map-pop map-pop-roster${state.mapRosterOpen ? " open" : ""}" id="mapRosterPop">
+        <div class="map-player-list" id="mapPlayerRows">${mapPlayerHudHtml(players)}</div>
       </div>
 
-      <div class="map-hud map-hud-bottom">
-        <div class="map-hud-panel map-cal">
-          <div>
-            <strong>Click calibrate</strong>
-            <span id="mapCalModePill" class="pill info" style="margin-left:.35rem">${esc(calMode)}</span>
-          </div>
-          <p class="hint" style="margin:0">Pick a player → <b>Mark</b> → click their <b>exact</b> spot (e.g. Ranch). Do 2–3 far apart (oil / airfield / ranch).</p>
-          <div style="display:flex;flex-wrap:wrap;gap:.45rem;align-items:center">
-            <select id="mapCalPlayer">
-              <option value="">— player —</option>
-              ${calOpts}
-            </select>
-            <button type="button" class="primary" data-action="mapCalArm" ${trackedPlayers.length ? "" : "disabled"}>Mark</button>
-            <button type="button" data-action="mapCalClearSamples">Clear marks</button>
-          </div>
-          <p id="mapCalArmHint" class="hint" style="margin:0;color:#fbbf24;${state.mapCalibrateIgn ? "" : "display:none"}">${state.mapCalibrateIgn ? `Click where <b>${esc(state.mapCalibrateIgn)}</b> is…` : ""}</p>
-          <details data-map-advanced>
-            <summary class="hint" style="cursor:pointer">Advanced align</summary>
-            <p class="hint" style="margin:.4rem 0 0">Only before click-cal lock.</p>
-            <div style="display:flex;flex-wrap:wrap;gap:.55rem;align-items:center;margin-top:.45rem">
-              <label style="font-size:.68rem;font-family:var(--mono);color:var(--muted)">Pad
-                <input id="mapCalPad" type="range" min="0" max="20" step="1" value="${Number(cal.pad) || 0}" style="width:100px;vertical-align:middle;margin-left:.3rem" />
-                <span id="mapCalPadVal">${Number(cal.pad) || 0}%</span>
-              </label>
-              <label style="font-size:.68rem;font-family:var(--mono);color:var(--muted)">Size
-                <input id="mapCalSize" type="number" min="0" step="50" placeholder="${serverSize}" value="${cal.sizeOverride || ""}" style="width:80px;margin-left:.3rem" />
-              </label>
-            </div>
-            <div class="actions" style="margin:.45rem 0 0">
-              <button type="button" data-action="mapCalToggle" data-key="flipX" class="${cal.flipX ? "primary" : ""}">Flip X</button>
-              <button type="button" data-action="mapCalToggle" data-key="flipZ" class="${cal.flipZ ? "primary" : ""}">Flip Z</button>
-              <button type="button" data-action="mapCalToggle" data-key="rot180" class="${cal.rot180 ? "primary" : ""}">180°</button>
-              <button type="button" data-action="mapCalToggle" data-key="swapXZ" class="${cal.swapXZ ? "primary" : ""}">Swap X/Z</button>
-              <button type="button" data-action="mapCalReset">Reset</button>
-            </div>
-          </details>
-          <p class="hint" style="margin:0">${statusHint}${imageMessage && !imageReady ? ` <span class="muted">(${esc(imageMessage)})</span>` : ""}</p>
+      <div class="map-pop map-pop-cal${state.mapCalOpen ? " open" : ""}" id="mapCalPop">
+        <div class="map-cal-status" id="mapCalModePill">${esc(calMode)}</div>
+        <p class="map-cal-hint">${state.mapCal?.transform ? "Locked. Clear marks to recalibrate." : "Mark 2–3 players far apart on the photo."}</p>
+        <div class="map-cal-row">
+          <select id="mapCalPlayer">
+            <option value="">Player…</option>
+            ${calOpts}
+          </select>
+          <button type="button" class="primary map-bar-btn" data-action="mapCalArm" ${trackedPlayers.length ? "" : "disabled"}>Mark</button>
+          <button type="button" class="map-bar-btn" data-action="mapCalClearSamples">Clear</button>
         </div>
+        <p id="mapCalArmHint" class="map-cal-arm" style="${state.mapCalibrateIgn ? "" : "display:none"}">${state.mapCalibrateIgn ? `Click where <b>${esc(state.mapCalibrateIgn)}</b> is…` : ""}</p>
+        <details data-map-advanced>
+          <summary>Advanced</summary>
+          <div class="map-cal-row" style="margin-top:.35rem">
+            <label style="font-size:.58rem;font-family:var(--mono);color:var(--muted)">Pad
+              <input id="mapCalPad" type="range" min="0" max="20" step="1" value="${Number(cal.pad) || 0}" style="width:72px;vertical-align:middle;margin-left:.25rem" />
+              <span id="mapCalPadVal">${Number(cal.pad) || 0}%</span>
+            </label>
+            <label style="font-size:.58rem;font-family:var(--mono);color:var(--muted)">Size
+              <input id="mapCalSize" type="number" min="0" step="50" placeholder="${serverSize}" value="${cal.sizeOverride || ""}" style="width:64px;margin-left:.25rem;padding:.25rem" />
+            </label>
+          </div>
+          <div class="map-cal-row" style="margin-top:.3rem">
+            <button type="button" class="map-bar-btn${cal.flipX ? " on" : ""}" data-action="mapCalToggle" data-key="flipX">Flip X</button>
+            <button type="button" class="map-bar-btn${cal.flipZ ? " on" : ""}" data-action="mapCalToggle" data-key="flipZ">Flip Z</button>
+            <button type="button" class="map-bar-btn${cal.rot180 ? " on" : ""}" data-action="mapCalToggle" data-key="rot180">180°</button>
+            <button type="button" class="map-bar-btn${cal.swapXZ ? " on" : ""}" data-action="mapCalToggle" data-key="swapXZ">Swap</button>
+            <button type="button" class="map-bar-btn" data-action="mapCalReset">Reset</button>
+          </div>
+        </details>
+        ${statusHint ? `<p class="map-cal-hint">${statusHint}</p>` : ""}
       </div>
     </div>
   `;
@@ -4934,6 +5003,18 @@ function bindView() {
           render();
           return;
         }
+        if (a === "mapToggleCal") {
+          state.mapCalOpen = !state.mapCalOpen;
+          if (state.mapCalOpen) state.mapRosterOpen = false;
+          updateMapCalChrome();
+          return;
+        }
+        if (a === "mapToggleRoster") {
+          state.mapRosterOpen = !state.mapRosterOpen;
+          if (state.mapRosterOpen) state.mapCalOpen = false;
+          updateMapCalChrome();
+          return;
+        }
         if (a === "mapCalArm") {
           const ign = document.getElementById("mapCalPlayer")?.value?.trim();
           if (!ign) { toast("Pick a player with coords first", true); return; }
@@ -4947,6 +5028,7 @@ function bindView() {
               return;
             }
             state.mapCalibrateIgn = ign;
+            state.mapCalOpen = true;
             toast(`Click the map where ${ign} actually is`);
             updateMapCalChrome();
             drawMap();
