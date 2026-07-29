@@ -517,7 +517,8 @@ export async function attachAdminPanel(app, client) {
       }
       const isPng = buf[0] === 0x89 && buf[1] === 0x50;
       res.setHeader("Content-Type", isPng ? "image/png" : "image/jpeg");
-      res.setHeader("Cache-Control", "private, max-age=60");
+      res.setHeader("Cache-Control", "private, max-age=300");
+      res.setHeader("X-Content-Type-Options", "nosniff");
       res.send(buf);
     } catch (error) {
       res.status(500).json({ ok: false, error: error.message });

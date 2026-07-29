@@ -396,37 +396,39 @@ body.map-mode #view {
   justify-content: space-between;
 }
 .map-hud-panel {
-  background: rgba(8, 10, 14, .82);
-  border: 1px solid rgba(255,255,255,.1);
-  border-radius: 8px;
-  backdrop-filter: blur(14px);
-  box-shadow: 0 12px 40px rgba(0,0,0,.45);
+  background: rgba(12, 14, 18, .94);
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: var(--radius);
+  box-shadow: 0 10px 28px rgba(0,0,0,.4);
 }
 .map-hud-top .map-hud-meta {
   font-family: var(--mono);
-  font-size: .68rem;
-  color: rgba(215,221,230,.75);
-  padding: .45rem .7rem;
-  letter-spacing: .02em;
+  font-size: .65rem;
+  color: rgba(215,221,230,.7);
+  padding: .4rem .65rem;
+  letter-spacing: .03em;
+  text-transform: uppercase;
 }
 .map-hud-top .map-hud-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: .4rem;
+  gap: .35rem;
   align-items: center;
-  padding: .35rem;
+  padding: .3rem;
 }
 .map-hud-top .map-hud-actions label,
 .map-hud-top .map-hud-actions button {
-  padding: .4rem .65rem;
-  font-size: .7rem;
+  padding: .38rem .6rem;
+  font-size: .68rem;
   margin: 0;
+  border-radius: var(--radius-sm);
 }
 .map-hud-right {
-  top: 3.6rem;
+  top: 3.35rem;
   right: .75rem;
-  bottom: .75rem;
-  width: min(300px, 42vw);
+  bottom: auto;
+  width: min(240px, 34vw);
+  max-height: min(48vh, 420px);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -436,18 +438,20 @@ body.map-mode #view {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: .75rem;
+  padding: .65rem .7rem;
 }
 .map-hud-right h3 {
-  margin: 0 0 .35rem;
-  font-size: .78rem;
-  letter-spacing: .06em;
+  margin: 0 0 .25rem;
+  font-size: .62rem;
+  letter-spacing: .12em;
   text-transform: uppercase;
-  color: #fff;
+  color: var(--chrome);
+  font-weight: 600;
 }
 .map-hud-right .card-desc {
-  margin: 0 0 .65rem;
-  font-size: .68rem;
+  margin: 0 0 .5rem;
+  font-size: .62rem;
+  color: var(--faint);
 }
 .map-player-list {
   flex: 1;
@@ -455,53 +459,62 @@ body.map-mode #view {
   overflow: auto;
   display: flex;
   flex-direction: column;
-  gap: .35rem;
-  padding-right: .15rem;
+  gap: .28rem;
+  padding-right: .1rem;
 }
 .map-player-chip {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: .5rem;
+  gap: .45rem;
   width: 100%;
   text-align: left;
-  padding: .45rem .55rem;
-  border-radius: 6px;
-  border: 1px solid rgba(255,255,255,.06);
-  background: rgba(255,255,255,.03);
+  padding: .38rem .45rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(255,255,255,.05);
+  background: rgba(255,255,255,.025);
   color: #fff;
-  font-size: .78rem;
+  font-size: .74rem;
   transform: none;
   box-shadow: none;
 }
 .map-player-chip:hover {
   transform: none;
-  background: rgba(255,255,255,.07);
-  border-color: rgba(255,255,255,.14);
+  background: rgba(255,255,255,.06);
+  border-color: rgba(255,255,255,.1);
   box-shadow: none;
 }
-.map-player-chip .name { font-weight: 600; }
+.map-player-chip .name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
 .map-player-chip .pos {
   font-family: var(--mono);
-  font-size: .62rem;
+  font-size: .58rem;
   color: var(--muted);
   white-space: nowrap;
+  flex-shrink: 0;
 }
 .map-hud-bottom {
   left: .75rem;
   bottom: .75rem;
-  width: min(420px, calc(100% - 1.5rem - min(300px, 42vw) - .75rem));
-  max-height: min(42vh, 360px);
+  width: min(380px, calc(100% - 1.5rem - min(240px, 34vw) - .75rem));
+  max-height: min(38vh, 300px);
   overflow: auto;
 }
 .map-hud-bottom .map-hud-panel {
-  padding: .75rem;
+  padding: .7rem .75rem;
   display: grid;
-  gap: .55rem;
+  gap: .45rem;
 }
-.map-hud-bottom strong { font-size: .8rem; }
-.map-hud-bottom .hint { font-size: .7rem; }
-.map-hud-bottom select { width: auto; min-width: 140px; margin: 0; }
+.map-hud-bottom strong {
+  font-size: .72rem;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--chrome);
+}
+.map-hud-bottom .hint { font-size: .68rem; color: var(--muted); }
+.map-hud-bottom select { width: auto; min-width: 130px; margin: 0; font-size: .72rem; padding: .4rem .5rem; }
+.map-stage canvas {
+  image-rendering: auto;
+}
 @media (max-width: 900px) {
   body.map-mode .topbar { padding: .45rem .7rem; }
   .map-hud-right {
@@ -1671,7 +1684,8 @@ const state = {
       const samples = Array.isArray(raw.samples) ? raw.samples : [];
       const legacy =
         samples.some((s) => s == null || s.u == null || s.v == null) ||
-        (raw.affine && raw.affine.ax != null && raw.transform == null);
+        (raw.affine && raw.affine.ax != null && raw.transform == null) ||
+        (raw.transform && !String(raw.transform.kind || "").startsWith("uv-"));
       if (legacy) {
         raw.samples = [];
         raw.transform = null;
@@ -1684,6 +1698,7 @@ const state = {
   })(),
   mapCalibrateIgn: null,
   mapDrawRect: null,
+  mapCssSize: null,
   mapImageBust: 0,
   mapResizeObs: null,
 };
@@ -3450,11 +3465,15 @@ function standardWorldToUv(wx, wz, mapSize, cal = state.mapCal) {
 }
 
 /**
- * Similarity (uniform scale + rotation + translation) from 2 UV samples,
- * or least-squares full affine with 3+.
- * Maps world (wx,wz) → image UV (u,v) so resize never invalidates calibration.
+ * Fit click marks in UV-space AFTER the standard Rust projection (which flips Z).
+ * Direct world→image similarity cannot represent that flip, so dots drifted
+ * away from landmarks (e.g. Ranch). 2 pts = UV similarity; 3+ = UV affine.
  */
 function rebuildMapTransform() {
+  const mapSize =
+    Number(state.mapCal?.sizeOverride) > 0
+      ? Number(state.mapCal.sizeOverride)
+      : Number(state.overview?.server?.mapSize) || 4000;
   const samples = (state.mapCal?.samples || []).filter(
     (s) => s && Number.isFinite(s.wx) && Number.isFinite(s.wz) && Number.isFinite(s.u) && Number.isFinite(s.v),
   );
@@ -3464,48 +3483,58 @@ function rebuildMapTransform() {
     return;
   }
 
-  if (samples.length === 2) {
-    const a = samples[0];
-    const b = samples[1];
-    const dwx = b.wx - a.wx;
-    const dwz = b.wz - a.wz;
+  const pts = [];
+  for (const s of samples) {
+    const ideal = standardWorldToUv(s.wx, s.wz, mapSize, state.mapCal);
+    if (!ideal) continue;
+    pts.push({ u: s.u, v: s.v, iu: ideal.u, iv: ideal.v, ign: s.ign });
+  }
+  if (pts.length < 2) {
+    state.mapCal.transform = null;
+    return;
+  }
+
+  if (pts.length === 2) {
+    const a = pts[0];
+    const b = pts[1];
+    const diu = b.iu - a.iu;
+    const div = b.iv - a.iv;
     const du = b.u - a.u;
     const dv = b.v - a.v;
-    const worldDist = Math.hypot(dwx, dwz);
+    const idealDist = Math.hypot(diu, div);
     const uvDist = Math.hypot(du, dv);
-    if (worldDist < 40 || uvDist < 0.02) {
+    if (idealDist < 0.02 || uvDist < 0.02) {
       state.mapCal.transform = null;
       return;
     }
-    const scale = uvDist / worldDist;
-    const rot = Math.atan2(dv, du) - Math.atan2(dwz, dwx);
+    const scale = uvDist / idealDist;
+    const rot = Math.atan2(dv, du) - Math.atan2(div, diu);
     const cos = Math.cos(rot);
     const sin = Math.sin(rot);
     const a11 = scale * cos;
     const a12 = -scale * sin;
     const a21 = scale * sin;
     const a22 = scale * cos;
-    const tx = a.u - (a11 * a.wx + a12 * a.wz);
-    const ty = a.v - (a21 * a.wx + a22 * a.wz);
-    state.mapCal.transform = { a11, a12, a21, a22, tx, ty, kind: "similarity" };
+    const tx = a.u - (a11 * a.iu + a12 * a.iv);
+    const ty = a.v - (a21 * a.iu + a22 * a.iv);
+    state.mapCal.transform = { a11, a12, a21, a22, tx, ty, kind: "uv-similarity" };
     return;
   }
 
-  // 3+ points: least-squares affine
-  let sxx = 0, sxz = 0, szz = 0, sx = 0, sz = 0, n = 0;
-  let sux = 0, suz = 0, su = 0, svx = 0, svz = 0, sv = 0;
-  for (const s of samples) {
-    sxx += s.wx * s.wx;
-    sxz += s.wx * s.wz;
-    szz += s.wz * s.wz;
-    sx += s.wx;
-    sz += s.wz;
-    sux += s.u * s.wx;
-    suz += s.u * s.wz;
-    su += s.u;
-    svx += s.v * s.wx;
-    svz += s.v * s.wz;
-    sv += s.v;
+  let sxx = 0, sxy = 0, syy = 0, sx = 0, sy = 0, n = 0;
+  let sux = 0, suy = 0, su = 0, svx = 0, svy = 0, sv = 0;
+  for (const p of pts) {
+    sxx += p.iu * p.iu;
+    sxy += p.iu * p.iv;
+    syy += p.iv * p.iv;
+    sx += p.iu;
+    sy += p.iv;
+    sux += p.u * p.iu;
+    suy += p.u * p.iv;
+    su += p.u;
+    svx += p.v * p.iu;
+    svy += p.v * p.iv;
+    sv += p.v;
     n += 1;
   }
 
@@ -3534,8 +3563,8 @@ function rebuildMapTransform() {
     return [c0, c1, c2];
   }
 
-  const rowU = solve3(sxx, sxz, sx, sxz, szz, sz, sx, sz, n, sux, suz, su);
-  const rowV = solve3(sxx, sxz, sx, sxz, szz, sz, sx, sz, n, svx, svz, sv);
+  const rowU = solve3(sxx, sxy, sx, sxy, syy, sy, sx, sy, n, sux, suy, su);
+  const rowV = solve3(sxx, sxy, sx, sxy, syy, sy, sx, sy, n, svx, svy, sv);
   if (!rowU || !rowV) {
     state.mapCal.transform = null;
     return;
@@ -3547,53 +3576,54 @@ function rebuildMapTransform() {
     a22: rowV[1],
     tx: rowU[2],
     ty: rowV[2],
-    kind: "affine",
+    kind: "uv-affine",
   };
 }
 
-function applyTransform(wx, wz, t) {
-  if (!t) return null;
-  const x = Number(wx);
-  const z = Number(wz);
-  if (!Number.isFinite(x) || !Number.isFinite(z)) return null;
+function applyUvTransform(iu, iv, t) {
+  if (!t) return { u: iu, v: iv };
   return {
-    u: t.a11 * x + t.a12 * z + t.tx,
-    v: t.a21 * x + t.a22 * z + t.ty,
+    u: t.a11 * iu + t.a12 * iv + t.tx,
+    v: t.a21 * iu + t.a22 * iv + t.ty,
   };
 }
 
 function worldToMapPixel(wx, wz, mapSize, rect, cal = state.mapCal) {
   if (!rect) return null;
 
+  const ideal = standardWorldToUv(wx, wz, mapSize, cal);
+  if (!ideal) return null;
+
+  let uv = ideal;
   const locked = cal?.transform;
-  if (locked && Number.isFinite(locked.a11)) {
-    const uv = applyTransform(wx, wz, locked);
-    if (!uv) return null;
-    return uvToPixel(uv.u, uv.v, rect);
-  }
-
-  const base = standardWorldToUv(wx, wz, mapSize, cal);
-  if (!base) return null;
-
-  const samples = (cal?.samples || []).filter(
-    (s) => s && Number.isFinite(s.u) && Number.isFinite(s.v),
-  );
-  if (samples.length === 1) {
-    const s = samples[0];
-    const expected = standardWorldToUv(s.wx, s.wz, mapSize, cal);
-    if (expected) {
-      return uvToPixel(base.u + (s.u - expected.u), base.v + (s.v - expected.v), rect);
+  if (locked && String(locked.kind || "").startsWith("uv-") && Number.isFinite(locked.a11)) {
+    uv = applyUvTransform(ideal.u, ideal.v, locked);
+  } else {
+    const samples = (cal?.samples || []).filter(
+      (s) => s && Number.isFinite(s.u) && Number.isFinite(s.v),
+    );
+    if (samples.length === 1) {
+      const s = samples[0];
+      const expected = standardWorldToUv(s.wx, s.wz, mapSize, cal);
+      if (expected) {
+        uv = {
+          u: ideal.u + (s.u - expected.u),
+          v: ideal.v + (s.v - expected.v),
+        };
+      }
     }
   }
-  return uvToPixel(base.u, base.v, rect);
+  return uvToPixel(uv.u, uv.v, rect);
 }
 
 function mapCalModeLabel() {
   const cal = state.mapCal || {};
   const n = (cal.samples || []).length;
-  if (cal.transform) return `${cal.transform.kind === "affine" ? "Affine" : "2-point"} lock · ${n} marks`;
-  if (n === 1) return "1-point offset · 1/2 marks";
-  return `not calibrated · ${n}/2 marks`;
+  if (cal.transform?.kind === "uv-affine") return `Affine lock · ${n} marks`;
+  if (cal.transform) return `2-point lock · ${n} marks`;
+  if (n === 1) return "1-point offset · mark 1 more";
+  if (n >= 2) return `${n} marks · rebuild needed`;
+  return "not calibrated · mark 2+ far apart";
 }
 
 function updateMapCalChrome() {
@@ -3642,40 +3672,47 @@ function drawMap() {
   const ctx = canvas.getContext("2d");
   const img = document.getElementById("mapImage");
   const stage = canvas.parentElement;
-  const cw = Math.max(320, Math.round(stage?.clientWidth || window.innerWidth || 800));
-  const ch = Math.max(320, Math.round(stage?.clientHeight || window.innerHeight || 800));
+  const cssW = Math.max(320, Math.round(stage?.clientWidth || window.innerWidth || 800));
+  const cssH = Math.max(320, Math.round(stage?.clientHeight || window.innerHeight || 800));
+  const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+  const bw = Math.round(cssW * dpr);
+  const bh = Math.round(cssH * dpr);
 
-  if (canvas.width !== cw || canvas.height !== ch) {
-    canvas.width = cw;
-    canvas.height = ch;
+  if (canvas.width !== bw || canvas.height !== bh) {
+    canvas.width = bw;
+    canvas.height = bh;
   }
-  canvas.style.width = "100%";
-  canvas.style.height = "100%";
+  canvas.style.width = cssW + "px";
+  canvas.style.height = cssH + "px";
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
   ctx.fillStyle = "#050506";
-  ctx.fillRect(0, 0, cw, ch);
+  ctx.fillRect(0, 0, cssW, cssH);
 
   const waitingPhoto = img && img.getAttribute("src") && !(img.complete && img.naturalWidth > 0);
   const hasPhoto = img && img.complete && img.naturalWidth > 0;
-  let rect = { dx: 0, dy: 0, dw: cw, dh: ch };
+  let rect = { dx: 0, dy: 0, dw: cssW, dh: cssH };
 
   if (hasPhoto) {
-    rect = fitContain(img.naturalWidth, img.naturalHeight, cw, ch);
+    rect = fitContain(img.naturalWidth, img.naturalHeight, cssW, cssH);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
     ctx.drawImage(img, rect.dx, rect.dy, rect.dw, rect.dh);
     img.style.display = "none";
   } else if (waitingPhoto) {
     ctx.fillStyle = "#6b7280";
     ctx.font = "14px sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText("Loading map image…", cw / 2, ch / 2);
+    ctx.fillText("Loading map image…", cssW / 2, cssH / 2);
     ctx.textAlign = "start";
     state.mapDrawRect = rect;
+    state.mapCssSize = { w: cssW, h: cssH };
     return;
   } else {
     const seed = state.overview?.server?.mapSeed || 1;
-    const box = Math.min(cw, ch);
-    const ox = (cw - box) / 2;
-    const oy = (ch - box) / 2;
+    const box = Math.min(cssW, cssH);
+    const ox = (cssW - box) / 2;
+    const oy = (cssH - box) / 2;
     ctx.save();
     ctx.translate(ox, oy);
     drawProceduralTerrain(ctx, box, box, seed);
@@ -3684,12 +3721,13 @@ function drawMap() {
   }
 
   state.mapDrawRect = rect;
+  state.mapCssSize = { w: cssW, h: cssH };
 
   const MAP_SIZE = Number(state.overview?.server?.mapSize) || 4000;
   const players = state.playerPositions || [];
   const cal = state.mapCal || {};
-  const dotR = Math.max(5, Math.min(10, Math.round(Math.min(cw, ch) / 110)));
-  const fontPx = Math.max(11, Math.min(15, Math.round(Math.min(cw, ch) / 70)));
+  const dotR = Math.max(5, Math.min(10, Math.round(Math.min(cssW, cssH) / 110)));
+  const fontPx = Math.max(11, Math.min(15, Math.round(Math.min(cssW, cssH) / 70)));
 
   for (const s of cal.samples || []) {
     if (!Number.isFinite(s.u) || !Number.isFinite(s.v)) continue;
@@ -3738,9 +3776,9 @@ function drawMap() {
     ctx.font = `bold ${fontPx}px sans-serif`;
     const tw = ctx.measureText(label).width;
     let lx = x + dotR + 6;
-    if (lx + tw > cw - 8) lx = x - tw - dotR - 6;
-    lx = Math.max(6, Math.min(lx, cw - tw - 6));
-    const ly = Math.max(fontPx + 2, Math.min(y + 4, ch - 6));
+    if (lx + tw > cssW - 8) lx = x - tw - dotR - 6;
+    lx = Math.max(6, Math.min(lx, cssW - tw - 6));
+    const ly = Math.max(fontPx + 2, Math.min(y + 4, cssH - 6));
 
     ctx.shadowBlur = 3;
     ctx.fillStyle = onMap ? "#fff" : "#9ca3af";
@@ -4590,7 +4628,7 @@ async function renderMap() {
     : "";
 
   const statusHint = imageReady
-    ? `Uploaded map${imageSource ? ` (${esc(imageSource)})` : ""}. Mark <b>two</b> players far apart to lock dots.`
+    ? `Uploaded map${imageSource ? ` (${esc(imageSource)})` : ""}. Clear old marks & recalibrate after this fix. Sharper if you upload a high-res screenshot.`
     : `Upload a full in-game map screenshot — required for dots to line up.`;
 
   return `
@@ -4632,7 +4670,7 @@ async function renderMap() {
             <strong>Click calibrate</strong>
             <span id="mapCalModePill" class="pill info" style="margin-left:.35rem">${esc(calMode)}</span>
           </div>
-          <p class="hint" style="margin:0">Pick a player → <b>Mark</b> → click their spot on the map. Do two far apart.</p>
+          <p class="hint" style="margin:0">Pick a player → <b>Mark</b> → click their <b>exact</b> spot (e.g. Ranch). Do 2–3 far apart (oil / airfield / ranch).</p>
           <div style="display:flex;flex-wrap:wrap;gap:.45rem;align-items:center">
             <select id="mapCalPlayer">
               <option value="">— player —</option>
@@ -4704,8 +4742,10 @@ function bindView() {
         }
         const br = canvas.getBoundingClientRect();
         if (!br.width || !br.height) return;
-        const px = ((e.clientX - br.left) / br.width) * canvas.width;
-        const py = ((e.clientY - br.top) / br.height) * canvas.height;
+        const cssW = state.mapCssSize?.w || br.width;
+        const cssH = state.mapCssSize?.h || br.height;
+        const px = ((e.clientX - br.left) / br.width) * cssW;
+        const py = ((e.clientY - br.top) / br.height) * cssH;
         const uv = pixelToUv(px, py, rect);
         if (!uv || uv.u < -0.02 || uv.u > 1.02 || uv.v < -0.02 || uv.v > 1.02) {
           toast("Click on the map image (not the black bars)", true);
