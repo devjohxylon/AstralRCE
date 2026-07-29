@@ -2725,7 +2725,7 @@ async function renderServerCommands() {
   ).join("") || `<option value="">No kits found</option>`;
 
   const eventBtns = (data.events || []).map((e) =>
-    `<button data-action="runEvent" data-id="${esc(e.id)}" title="${esc(e.command)}">${esc(e.label)}</button>`
+    `<button data-action="triggerPresetEvent" data-id="${esc(e.id)}" title="${esc(e.command)}">${esc(e.label)}</button>`
   ).join("");
 
   const rankOpts = [
@@ -4003,7 +4003,7 @@ async function renderEvents() {
       <td data-label="Runs">${e.runCount || 0}</td>
       <td data-label="Actions" class="actions">
         ${can("schedule") ? `
-          <button data-action="runEvent" data-id="${esc(e.id)}">Run Now</button>
+          <button data-action="runScheduledEvent" data-id="${esc(e.id)}">Run Now</button>
           <button data-action="toggleEvent" data-id="${esc(e.id)}" data-enabled="${e.enabled ? "1" : "0"}">${e.enabled ? "Disable" : "Enable"}</button>
           <button class="danger" data-action="delEvent" data-id="${esc(e.id)}">Delete</button>
         ` : ""}
@@ -4786,15 +4786,17 @@ function bindView() {
           });
           toast(r.command ? `Ran ${r.command}` : (r.ok ? "Done" : r.error), !r.ok);
         }
-        if (a === "runEvent") {
+        if (a === "triggerPresetEvent") {
           const r = await api("/events/trigger", { method: "POST", body: { id: el.dataset.id } });
-          toast(`Ran ${r.command}`);
+          toast(r.ok ? `Ran ${r.command}` : (r.error || "Failed"), !r.ok);
+          return;
         }
         if (a === "runCustomEvent") {
           const command = document.getElementById("cmdCustomEvent")?.value?.trim();
           if (!command) { toast("Enter a command", true); return; }
           const r = await api("/events/trigger", { method: "POST", body: { command } });
-          toast(`Ran ${r.command}`);
+          toast(r.ok ? `Ran ${r.command}` : (r.error || "Failed"), !r.ok);
+          return;
         }
         if (a === "broadcast") {
           await api("/broadcast", { method: "POST", body: { message: document.getElementById("broadcastMsg").value } });
@@ -5158,13 +5160,14 @@ function bindView() {
           }
         }
         
-        if (a === "runEvent") {
+        if (a === "runScheduledEvent") {
           const r = await api(`/events/${el.dataset.id}/run`, { method: "POST", body: {} });
           if (r.ok) {
             toast("Event executed");
           } else {
             toast(r.error, true);
           }
+          return;
         }
         
         if (a === "toggleEvent") {

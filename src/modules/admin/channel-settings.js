@@ -240,14 +240,13 @@ export async function saveChannelConfig(patch = {}) {
   return { ok: true, channels: await getChannelConfig() };
 }
 
-/** Common RCE / console event presets. */
+/** Common RCE / console event presets (Rust Console Edition commands). */
 export const EVENT_PRESETS = [
-  { id: "heli", label: "Call Patrol Heli", command: "callheli" },
-  { id: "bradley", label: "Spawn Bradley", command: "bradley.respawn" },
-  { id: "airdrop", label: "Call Airdrop", command: "supply.call" },
-  { id: "cargo", label: "Spawn Cargo Ship", command: "spawn cargoshipei" },
-  { id: "chinook", label: "Call Chinook", command: "callchinook" },
-  { id: "oilrig", label: "Oil Rig Alarm", command: "oilrig.alarm" },
+  { id: "heli", label: "Call Patrol Heli", command: "events.triggerevent event_helicopter" },
+  { id: "bradley", label: "Respawn Bradley", command: "bradley.quickrespawn" },
+  { id: "airdrop", label: "Call Airdrop", command: "events.triggerevent event_airdrop" },
+  { id: "cargo", label: "Spawn Cargo Ship", command: "events.triggerevent event_cargoship" },
+  { id: "chinook", label: "Call Chinook", command: "events.triggerevent event_cargoheli" },
 ];
 
 /** In-game auth ranks (vanilla RCON). */
