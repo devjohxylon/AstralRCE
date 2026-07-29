@@ -286,8 +286,54 @@ export async function attachAdminPanel(app, client) {
     const stats = await statsSummary();
     const players = getOnlinePlayers();
     const wipeAt = await getWipeAt();
-
     const mapMetadata = await getMapMetadata();
+
+    const { config } = await import("../../config.js");
+    const { DATA_DIR } = await import("../../data/store.js");
+    const onRailway = Boolean(process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_PROJECT_ID);
+    const volumeMount = process.env.RAILWAY_VOLUME_MOUNT_PATH?.trim() || null;
+    const dataOnVolume =
+      volumeMount &&
+      (DATA_DIR === volumeMount ||
+        DATA_DIR.startsWith(volumeMount.replace(/\/$/, "") + "/"));
+
+    const killfeedSet = Boolean(config.channels?.killfeed);
+    const leaderboardSet = Boolean(config.channels?.leaderboard);
+    const vipRoleSet = Boolean(config.roles?.vip);
+
+    let rconHealth = { id: "rcon", label: "RCON", status: "warn", detail: "Not configured" };
+    if (rcon.enabled) {
+      rconHealth = rcon.connected
+        ? { id: "rcon", label: "RCON", status: "ok", detail: "Connected" }
+        : {
+            id: "rcon",
+            label: "RCON",
+            status: "bad",
+            detail: rcon.lastError ? String(rcon.lastError).slice(0, 48) : "Offline",
+          };
+    }
+
+    const discordHealth = client.isReady()
+      ? { id: "discord", label: "Discord", status: "ok", detail: bot.user || "Ready" }
+      : { id: "discord", label: "Discord", status: "bad", detail: "Bot down" };
+
+    const dataHealth =
+      onRailway && !dataOnVolume
+        ? { id: "data", label: "Data", status: "warn", detail: "No volume — resets on deploy" }
+        : { id: "data", label: "Data", status: "ok", detail: onRailway ? "Volume mounted" : "Local disk" };
+
+    const feedsHealth = killfeedSet
+      ? {
+          id: "feeds",
+          label: "Feeds",
+          status: leaderboardSet ? "ok" : "warn",
+          detail: leaderboardSet
+            ? vipRoleSet
+              ? "Killfeed + leaderboard set"
+              : "Killfeed set · VIP role unset"
+            : "Killfeed set · leaderboard unset",
+        }
+      : { id: "feeds", label: "Feeds", status: "warn", detail: "Killfeed channel unset" };
 
     res.json({
       ok: true,
@@ -328,6 +374,7 @@ export async function attachAdminPanel(app, client) {
           ? new Date(wipeAt).toISOString().slice(0, 16)
           : "",
       },
+      health: [rconHealth, discordHealth, dataHealth, feedsHealth],
     });
   });
 
@@ -341,6 +388,70 @@ export async function attachAdminPanel(app, client) {
       link: linkByIgn[p.ign.toLowerCase()] ?? null,
     }));
     res.json({ ok: true, online, links });
+  });
+
+  app.get("/admin/api/players/search", requireAuth, requirePerm("players"), async (req, res) => {
+    try {
+      const q = String(req.query.q ?? "").trim().toLowerCase();
+      if (!q) return res.json({ ok: true, results: [] });
+
+      const links = await listLinks();
+      const online = getOnlinePlayers();
+      const profiles = await searchPlayers(q);
+      const byIgn = new Map();
+
+      const touch = (ign, patch = {}) => {
+        const key = String(ign || "").toLowerCase();
+        if (!key) return;
+        const cur = byIgn.get(key) || {
+          ign: String(ign).trim(),
+          online: false,
+          linked: false,
+          discordId: null,
+          ping: null,
+          platform: null,
+          tags: [],
+          noteCount: 0,
+          warningCount: 0,
+        };
+        Object.assign(cur, patch);
+        if (patch.ign) cur.ign = patch.ign;
+        byIgn.set(key, cur);
+      };
+
+      for (const p of online) {
+        if (p.ign.toLowerCase().includes(q)) {
+          touch(p.ign, {
+            ign: p.ign,
+            online: true,
+            ping: p.ping ?? null,
+            platform: p.platform ?? null,
+          });
+        }
+      }
+      for (const l of links) {
+        const id = String(l.discordId || "");
+        if (l.ign.toLowerCase().includes(q) || id.includes(q)) {
+          touch(l.ign, { ign: l.ign, linked: true, discordId: l.discordId });
+        }
+      }
+      for (const p of profiles) {
+        touch(p.ign, {
+          ign: p.ign,
+          tags: p.tags || [],
+          noteCount: p.noteCount || 0,
+          warningCount: p.warningCount || 0,
+        });
+      }
+
+      const results = [...byIgn.values()]
+        .sort((a, b) => Number(b.online) - Number(a.online) || a.ign.localeCompare(b.ign))
+        .slice(0, 50);
+
+      res.json({ ok: true, results, query: q });
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
   });
 
   app.post("/admin/api/rcon", requireAuth, requirePerm("rcon"), async (req, res) => {

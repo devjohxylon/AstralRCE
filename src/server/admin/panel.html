@@ -384,6 +384,48 @@ button { transition: all .15s ease; }
 .pill.info { color: #60a5fa; border-color: rgba(96,165,250,.2); background: rgba(96,165,250,.08); }
 .pill.info::before { background: #60a5fa; opacity: 1; }
 
+.health-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: .65rem;
+  margin-bottom: 1rem;
+}
+.health-card {
+  padding: .7rem .8rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: rgba(0,0,0,.22);
+  min-width: 0;
+}
+.health-card .h-label {
+  font-size: .65rem; font-family: var(--mono); letter-spacing: .04em;
+  text-transform: uppercase; color: rgba(215,221,230,.45); margin-bottom: .25rem;
+}
+.health-card .h-value {
+  font-size: .88rem; font-weight: 650; line-height: 1.25;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.health-card .h-detail {
+  margin-top: .2rem; font-size: .68rem; font-family: var(--mono);
+  color: rgba(215,221,230,.45);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.health-card.ok { border-color: rgba(74,222,128,.22); }
+.health-card.ok .h-value { color: #4ade80; }
+.health-card.bad { border-color: rgba(248,113,113,.25); }
+.health-card.bad .h-value { color: #f87171; }
+.health-card.warn { border-color: rgba(251,191,36,.22); }
+.health-card.warn .h-value { color: #fbbf24; }
+.quick-actions {
+  display: flex; flex-wrap: wrap; gap: .5rem;
+  margin: 0 0 1rem;
+}
+.player-hub-search {
+  display: grid; gap: .55rem;
+  grid-template-columns: 1fr auto auto;
+  margin-bottom: .85rem; align-items: stretch;
+}
+
 /* ── Cards & grids ── */
 .grid { display: grid; gap: 1.75rem; }
 .grid.stats { 
@@ -1214,7 +1256,8 @@ button { transition: all .15s ease; }
     max-width: none;
   }
 
-  .wipe-list { margin-bottom: .9rem; }
+  .health-strip { grid-template-columns: 1fr 1fr; }
+  .player-hub-search { grid-template-columns: 1fr; }
   .wipe-row, .wipe-auto { padding: .8rem .85rem; min-height: 52px; }
   .wipe-actions { flex-direction: column; align-items: stretch; }
   .wipe-actions input[type="text"] { width: 100% !important; flex: none; }
@@ -1285,6 +1328,10 @@ button { transition: all .15s ease; }
         <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 15l6-6M8.5 7.5l1-1a4 4 0 0 1 6 6l-1 1M15.5 16.5l-1 1a4 4 0 0 1-6-6l1-1"/></svg>Community</button>
       <button type="button" data-nav="server">
         <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Server</button>
+      <button type="button" data-tab="commands" data-perm="serverCommands">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l2.2 4.5L19 8.3l-3.5 3.4.8 4.8L12 14.2 7.7 16.5l.8-4.8L5 8.3l4.8-.8L12 3z"/><path d="M5 20h14"/></svg>Actions</button>
+      <button type="button" data-tab="discord" data-perm="serverCommands">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 10h.01M12 10h.01M16 10h.01M7 16c1.5 1.2 3.2 1.8 5 1.8s3.5-.6 5-1.8"/><path d="M6.5 6.5C8 5 10 4.2 12 4.2s4 0.8 5.5 2.3c1.6 1.6 2.6 3.8 2.8 6.2.1 1.5-.2 3-.8 4.3L20 20l-3.7-1.2c-1.3.5-2.8.8-4.3.8-2 0-4-.8-5.5-2.3C5 15.7 4 13.5 3.8 11.1c-.1-1.5.2-3 .8-4.3L6.5 6.5z"/></svg>Discord</button>
     </div>
 
     <div class="nav-group nav-advanced" id="navAdvanced">
@@ -1296,10 +1343,6 @@ button { transition: all .15s ease; }
       <div class="nav-advanced-items" id="advancedItems">
         <button type="button" data-tab="console" data-perm="rcon">
           <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3M13 15h4"/></svg>RCON</button>
-        <button type="button" data-tab="discord" data-perm="serverCommands">
-          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 10h.01M12 10h.01M16 10h.01M7 16c1.5 1.2 3.2 1.8 5 1.8s3.5-.6 5-1.8"/><path d="M6.5 6.5C8 5 10 4.2 12 4.2s4 0.8 5.5 2.3c1.6 1.6 2.6 3.8 2.8 6.2.1 1.5-.2 3-.8 4.3L20 20l-3.7-1.2c-1.3.5-2.8.8-4.3.8-2 0-4-.8-5.5-2.3C5 15.7 4 13.5 3.8 11.1c-.1-1.5.2-3 .8-4.3L6.5 6.5z"/></svg>Discord</button>
-        <button type="button" data-tab="commands" data-perm="serverCommands">
-          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l2.2 4.5L19 8.3l-3.5 3.4.8 4.8L12 14.2 7.7 16.5l.8-4.8L5 8.3l4.8-.8L12 3z"/><path d="M5 20h14"/></svg>Commands</button>
         <button type="button" data-tab="warps" data-perm="warps">
           <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s7-6.5 7-11a7 7 0 1 0-14 0c0 4.5 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>Warps</button>
         <button type="button" data-tab="keys" data-perm="keys">
@@ -1368,6 +1411,7 @@ const state = {
   playerPositions: [],
   selectedPlayer: null,
   profileQuery: "",
+  playerQuery: "",
   editingServerKit: null,
   editingServerKitData: null,
   kitBuilderOpen: false,
@@ -1388,7 +1432,7 @@ const NAV_SECTIONS = {
     title: "Players",
     sub: "Online players, links, profiles, bans, and reports",
     tabs: [
-      { id: "players", label: "Online", perm: "players" },
+      { id: "players", label: "Find", perm: "players" },
       { id: "profiles", label: "Profiles", perm: "players" },
       { id: "links", label: "Links", perm: "links" },
       { id: "bans", label: "Bans", perm: "ban" },
@@ -1420,10 +1464,13 @@ const NAV_SECTIONS = {
   },
 };
 
+const MAIN_TOOL_TABS = [
+  { id: "commands", label: "Actions", perm: "serverCommands", title: "Actions", sub: "Give kits, ranks, and trigger events" },
+  { id: "discord", label: "Discord", perm: "serverCommands", title: "Discord", sub: "Channels, feeds, VIP, and slash commands" },
+];
+
 const ADVANCED_TABS = [
   { id: "console", label: "RCON", perm: "rcon", title: "RCON", sub: "Raw RCON commands" },
-  { id: "discord", label: "Discord", perm: "serverCommands", title: "Discord", sub: "Channels, feeds, VIP, and slash commands" },
-  { id: "commands", label: "Commands", perm: "serverCommands", title: "Commands", sub: "Give kits, ranks, and trigger events" },
   { id: "warps", label: "Warps", perm: "warps", title: "Warps", sub: "Warps and force teleports" },
   { id: "keys", label: "Keys", perm: "keys", title: "Keys", sub: "Staff access keys" },
   { id: "logs", label: "Logs", perm: "logs", title: "Logs", sub: "Panel actions and system audit trail" },
@@ -1432,7 +1479,7 @@ const ADVANCED_TABS = [
 const TAB_META = {
   overview: { title: "Home", sub: "Server health and quick controls", perm: "overview" },
   map: { title: "Home", sub: "Not available on Rust Console", perm: "players" },
-  players: { title: "Players", sub: "Who's online right now", perm: "players" },
+  players: { title: "Players", sub: "Search anyone — online roster below", perm: "players" },
   profiles: { title: "Players", sub: "Staff dossiers — stats, notes, actions", perm: "players" },
   links: { title: "Players", sub: "Discord ↔ IGN links", perm: "links" },
   bans: { title: "Players", sub: "Manage player bans", perm: "ban" },
@@ -1446,7 +1493,7 @@ const TAB_META = {
   analytics: { title: "Server", sub: "Pop, FPS, and weapon stats", perm: "overview" },
 };
 
-for (const t of ADVANCED_TABS) {
+for (const t of [...MAIN_TOOL_TABS, ...ADVANCED_TABS]) {
   TAB_META[t.id] = { title: t.title, sub: t.sub, perm: t.perm };
 }
 
@@ -1484,6 +1531,8 @@ function firstAllowedTab() {
     const tab = defaultTabForSection(id);
     if (tab) return tab;
   }
+  const tool = MAIN_TOOL_TABS.find((t) => can(t.perm));
+  if (tool) return tool.id;
   const adv = ADVANCED_TABS.find((t) => can(t.perm));
   return adv?.id || "overview";
 }
@@ -1773,7 +1822,9 @@ function setTab(tab) {
   const meta = TAB_META[tab] || { title: tab, sub: "" };
   const sectionId = sectionForTab(tab);
   const section = sectionId && sectionId !== "advanced" ? NAV_SECTIONS[sectionId] : null;
-  document.getElementById("pageTitle").textContent = section?.title || meta.title || tab;
+  document.getElementById("pageTitle").textContent =
+    section?.title || meta.title || tab;
+  // Prefer tool-specific subtitle (Actions / Discord) over section blurb
   document.getElementById("pageSub").textContent = meta.sub || section?.sub || "";
   renderPageSubtabs();
   setNavOpen(false);
@@ -1825,7 +1876,7 @@ function statCard(value, label, liveKey) {
 }
 
 function renderOverview() {
-  const o = state.overview || { server: null, onlinePlayers: [], stats: {}, bot: {}, wipe: {}, rcon: {} };
+  const o = state.overview || { server: null, onlinePlayers: [], stats: {}, bot: {}, wipe: {}, rcon: {}, health: [] };
   const s = o.server || {};
   const r = o.rcon || {};
   const wipeAt = o.wipe?.wipeAt;
@@ -1845,14 +1896,42 @@ function renderOverview() {
     : "—";
   const endpoint = r.host && r.port ? `${r.host}:${r.port}` : "—";
 
+  const health = (o.health && o.health.length)
+    ? o.health
+    : [
+        { id: "rcon", label: "RCON", status: r.connected ? "ok" : "bad", detail: r.connected ? "Connected" : "Offline" },
+        { id: "discord", label: "Discord", status: o.bot?.ready ? "ok" : "bad", detail: o.bot?.ready ? "Ready" : "Down" },
+      ];
+
+  const healthStrip = `
+    <div class="health-strip">
+      ${health.map((h) => `
+        <div class="health-card ${esc(h.status || "")}">
+          <div class="h-label">${esc(h.label)}</div>
+          <div class="h-value">${esc(h.status === "ok" ? "OK" : h.status === "bad" ? "Down" : "Check")}</div>
+          <div class="h-detail">${esc(h.detail || "")}</div>
+        </div>`).join("")}
+    </div>`;
+
+  const quick = `
+    <div class="quick-actions">
+      ${can("players") ? `<button data-action="goTab" data-tab="players">Find player</button>` : ""}
+      ${can("serverCommands") ? `<button data-action="goTab" data-tab="commands">Give kit / rank</button>` : ""}
+      ${can("serverCommands") ? `<button data-action="goTab" data-tab="discord">Discord settings</button>` : ""}
+      ${can("overview") ? `<button data-action="goTab" data-tab="wipe">Wipe tools</button>` : ""}
+      ${can("broadcast") ? "" : ""}
+    </div>`;
+
   const onlineRows = online.slice(0, 8).map((p) => `
     <tr>
-      <td data-label="IGN"><strong>${esc(p.ign)}</strong></td>
+      <td data-label="IGN"><button class="ghost" style="padding:0;justify-content:flex-start;font-weight:700" data-action="viewPlayer" data-ign="${esc(p.ign)}">${esc(p.ign)}</button></td>
       <td data-label="Platform">${esc(p.platform || "—")}</td>
       <td data-label="Ping">${p.ping ?? "—"}${p.ping != null ? " ms" : ""}</td>
     </tr>`).join("") || `<tr><td colspan="3"><div class="empty">Nobody online right now<span class="empty-hint">Players will appear here when they connect</span></div></td></tr>`;
 
   return `
+    ${healthStrip}
+    ${quick}
     <div class="grid stats">
       ${statCard(`${s.players ?? "—"}<span class="slash"> / ${s.maxPlayers ?? "?"}</span>`, "Players online", "pop")}
       ${statCard(s.queued ?? 0, "In queue", "queued")}
@@ -1886,7 +1965,7 @@ function renderOverview() {
             <thead><tr><th>IGN</th><th>Platform</th><th>Ping</th></tr></thead>
             <tbody>${onlineRows}</tbody>
           </table>
-          ${online.length > 8 ? `<p class="hint" style="margin:.6rem 0 0">+${online.length - 8} more — see the Players tab</p>` : ""}
+          ${online.length > 8 ? `<p class="hint" style="margin:.6rem 0 0">+${online.length - 8} more — use Find player</p>` : ""}
         </div>
       </div>
 
@@ -1931,6 +2010,50 @@ function renderOverview() {
 }
 
 async function renderPlayers() {
+  const q = state.playerQuery || "";
+  const searchBlock = `
+    <div class="card" style="margin-bottom:.85rem">
+      <div class="card-head">
+        <h3>Find player</h3>
+        ${q ? `<span class="pill info">searching</span>` : ""}
+      </div>
+      <p class="card-desc">Search online players, Discord links, and dossiers by IGN or Discord ID.</p>
+      <div class="player-hub-search">
+        <input id="playerHubSearch" placeholder="IGN or Discord ID…" value="${esc(q)}" />
+        <button class="primary" data-action="searchPlayersHub">Search</button>
+        <button data-action="clearPlayersHub">Clear</button>
+      </div>
+    </div>`;
+
+  if (q) {
+    const data = await api(`/players/search?q=${encodeURIComponent(q)}`);
+    const rows = (data.results || []).map((p) => `
+      <tr>
+        <td data-label="IGN"><strong>${esc(p.ign)}</strong></td>
+        <td data-label="Status">${p.online ? `<span class="pill ok">online</span>` : `<span class="pill">offline</span>`}</td>
+        <td data-label="Link">${p.linked ? `<span class="pill ok">linked</span>` : `<span class="pill">unlinked</span>`}</td>
+        <td data-label="Notes">${p.noteCount || 0}${p.warningCount ? ` · <span class="pill warn">${p.warningCount} warn</span>` : ""}</td>
+        <td data-label="Actions" class="actions">
+          <button data-action="viewPlayer" data-ign="${esc(p.ign)}">Open</button>
+          ${can("kick") && p.online ? `<button data-action="kick" data-ign="${esc(p.ign)}">Kick</button>` : ""}
+          ${can("ban") ? `<button class="danger" data-action="ban" data-ign="${esc(p.ign)}">Ban</button>` : ""}
+        </td>
+      </tr>`).join("") || `<tr><td colspan="5"><div class="empty">No matches<span class="empty-hint">Try a different IGN, or open Profiles to create a dossier</span></div></td></tr>`;
+
+    return `
+      ${searchBlock}
+      <div class="card">
+        <div class="card-head">
+          <h3>Results</h3>
+          <span class="pill info">${(data.results || []).length}</span>
+        </div>
+        <table class="table">
+          <thead><tr><th>IGN</th><th>Status</th><th>Link</th><th>Notes</th><th></th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+  }
+
   const data = await api("/players");
   const rows = data.online.map((p) => `
     <tr>
@@ -1942,14 +2065,16 @@ async function renderPlayers() {
         <div class="dropdown">
           <button class="ghost dropdown-btn" data-toggle-dropdown="${esc(p.ign)}">Actions</button>
           <div class="dropdown-menu" data-dropdown="${esc(p.ign)}">
+            <button data-action="viewPlayer" data-ign="${esc(p.ign)}">View Profile</button>
+            ${can("serverCommands") ? `<button data-action="goTab" data-tab="commands">Give kit / rank</button>` : ""}
             ${can("kick") ? `<button data-action="kick" data-ign="${esc(p.ign)}">Kick Player</button>` : ""}
             ${can("ban") ? `<button class="danger" data-action="ban" data-ign="${esc(p.ign)}">Ban Player</button>` : ""}
-            <button data-action="viewPlayer" data-ign="${esc(p.ign)}">View Profile</button>
           </div>
         </div>
       </td>
-    </tr>`).join("") || `<tr><td colspan="5"><div class="empty">Nobody online right now<span class="empty-hint">Players will appear here when they connect</span></div></td></tr>`;
+    </tr>`).join("") || `<tr><td colspan="5"><div class="empty">Nobody online right now<span class="empty-hint">Search above for offline / linked players</span></div></td></tr>`;
   return `
+    ${searchBlock}
     <div class="card">
       <div class="card-head">
         <h3>Online now</h3>
@@ -1958,7 +2083,7 @@ async function renderPlayers() {
           <button data-action="refreshPlayers">Refresh</button>
         </div>
       </div>
-      <p class="card-desc">Online roster — use Refresh when you need an updated list.</p>
+      <p class="card-desc">Live roster — search above for anyone offline.</p>
       <table class="table">
         <thead><tr><th>IGN</th><th>Platform</th><th>Ping</th><th>Link</th><th></th></tr></thead>
         <tbody>${rows}</tbody>
@@ -3850,6 +3975,20 @@ function bindView() {
           setTab(el.dataset.tab || "overview");
           return;
         }
+        if (a === "goTab") {
+          setTab(el.dataset.tab || "overview");
+          return;
+        }
+        if (a === "searchPlayersHub") {
+          state.playerQuery = document.getElementById("playerHubSearch")?.value?.trim() || "";
+          render();
+          return;
+        }
+        if (a === "clearPlayersHub") {
+          state.playerQuery = "";
+          render();
+          return;
+        }
         if (a === "viewPlayer") {
           const ign = el.dataset.ign;
           state.selectedPlayer = ign;
@@ -4602,6 +4741,13 @@ function bindView() {
   if (rconInput) {
     rconInput.onkeydown = (e) => {
       if (e.key === "Enter") document.querySelector('[data-action="rcon"]')?.click();
+    };
+  }
+
+  const playerHubSearch = document.getElementById("playerHubSearch");
+  if (playerHubSearch) {
+    playerHubSearch.onkeydown = (e) => {
+      if (e.key === "Enter") document.querySelector('[data-action="searchPlayersHub"]')?.click();
     };
   }
 
