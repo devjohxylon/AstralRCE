@@ -415,6 +415,26 @@ function realAdminName(admin) {
   return clean(ign);
 }
 
+/** rce.js matches the same console line twice (KitSpawn + KitGive) with kit names like "Tommy" / "Tommy kit". */
+function normalizeKitKey(kit) {
+  return String(kit ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .replace(/ kit$/i, "");
+}
+
+function kitsAreSameRedeem(a, b) {
+  const na = normalizeKitKey(a);
+  const nb = normalizeKitKey(b);
+  if (!na || !nb) return false;
+  if (na === nb) return true;
+  return na.startsWith(nb) || nb.startsWith(na);
+}
+
+const recentKitPosts = new Map(); // ignLower -> { at, kit }
+const KIT_DEDUPE_MS = 5_000;
+
 export function feedKitSpawn({ player, kit, admin }) {
   if (!feedEnabled("adminLog")) return;
   const channelId = config.channels.adminLog;
@@ -423,6 +443,17 @@ export function feedKitSpawn({ player, kit, admin }) {
   const playerName = clean(player?.ign);
   const kitName = clean(kit);
   const givenBy = realAdminName(admin);
+  const ignKey = playerName.toLowerCase();
+  const now = Date.now();
+
+  const prev = recentKitPosts.get(ignKey);
+  if (prev && now - prev.at < KIT_DEDUPE_MS && kitsAreSameRedeem(prev.kit, kitName)) {
+    return;
+  }
+  recentKitPosts.set(ignKey, { at: now, kit: kitName });
+  for (const [key, entry] of recentKitPosts) {
+    if (now - entry.at > KIT_DEDUPE_MS) recentKitPosts.delete(key);
+  }
 
   const embed = new EmbedBuilder()
     .setColor(0x3498db)
