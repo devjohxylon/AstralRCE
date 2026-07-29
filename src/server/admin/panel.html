@@ -1423,16 +1423,8 @@ async function boot() {
     
     if (can("overview")) await refreshOverview().catch(() => {});
     setTab(state.tab);
-    // Keep overview data fresh in memory, but never full-render the page on a timer —
-    // that wipes form inputs, scroll position, and focus while you're editing.
-    setInterval(() => {
-      if (!can("overview")) return;
-      if (!["overview", "players", "status"].includes(state.tab)) return;
-      if (isUserEditing()) return;
-      refreshOverview()
-        .then(() => softRefreshLiveTab())
-        .catch(() => {});
-    }, 15000);
+    // No timed full-page refresh — that wiped forms/focus. Use the Refresh
+    // buttons on Status / Online when you want updated data.
   } else {
     state.session = null;
     initLoginScene();
@@ -1498,32 +1490,29 @@ function connectWebSocket() {
         Object.assign(state.overview.server, data.server);
       }
     }
-    if (state.tab === "overview") {
-      const pills = document.getElementById("statusPills");
-      if (pills) refreshStatusPills();
-    }
+    if (!isUserEditing()) softRefreshLiveTab();
   });
 
   state.socket.on("players:update", (players) => {
     state.playerPositions = players || [];
   });
 
+  // Live toasts only when you're looking at those tabs — otherwise they feel like random UI jumps.
   state.socket.on("kill:new", (data) => {
+    if (document.hidden || isUserEditing()) return;
     if (state.tab === "overview" || state.tab === "status") {
       toast(`🔫 ${data.killer} killed ${data.victim}`);
     }
   });
 
   state.socket.on("player:join", (data) => {
-    if (state.tab === "players" || state.tab === "overview" || state.tab === "status") {
-      toast(`📥 ${data.ign} joined`);
-    }
+    if (document.hidden || isUserEditing()) return;
+    if (state.tab === "players") toast(`📥 ${data.ign} joined`);
   });
 
   state.socket.on("player:leave", (data) => {
-    if (state.tab === "players" || state.tab === "overview" || state.tab === "status") {
-      toast(`📤 ${data.ign} left`);
-    }
+    if (document.hidden || isUserEditing()) return;
+    if (state.tab === "players") toast(`📤 ${data.ign} left`);
   });
 
   state.socket.on("alert:new", (data) => {
@@ -1543,9 +1532,8 @@ function refreshStatusPills() {
 async function refreshOverview() {
   if (!can("overview")) return;
   state.overview = await api("/overview");
-  // Pills removed - info now in Connections section
   const pills = document.getElementById("statusPills");
-  pills.innerHTML = "";
+  if (pills) pills.innerHTML = "";
 }
 
 function setTab(tab) {
@@ -1553,6 +1541,7 @@ function setTab(tab) {
   if (!can(tabPerm(tab))) {
     tab = firstAllowedTab();
   }
+  const tabChanged = state.tab !== tab;
   state.tab = tab;
   syncNavActive();
   const meta = TAB_META[tab] || { title: tab, sub: "" };
@@ -1562,14 +1551,18 @@ function setTab(tab) {
   document.getElementById("pageSub").textContent = meta.sub || section?.sub || "";
   renderPageSubtabs();
   setNavOpen(false);
-  render();
+  render({ animate: tabChanged });
 }
 
-async function render() {
+async function render({ animate = false } = {}) {
   const view = document.getElementById("view");
-  view.style.animation = "none";
-  void view.offsetWidth;
-  view.style.animation = "";
+  if (animate) {
+    view.style.animation = "none";
+    void view.offsetWidth;
+    view.style.animation = "";
+  } else {
+    view.style.animation = "none";
+  }
   try {
     if (state.tab === "overview") view.innerHTML = renderOverview();
     if (state.tab === "map") view.innerHTML = await renderMap();
@@ -1734,9 +1727,12 @@ async function renderPlayers() {
     <div class="card">
       <div class="card-head">
         <h3>Online now</h3>
-        <span class="pill info">${data.online.length} connected</span>
+        <div style="display:flex;gap:.5rem;align-items:center">
+          <span class="pill info">${data.online.length} connected</span>
+          <button data-action="refreshPlayers">Refresh</button>
+        </div>
       </div>
-      <p class="card-desc">Live list refreshes automatically every 15 seconds.</p>
+      <p class="card-desc">Online roster — use Refresh when you need an updated list.</p>
       <table class="table">
         <thead><tr><th>IGN</th><th>Platform</th><th>Ping</th><th>Link</th><th></th></tr></thead>
         <tbody>${rows}</tbody>
@@ -4043,6 +4039,12 @@ function bindView() {
         if (a === "refreshServerStatus") {
           await refreshOverview();
           toast("Server status refreshed");
+          render();
+          return;
+        }
+        if (a === "refreshPlayers") {
+          await refreshOverview().catch(() => {});
+          toast("Player list refreshed");
           render();
           return;
         }

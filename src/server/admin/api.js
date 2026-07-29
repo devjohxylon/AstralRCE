@@ -113,7 +113,6 @@ import {
 } from "../../modules/profiles/manager.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PANEL_HTML = readFileSync(path.join(__dirname, "panel.html"), "utf8");
 
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const LOGIN_MAX_ATTEMPTS = 5;
@@ -195,7 +194,11 @@ export async function attachAdminPanel(app, client) {
   app.get("/", (_req, res) => res.redirect(302, "/admin"));
 
   app.get("/admin", (_req, res) => {
-    res.type("html").send(PANEL_HTML);
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    // Read on each request so deploys always serve the latest panel without stale browser cache.
+    const html = readFileSync(path.join(__dirname, "panel.html"), "utf8");
+    res.type("html").send(html);
   });
 
   app.get("/admin/", (_req, res) => res.redirect("/admin"));
