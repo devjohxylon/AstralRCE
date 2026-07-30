@@ -54,14 +54,22 @@ export const VIP_SETTING_FIELDS = [
     default: () => envDefault("VIP_CLAIM_PHRASE", "i need water") || "i need water",
   },
   {
-    key: "claimCooldownSeconds",
+    key: "postWipeLockHours",
     type: "number",
-    label: "Claim cooldown (sec)",
-    hint: "3600 = 1 hour between claims per player",
+    label: "Post-wipe lockout (hours)",
+    hint: "VIP claims blocked this long after wipe automation runs (4 = four hours)",
     min: 0,
-    max: 604800,
-    env: "VIP_CLAIM_COOLDOWN_SECONDS",
-    default: () => envNumber("VIP_CLAIM_COOLDOWN_SECONDS", 3600),
+    max: 168,
+    env: "VIP_POST_WIPE_LOCK_HOURS",
+    default: () => envNumber("VIP_POST_WIPE_LOCK_HOURS", 4),
+  },
+  {
+    key: "oncePerWipe",
+    type: "toggle",
+    label: "Once per wipe",
+    hint: "Each VIP can claim only once until the next wipe (resets with wipe automation)",
+    env: "VIP_ONCE_PER_WIPE",
+    default: () => envBool("VIP_ONCE_PER_WIPE", true),
   },
   {
     key: "autoGrant",
@@ -140,7 +148,9 @@ export function applyVipOverrides(values = getVipSettingsSync()) {
   config.vip.kitId = values.kitId || "vipkit";
   config.vip.claimEnabled = Boolean(values.claimEnabled);
   config.vip.claimPhrase = values.claimPhrase || "i need water";
-  config.vip.claimCooldownSeconds = Number(values.claimCooldownSeconds) || 0;
+  config.vip.postWipeLockHours = Number(values.postWipeLockHours);
+  if (!Number.isFinite(config.vip.postWipeLockHours)) config.vip.postWipeLockHours = 4;
+  config.vip.oncePerWipe = values.oncePerWipe !== false;
   config.vip.autoGrant = Boolean(values.autoGrant);
   config.vip.grantCommand = values.grantCommand?.trim() || null;
   config.vip.revokeCommand = values.revokeCommand?.trim() || null;

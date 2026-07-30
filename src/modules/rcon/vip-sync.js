@@ -3,9 +3,13 @@ import { getLinkByDiscord, getLinkByIgn } from "./linking.js";
 import { giveKit } from "./kits.js";
 import { sendGameCommand, isRconEnabled } from "./client.js";
 import { queueFeedLine } from "./feeds.js";
+import {
+  findVipClaim,
+  recordVipClaim,
+  vipPostWipeLockRemainingSeconds,
+} from "./vip-claims.js";
 
 const recentGrants = new Map(); // discordId -> timestamp (legacy auto-grant)
-const claimCooldowns = new Map(); // ignLower -> timestamp
 const GRANT_COOLDOWN_MS = 60_000;
 
 let discordClient = null;
@@ -16,12 +20,6 @@ export function attachVipClient(client) {
 
 function fillTemplate(template, ign) {
   return String(template).replaceAll("{ign}", ign).replaceAll("{player}", ign);
-}
-
-function claimCooldownMs() {
-  const sec = Number(config.vip.claimCooldownSeconds);
-  if (Number.isFinite(sec) && sec >= 0) return Math.trunc(sec) * 1000;
-  return 60 * 60 * 1000; // 1 hour default
 }
 
 function claimPhrases() {
@@ -52,6 +50,14 @@ async function sayToServer(line) {
   if (!isRconEnabled()) return;
   const safe = String(line).replace(/"/g, "").slice(0, 180);
   await sendGameCommand(`say ${safe}`).catch(() => {});
+}
+
+function formatLockRemaining(seconds) {
+  const s = Math.max(0, Math.ceil(Number(seconds) || 0));
+  const h = Math.floor(s / 3600);
+  const m = Math.ceil((s % 3600) / 60);
+  if (h > 0) return `${h}h ${m}m`;
+  return `${Math.max(1, m)}m`;
 }
 
 async function runGrant(ign, reason) {
@@ -103,7 +109,8 @@ export async function playerHasDiscordVip(ign) {
 
 /**
  * Claim VIP kit from in-game quick chat (default: "I need water").
- * Requires Discord VIP role + linked account. Player must be online.
+ * Requires Discord VIP role + linked account.
+ * Default: once per wipe, blocked for N hours after wipe automation.
  */
 export async function tryClaimVipFromQuickChat({ player, message } = {}) {
   if (!config.vip.claimEnabled) return null;
@@ -128,16 +135,25 @@ export async function tryClaimVipFromQuickChat({ player, message } = {}) {
     return { ok: false, error: "Not VIP", ign };
   }
 
-  const key = ign.toLowerCase();
-  const cdMs = claimCooldownMs();
-  const last = claimCooldowns.get(key) || 0;
-  const left = Math.ceil((last + cdMs - Date.now()) / 1000);
-  if (cdMs > 0 && left > 0) {
-    const mins = Math.ceil(left / 60);
+  const lockHours = Number(config.vip.postWipeLockHours);
+  const lockLeft = await vipPostWipeLockRemainingSeconds(
+    Number.isFinite(lockHours) ? lockHours : 4,
+  );
+  if (lockLeft > 0) {
     await sayToServer(
-      `<color=#e8c06a>${ign}</color> — VIP kit cooldown (${mins}m left)`,
+      `<color=#e8c06a>${ign}</color> — VIP kits unlock in ${formatLockRemaining(lockLeft)} (post-wipe)`,
     );
-    return { ok: false, error: "Cooldown", ign, leftSeconds: left };
+    return { ok: false, error: "Post-wipe lock", ign, leftSeconds: lockLeft };
+  }
+
+  if (config.vip.oncePerWipe !== false) {
+    const existing = await findVipClaim({ ign, discordId: link.discordId });
+    if (existing) {
+      await sayToServer(
+        `<color=#e8c06a>${ign}</color> — already claimed VIP this wipe`,
+      );
+      return { ok: false, error: "Already claimed this wipe", ign };
+    }
   }
 
   try {
@@ -149,7 +165,14 @@ export async function tryClaimVipFromQuickChat({ player, message } = {}) {
       return result;
     }
 
-    claimCooldowns.set(key, Date.now());
+    if (config.vip.oncePerWipe !== false) {
+      await recordVipClaim({
+        ign,
+        discordId: link.discordId,
+        kitId: result.kitId || config.vip.kitId,
+      });
+    }
+
     await sayToServer(
       `<color=#c9a227>${ign}</color> claimed their <color=#c9a227>VIP</color> kit`,
     );
@@ -202,8 +225,9 @@ export async function handleVipRoleChange(member, added) {
   if (!link?.ign) return { ok: false, error: "Not linked" };
 
   if (added) {
+    const phrase = config.vip.claimPhrase || "I need water";
     logVip(
-      `💎 <@${member.id}> got VIP role (linked **${link.ign}**) — claim in-game with quick chat **I need water**`,
+      `💎 <@${member.id}> got VIP role (linked **${link.ign}**) — claim in-game with quick chat **${phrase}**`,
     );
     if (config.vip.autoGrant) {
       return syncVipForDiscord(member.id, member, { force: true });

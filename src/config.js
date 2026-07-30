@@ -255,7 +255,8 @@ export const config = {
     // Claim via in-game quick chat (default: "I need water"). Requires Discord VIP + link.
     claimEnabled: parseBool("VIP_CLAIM_ENABLED", true),
     claimPhrase: optional("VIP_CLAIM_PHRASE", "i need water") || "i need water",
-    claimCooldownSeconds: Number(optional("VIP_CLAIM_COOLDOWN_SECONDS", "3600")) || 3600,
+    oncePerWipe: parseBool("VIP_ONCE_PER_WIPE", true),
+    postWipeLockHours: Number(optional("VIP_POST_WIPE_LOCK_HOURS", "4")) || 4,
     // Old behavior: auto-give kit on role/join/link (off — use quick chat claim instead)
     autoGrant: parseBool("VIP_AUTO_GRANT", false),
   },

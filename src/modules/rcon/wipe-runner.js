@@ -36,6 +36,12 @@ export const WIPE_STEPS = [
     defaultOn: true,
   },
   {
+    id: "resetVipClaims",
+    label: "VIP kit claims",
+    hint: "Allow one new VIP claim + start 4h post-wipe lock",
+    defaultOn: true,
+  },
+  {
     id: "clearStreaks",
     label: "Kill streaks",
     hint: "Killfeed streak counters",
@@ -228,6 +234,16 @@ export async function runWipeAutomation({
     return { ok: true };
   });
   await runStep("clearKitCooldowns", () => stepClearKitCooldowns());
+  await runStep("resetVipClaims", async () => {
+    const { startVipWipeWindow } = await import("./vip-claims.js");
+    const state = await startVipWipeWindow(label);
+    return {
+      ok: true,
+      wipeId: state.wipeId,
+      wipeStartedAt: state.wipeStartedAt,
+      lockHours: config.vip.postWipeLockHours ?? 4,
+    };
+  });
   await runStep("clearStreaks", () => {
     clearKillStreaks();
     return { ok: true };
