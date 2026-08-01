@@ -22,7 +22,7 @@ function ensureFonts() {
 }
 
 const W = 980;
-const H = 700;
+const H = 760;
 const PAD = 28;
 
 /** Astral Control HUD palette (matches admin panel) */
@@ -153,7 +153,7 @@ function drawHeader(ctx, wipeLabel) {
   }
 }
 
-function drawRows(ctx, { x, startY, rowH, rows, cols, accent, empty }) {
+function drawRows(ctx, { x, startY, rowH, rows, cols, accent, empty, maxY = null }) {
   if (!rows.length) {
     ctx.fillStyle = T.faint;
     ctx.font = `500 13px ${FONT_UI}`;
@@ -162,26 +162,30 @@ function drawRows(ctx, { x, startY, rowH, rows, cols, accent, empty }) {
   }
 
   const innerW = cols[2].x + cols[2].w - x - 12;
+  const textOffset = Math.min(14, Math.max(11, Math.round(rowH * 0.42)));
 
   rows.forEach((row, i) => {
     const ry = startY + i * rowH;
+    if (maxY != null && ry + rowH > maxY) return;
 
     if (i % 2 === 1) {
-      fillRoundRect(ctx, x + 10, ry - 15, innerW, rowH - 4, 3, "rgba(255,255,255,0.025)");
+      fillRoundRect(ctx, x + 10, ry + 2, innerW, rowH - 4, 3, "rgba(255,255,255,0.025)");
     }
+
+    const ty = ry + textOffset;
 
     ctx.fillStyle = row.rank <= 3 ? T.warn : T.faint;
     ctx.font = `600 12px ${FONT_MONO}`;
-    ctx.fillText(String(row.rank).padStart(2, " "), cols[0].x, ry);
+    ctx.fillText(String(row.rank).padStart(2, " "), cols[0].x, ty);
 
     ctx.fillStyle = T.text;
     ctx.font = `600 14px ${FONT_UI}`;
-    ctx.fillText(truncate(ctx, row.name, cols[1].w - 6), cols[1].x, ry);
+    ctx.fillText(truncate(ctx, row.name, cols[1].w - 6), cols[1].x, ty);
 
     ctx.fillStyle = accent;
     ctx.font = `600 13px ${FONT_MONO}`;
     const val = String(row.value);
-    ctx.fillText(val, cols[2].x + cols[2].w - ctx.measureText(val).width, ry);
+    ctx.fillText(val, cols[2].x + cols[2].w - ctx.measureText(val).width, ty);
   });
 }
 
@@ -222,20 +226,43 @@ function drawKillersPanel(ctx, x, y, w, h, rows, totalKills) {
   ctx.lineTo(x + w - 14, y + 66);
   ctx.stroke();
 
+  // Reserve a clear footer band so "Updated @" never hits the last row
+  const FOOTER_H = 40;
+  const rowsTop = y + 78;
+  const rowsBottom = y + h - FOOTER_H;
+  const count = Math.max(rows.length, 1);
+  const rowH = Math.min(34, Math.max(26, Math.floor((rowsBottom - rowsTop) / count)));
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(x + 4, rowsTop, w - 8, rowsBottom - rowsTop);
+  ctx.clip();
   drawRows(ctx, {
     x,
-    startY: y + 90,
-    rowH: 33,
+    startY: rowsTop,
+    rowH,
     rows,
     cols,
     accent: T.chrome,
     empty: "No kills tracked yet",
+    maxY: rowsBottom,
   });
+  ctx.restore();
+
+  // Solid footer backdrop clears any antialiased bleed from the last row
+  ctx.fillStyle = T.panel;
+  ctx.fillRect(x + 3, y + h - FOOTER_H, w - 6, FOOTER_H - 4);
+
+  ctx.strokeStyle = T.line;
+  ctx.beginPath();
+  ctx.moveTo(x + 14, y + h - FOOTER_H + 2);
+  ctx.lineTo(x + w - 14, y + h - FOOTER_H + 2);
+  ctx.stroke();
 
   const updated = new Date().toUTCString().replace("GMT", "UTC");
   ctx.fillStyle = T.faint;
   ctx.font = `500 10px ${FONT_MONO}`;
-  ctx.fillText(`Updated @ ${updated}`, x + 20, y + h - 16);
+  ctx.fillText(`Updated @ ${updated}`, x + 20, y + h - 14);
 }
 
 function drawSidePanel(ctx, x, y, w, h, { title, accent, valueLabel, rows, empty }) {
