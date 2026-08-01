@@ -38,8 +38,9 @@ export const WIPE_STEPS = [
   {
     id: "resetVipClaims",
     label: "VIP kit claims",
-    hint: "Allow one new VIP claim + start 4h post-wipe lock",
+    hint: "Required — clears once-per-wipe claims and starts the post-wipe lock",
     defaultOn: true,
+    required: true,
   },
   {
     id: "clearStreaks",
@@ -84,14 +85,31 @@ function defaultEnabled() {
   return Object.fromEntries(WIPE_STEPS.map((s) => [s.id, s.defaultOn]));
 }
 
+function withRequiredSteps(enabled = {}) {
+  const next = { ...enabled };
+  for (const step of WIPE_STEPS) {
+    if (step.required) next[step.id] = true;
+  }
+  return next;
+}
+
 export async function getWipeAutomationConfig() {
   const settings = await getSettings();
   const stored = settings.wipeAutomation || {};
-  const enabled = { ...defaultEnabled(), ...(stored.enabled || {}) };
+  const enabled = withRequiredSteps({
+    ...defaultEnabled(),
+    ...(stored.enabled || {}),
+  });
+  const lockHours = Number(config.vip.postWipeLockHours);
+  const lockHint = Number.isFinite(lockHours) ? lockHours : 4;
   return {
     steps: WIPE_STEPS.map((s) => ({
       ...s,
-      enabled: enabled[s.id] !== false,
+      enabled: s.required ? true : enabled[s.id] !== false,
+      hint:
+        s.id === "resetVipClaims"
+          ? `Required — clears once-per-wipe claims and starts the ${lockHint}h post-wipe lock`
+          : s.hint,
     })),
     autoRunOnSchedule: Boolean(stored.autoRunOnSchedule),
     lastRun: stored.lastRun || null,
@@ -105,7 +123,11 @@ export async function saveWipeAutomationConfig(patch = {}) {
   const current = settings.wipeAutomation || {};
   const next = {
     ...current,
-    enabled: { ...defaultEnabled(), ...(current.enabled || {}), ...(patch.enabled || {}) },
+    enabled: withRequiredSteps({
+      ...defaultEnabled(),
+      ...(current.enabled || {}),
+      ...(patch.enabled || {}),
+    }),
     autoRunOnSchedule:
       patch.autoRunOnSchedule != null
         ? Boolean(patch.autoRunOnSchedule)
@@ -220,10 +242,15 @@ export async function runWipeAutomation({
 } = {}) {
   const cfg = await getWipeAutomationConfig();
   const label = (wipeLabel || new Date().toISOString().slice(0, 10)).trim();
-  const selected =
-    Array.isArray(steps) && steps.length
-      ? steps
-      : cfg.steps.filter((s) => s.enabled).map((s) => s.id);
+  const selected = [
+    ...new Set([
+      ...(Array.isArray(steps) && steps.length
+        ? steps
+        : cfg.steps.filter((s) => s.enabled).map((s) => s.id)),
+      // Always reset VIP claims on wipe so once-per-wipe kits work next wipe
+      ...WIPE_STEPS.filter((s) => s.required).map((s) => s.id),
+    ]),
+  ];
 
   const results = [];
   const runStep = async (id, fn) => {

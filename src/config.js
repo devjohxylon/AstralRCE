@@ -257,7 +257,7 @@ export const config = {
   },
   vip: {
     // Defaults; admin panel VIP settings override these at runtime (settings.json).
-    kitId: optional("VIP_KIT_ID", "vipkit") || "vipkit",
+    kitId: optional("VIP_KIT_ID", "vip") || "vip",
     grantCommand: optional("VIP_RCON_GRANT") || null,
     revokeCommand: optional("VIP_RCON_REVOKE") || null,
     // Claim via in-game quick chat (default: "I need stone"). Requires Discord VIP + link.

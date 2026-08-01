@@ -53,8 +53,16 @@ export const COMMAND_SETTING_DEFS = [
     group: "Player",
     key: "link",
     name: "/link",
-    description: "Link Discord ↔ in-game name (start · status · unlink · panel · force)",
+    description: "Link Discord ↔ in-game name (start · status · unlink)",
     access: "public",
+    fields: [toggle("enabled", "Enabled", true)],
+  },
+  {
+    group: "Player",
+    key: "linkadmin",
+    name: "/linkadmin",
+    description: "panel · force · syncrole — staff link tools",
+    access: "staff",
     fields: [toggle("enabled", "Enabled", true)],
   },
   {

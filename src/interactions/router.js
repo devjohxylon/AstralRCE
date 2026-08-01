@@ -16,6 +16,7 @@ import {
 import {
   handleAutoMessageCommand,
   handleHomeCommand,
+  handleLinkAdminCommand,
   handleLinkCommand,
   handleTpaCommand,
   handleTpdCommand,
@@ -43,6 +44,7 @@ const ASTRAL_COMMANDS = new Set(["astral-status", "astral-leaderboard", "astral-
 
 const PLAYER_COMMANDS = {
   link: handleLinkCommand,
+  linkadmin: handleLinkAdminCommand,
   home: handleHomeCommand,
   warp: handleWarpCommand,
   tpr: handleTprCommand,

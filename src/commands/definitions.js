@@ -155,25 +155,25 @@ export const commandDefinitions = [
         ),
     )
     .addSubcommand((sub) => sub.setName("status").setDescription("Show your linked IGN"))
-    .addSubcommand((sub) => sub.setName("unlink").setDescription("Unlink your Discord from your IGN"))
+    .addSubcommand((sub) => sub.setName("unlink").setDescription("Unlink your Discord from your IGN")),
+  new SlashCommandBuilder()
+    .setName("linkadmin")
+    .setDescription("Staff: link panel, force-link, sync linked role")
+    .setDefaultMemberPermissions(staff)
     .addSubcommand((sub) =>
-      sub
-        .setName("panel")
-        .setDescription("Staff: post the Link Account panel in this channel"),
+      sub.setName("panel").setDescription("Post the Link Account panel in this channel"),
     )
     .addSubcommand((sub) =>
       sub
         .setName("force")
-        .setDescription("Staff: force-link a Discord user to an IGN")
+        .setDescription("Force-link a Discord user to an IGN")
         .addUserOption((o) => o.setName("user").setDescription("Discord user").setRequired(true))
         .addStringOption((o) =>
           o.setName("player").setDescription("In-game name").setRequired(true),
         ),
     )
     .addSubcommand((sub) =>
-      sub
-        .setName("syncrole")
-        .setDescription("Staff: give ROLE_LINKED to everyone already linked"),
+      sub.setName("syncrole").setDescription("Give ROLE_LINKED to everyone already linked"),
     ),
   new SlashCommandBuilder()
     .setName("home")

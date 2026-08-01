@@ -53,13 +53,22 @@ export async function assertDataPersistence() {
   if (onRailway && !dataOnVolume) {
     console.error(
       "⚠️  PERSISTENCE WARNING: No Railway volume mounted on the data directory.\n" +
-        `   Links, kits, stats, wipe time, and access keys will RESET on every redeploy.\n` +
-        `   Fix: Railway → service → Volumes → Add Volume → mount path: ${DATA_DIR}\n` +
-        `   Or set DATA_DIR to your volume mount path.`,
+        `   Links, VIP claims, kits, stats, wipe time, and access keys will RESET on every redeploy.\n` +
+        `   Fix: Railway → service → Volumes → Add Volume → mount path: /app/.data\n` +
+        `   Then set DATA_DIR=/app/.data (or mount directly on ${DATA_DIR}).`,
     );
   } else if (previous) {
     console.log(`Data persistence OK (last boot marker: ${previous.trim()})`);
   }
+
+  return {
+    dataDir: DATA_DIR,
+    linkCount,
+    onRailway,
+    volumeMount,
+    dataOnVolume: Boolean(dataOnVolume),
+    persistent: !onRailway || Boolean(dataOnVolume),
+  };
 }
 
 export async function getCases() {

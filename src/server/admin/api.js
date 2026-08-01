@@ -323,8 +323,18 @@ export async function attachAdminPanel(app, client) {
 
     const dataHealth =
       onRailway && !dataOnVolume
-        ? { id: "data", label: "Data", status: "warn", detail: "No volume — resets on deploy" }
-        : { id: "data", label: "Data", status: "ok", detail: onRailway ? "Volume mounted" : "Local disk" };
+        ? {
+            id: "data",
+            label: "Data",
+            status: "bad",
+            detail: "No /app/.data volume — links & VIP claims reset on deploy",
+          }
+        : {
+            id: "data",
+            label: "Data",
+            status: "ok",
+            detail: onRailway ? "Volume mounted" : "Local disk",
+          };
 
     const feedsHealth = killfeedSet
       ? {
@@ -1319,7 +1329,7 @@ export async function attachAdminPanel(app, client) {
           return res.json({ ok: true, result: result ?? "", command: cmd });
         }
 
-        const kitResult = await giveKit(ign, config.vip.kitId || "vipkit");
+        const kitResult = await giveKit(ign, config.vip.kitId || "vip");
         await audit(req, "rank_grant", { rank: "vip", ign, via: "kit" });
         if (!kitResult.ok) return res.status(400).json(kitResult);
         return res.json(kitResult);

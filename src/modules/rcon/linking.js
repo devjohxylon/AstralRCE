@@ -221,7 +221,7 @@ export async function linkIgn(discordId, ign, { requireOnline = false, member = 
   if (taken && taken.discordId !== discordId) {
     return {
       ok: false,
-      error: `\`${resolvedName}\` is already linked to another Discord. Staff can \`/link force\` if needed.`,
+      error: `\`${resolvedName}\` is already linked to another Discord. Staff can \`/linkadmin force\` if needed.`,
     };
   }
 
