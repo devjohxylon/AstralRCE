@@ -135,6 +135,14 @@ export const COMMAND_SETTING_DEFS = [
     access: "staff",
     fields: [toggle("enabled", "Enabled", true)],
   },
+  {
+    group: "Player",
+    key: "vip",
+    name: "/vip",
+    description: "status · unlock — VIP claim lockout controls",
+    access: "staff",
+    fields: [toggle("enabled", "Enabled", true)],
+  },
 
   // ——— Website ———
   {
