@@ -2955,7 +2955,7 @@ async function renderDiscordChannels() {
       return renderSettingField("vip", "vip", { ...field, key: field.key });
     }).join("") || `<div class="empty">No VIP settings</div>`;
     body = `
-      <p class="discord-intro">Players with the VIP role claim via quick chat (default <code>I need water</code>). Kit id defaults to <code>vipkit</code>.</p>
+      <p class="discord-intro">Players with the VIP role claim via quick chat (default <code>I need stone</code>). Kit id defaults to <code>vip</code>.</p>
       <div class="card"><div class="feed-field-grid">${vipFields}</div></div>`;
   } else {
     saveAction = "saveCommands";
@@ -3043,7 +3043,7 @@ async function renderServerCommands() {
 
         <div class="card">
           <h3>Rank</h3>
-          <p class="card-desc">VIP uses kit <code>vipkit</code>. Mod / Owner use vanilla auth.</p>
+          <p class="card-desc">VIP uses kit <code>vip</code>. Mod / Owner use vanilla auth.</p>
           <label class="field-label" for="cmdRank">Rank</label>
           <select id="cmdRank">${rankOpts}</select>
           <div class="cmd-actions">
@@ -4619,9 +4619,9 @@ async function renderWipe() {
 
   const rows = steps.map((s) => `
     <label class="wipe-row">
-      <input type="checkbox" data-wipe-step="${esc(s.id)}" ${s.enabled !== false ? "checked" : ""} ${canRun ? "" : "disabled"} />
+      <input type="checkbox" data-wipe-step="${esc(s.id)}" ${s.enabled !== false || s.required ? "checked" : ""} ${canRun && !s.required ? "" : "disabled"} />
       <span class="wipe-copy">
-        <b>${esc(s.label)}</b>
+        <b>${esc(s.label)}${s.required ? ` <span class="pill info">Required</span>` : ""}</b>
         <span>${esc(s.hint || "")}</span>
       </span>
     </label>
@@ -5573,13 +5573,14 @@ function bindView() {
           return;
         }
         if (a === "runWipe") {
-          if (!confirm("Run wipe automation now?\n\nThis resets selected bot data (stats, homes, cooldowns, leaderboard). It does NOT wipe the Nitrado map.")) return;
+          if (!confirm("Run wipe automation now?\n\nThis resets selected bot data (stats, homes, cooldowns, VIP claims, leaderboard). It does NOT wipe the Nitrado map.")) return;
           const enabled = {};
           const steps = [];
           document.querySelectorAll("[data-wipe-step]").forEach((el) => {
-            enabled[el.dataset.wipeStep] = el.checked;
-            if (el.checked) steps.push(el.dataset.wipeStep);
+            enabled[el.dataset.wipeStep] = el.checked || el.disabled;
+            if (el.checked || el.disabled) steps.push(el.dataset.wipeStep);
           });
+          if (!steps.includes("resetVipClaims")) steps.push("resetVipClaims");
           if (!steps.length) { toast("Select at least one step", true); return; }
           const autoRunOnSchedule = Boolean(document.getElementById("wipeAutoSchedule")?.checked);
           await api("/wipe/automation", {

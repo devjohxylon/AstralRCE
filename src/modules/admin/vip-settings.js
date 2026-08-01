@@ -32,9 +32,9 @@ export const VIP_SETTING_FIELDS = [
     type: "text",
     label: "VIP kit ID",
     hint: "Panel or server kit given on claim / grant",
-    placeholder: "vipkit",
+    placeholder: "vip",
     env: "VIP_KIT_ID",
-    default: () => envDefault("VIP_KIT_ID", "vipkit") || "vipkit",
+    default: () => envDefault("VIP_KIT_ID", "vip") || "vip",
   },
   {
     key: "claimEnabled",
@@ -85,7 +85,7 @@ export const VIP_SETTING_FIELDS = [
     type: "text",
     label: "Custom grant RCON",
     hint: "Optional. Use {ign} — if set, runs instead of giving the kit",
-    placeholder: 'kit give "{ign}" vipkit',
+    placeholder: 'kit give "{ign}" vip',
     env: "VIP_RCON_GRANT",
     default: () => envDefault("VIP_RCON_GRANT") || "",
     optional: true,
@@ -146,7 +146,7 @@ export function normalizeVipSettings(stored = {}) {
 
 /** Push panel VIP settings onto live config. */
 export function applyVipOverrides(values = getVipSettingsSync()) {
-  config.vip.kitId = values.kitId || "vipkit";
+  config.vip.kitId = values.kitId || "vip";
   config.vip.claimEnabled = Boolean(values.claimEnabled);
   config.vip.claimPhrase = values.claimPhrase || "i need stone|i need stones";
   config.vip.postWipeLockHours = Number(values.postWipeLockHours);

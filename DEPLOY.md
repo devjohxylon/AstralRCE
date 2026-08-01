@@ -72,16 +72,16 @@ VIP_KIT_ID=vip
 
 Plus your other channel/role IDs. Railway sets `PORT` automatically — leave `BOT_WEBHOOK_PORT` unset in production.
 
-### Persistent data (REQUIRED — links, kits, stats, keys)
+### Persistent data (REQUIRED — links, VIP claims, kits, stats, keys)
 
-Every redeploy wipes the container filesystem. **Account links, kits, wipe time,
-staff keys, and stats live in `.data`** — without a volume they disappear (this is
-why `/link` "stops saving").
+Every redeploy wipes the container filesystem. **Account links, VIP once-per-wipe
+claims, kits, wipe time, staff keys, and stats live in `.data`** — without a volume
+they disappear (this is why `/link` "stops saving" and VIP claims reset).
 
 1. Railway → your bot service → **Volumes** → **Add Volume**
 2. Mount path: `/app/.data` (Nixpacks `cwd` is `/app`)
-3. Redeploy once after attaching
-4. Optional variable: `DATA_DIR=/app/.data`
+3. Variables → set `DATA_DIR=/app/.data`
+4. Redeploy once after attaching
 
 Confirm in logs:
 ```
@@ -89,7 +89,17 @@ Data directory: /app/.data (N linked account(s))
 Data persistence OK ...
 ```
 
-If you see `PERSISTENCE WARNING`, the volume is missing or mounted on the wrong path.
+If you see `PERSISTENCE WARNING`, or the admin overview **Data** health is red, the
+volume is missing or mounted on the wrong path.
+
+### Staff slash commands (AstralAdmin)
+
+Staff commands register with Discord permissions disabled by default. After deploy:
+
+1. Discord → Server Settings → Integrations → your bot → **Commands**
+2. Allow staff commands for the **AstralAdmin** role
+
+Public: `/link` (start · status · unlink). Staff: `/linkadmin` (panel · force · syncrole).
 
 ### Website live boards
 
@@ -109,7 +119,7 @@ If you see `PERSISTENCE WARNING`, the volume is missing or mounted on the wrong 
 
 ## Slash command updates
 
-After changing commands, run locally once (uses your Discord token):
+Commands re-register automatically on bot startup. To force locally:
 
 ```powershell
 npm.cmd run register-commands

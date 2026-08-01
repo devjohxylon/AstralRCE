@@ -74,15 +74,19 @@ export async function handleLinkCommand(interaction) {
     if (!result.ok) return reply(interaction, result.error);
     return reply(interaction, `Unlinked from **${result.ign}**.`);
   }
+}
+
+/** Staff-only: /linkadmin panel|force|syncrole */
+export async function handleLinkAdminCommand(interaction) {
+  if (!(await requireStaff(interaction))) return;
+  const sub = interaction.options.getSubcommand();
 
   if (sub === "panel") {
-    if (!(await requireStaff(interaction))) return;
     await postLinkPanel(interaction.channel);
     return reply(interaction, "Link panel posted.");
   }
 
   if (sub === "force") {
-    if (!(await requireStaff(interaction))) return;
     const user = interaction.options.getUser("user", true);
     const ign = interaction.options.getString("player", true);
     const member = await interaction.guild.members.fetch(user.id).catch(() => null);
@@ -92,7 +96,6 @@ export async function handleLinkCommand(interaction) {
   }
 
   if (sub === "syncrole") {
-    if (!(await requireStaff(interaction))) return;
     await interaction.deferReply({ ephemeral: true });
     const result = await backfillLinkedRoles();
     if (!result.ok) return interaction.editReply(result.error);

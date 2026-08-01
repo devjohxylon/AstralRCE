@@ -109,7 +109,7 @@ async function runGrant(ign, reason) {
     return { ok: true, via: "command", command: cmd, reason };
   }
 
-  const kitId = config.vip.kitId || "vipkit";
+  const kitId = config.vip.kitId || "vip";
   const result = await giveKit(ign, kitId, { bypassCooldown: true });
   if (!result.ok && result.error?.includes("not found")) {
     return {

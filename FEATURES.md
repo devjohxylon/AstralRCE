@@ -21,8 +21,9 @@ Connects **directly to the Rust Console Edition server over RCON** — no KAOS r
 - `/rcon resetstats` on wipe day
 
 ### Account linking
-- `/link start <ign>` while online — instant claim, no notes
-- Unlocks homes, warps, and TPR
+- `/link start <ign>` — instant claim (panel also available)
+- Staff: `/linkadmin panel|force|syncrole`
+- Unlocks homes, warps, TPR, and optional `ROLE_LINKED`
 
 ### Teleports
 - `/home set|go|list|delete` — personal homes (VIP gets more + shorter cooldown)
