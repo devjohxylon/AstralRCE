@@ -20,6 +20,7 @@ import {
   handleTpaCommand,
   handleTpdCommand,
   handleTprCommand,
+  handleVipCommand,
   handleWarpCommand,
 } from "./player-commands.js";
 import { handleLinkModal } from "../modules/panels/link-panel.js";
@@ -48,6 +49,7 @@ const PLAYER_COMMANDS = {
   tpa: handleTpaCommand,
   tpd: handleTpdCommand,
   automessage: handleAutoMessageCommand,
+  vip: handleVipCommand,
 };
 
 async function replyDisabled(interaction) {

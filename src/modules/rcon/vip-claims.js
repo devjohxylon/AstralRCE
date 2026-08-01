@@ -96,3 +96,27 @@ export async function vipPostWipeLockRemainingSeconds(lockHours = 4) {
   const unlockAt = start + hours * 3600 * 1000;
   return Math.max(0, Math.ceil((unlockAt - Date.now()) / 1000));
 }
+
+/** Clear the post-wipe lockout — allows VIP claims immediately. */
+export async function clearVipPostWipeLock() {
+  const state = await readState();
+  if (!state.wipeId && !state.wipeStartedAt && Object.keys(state.claims).length === 0) {
+    return { ok: false, error: "No wipe window active" };
+  }
+  state.wipeStartedAt = null;
+  await writeState(state);
+  return { ok: true, wipeId: state.wipeId, clearedAt: new Date().toISOString() };
+}
+
+/** Get current VIP claim status with lock info. */
+export async function getVipClaimStatus(lockHours = 4) {
+  const state = await readState();
+  const lockRemaining = await vipPostWipeLockRemainingSeconds(lockHours);
+  return {
+    wipeId: state.wipeId,
+    wipeStartedAt: state.wipeStartedAt,
+    totalClaims: Object.keys(state.claims).length,
+    lockActive: lockRemaining > 0,
+    lockRemainingSeconds: lockRemaining,
+  };
+}
