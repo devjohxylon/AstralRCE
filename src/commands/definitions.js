@@ -169,6 +169,11 @@ export const commandDefinitions = [
         .addStringOption((o) =>
           o.setName("player").setDescription("In-game name").setRequired(true),
         ),
+    )
+    .addSubcommand((sub) =>
+      sub
+        .setName("syncrole")
+        .setDescription("Staff: give ROLE_LINKED to everyone already linked"),
     ),
   new SlashCommandBuilder()
     .setName("home")

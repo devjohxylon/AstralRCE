@@ -47,6 +47,7 @@ export function buildLinkPanelEmbed(guild) {
         "2️⃣ Enter your **exact** in-game username\n" +
         "3️⃣ Confirm — you're done!\n\n" +
         "> You don’t need to be online to link.\n" +
+        "> Linking unlocks your linked role automatically.\n" +
         "> You can only link once — contact staff if you need a change.",
     )
     .setFooter({
@@ -139,7 +140,9 @@ export async function handleLinkModal(interaction) {
   const ign = interaction.fields.getTextInputValue(IGN_FIELD).trim();
   await interaction.deferReply({ ephemeral: true });
 
-  const result = await linkIgn(interaction.user.id, ign);
+  const result = await linkIgn(interaction.user.id, ign, {
+    member: interaction.member,
+  });
   if (!result.ok) {
     await interaction.editReply({
       content:

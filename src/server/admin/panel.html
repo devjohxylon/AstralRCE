@@ -2705,7 +2705,11 @@ async function renderLinks() {
   return `
     <div class="split">
       <div class="card">
-        <h3>Linked accounts</h3>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:.75rem;flex-wrap:wrap">
+          <h3 style="margin:0">Linked accounts <span class="muted" style="font-weight:400">(${data.links.length})</span></h3>
+          <button class="primary" data-action="syncLinkedRole" title="Grant ROLE_LINKED to everyone already linked">Sync linked role</button>
+        </div>
+        <p class="muted" style="margin:.5rem 0 .75rem;font-size:.85rem">Gives the <code>ROLE_LINKED</code> Discord role to people who linked before it was set up. Safe to re-run.</p>
         <table class="table"><thead><tr><th>IGN</th><th>Discord</th><th>Linked</th><th></th></tr></thead><tbody>${rows}</tbody></table>
       </div>
       <div class="card">
@@ -5624,6 +5628,11 @@ function bindView() {
         if (a === "forceLink") {
           await api("/links", { method: "POST", body: { discordId: document.getElementById("linkDiscord").value, ign: document.getElementById("linkIgn").value } });
           toast("Linked"); render();
+        }
+        if (a === "syncLinkedRole") {
+          const r = await api("/links/sync-role", { method: "POST", body: {} });
+          toast(`Linked role: ${r.granted} granted, ${r.already} already had it, ${r.missing} not in server, ${r.failed} failed`);
+          render();
         }
         if (a === "unlink") { await api(`/links/${encodeURIComponent(el.dataset.id)}`, { method: "DELETE" }); toast("Unlinked"); render(); }
         if (a === "addMsg") {

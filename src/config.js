@@ -166,6 +166,8 @@ export const config = {
     autoMember: optional("ROLE_AUTO_MEMBER") || null,
     muted: optional("ROLE_MUTED") || null,
     vip: optional("ROLE_VIP") || null,
+    // Granted when a player links Discord ↔ IGN (e.g. linkedastral)
+    linked: optional("ROLE_LINKED") || null,
   },
   automod: {
     enabled: parseBool("AUTOMOD_ENABLED", true),
