@@ -108,20 +108,15 @@ export async function buildHealthReport(client) {
     });
   }
 
-  const membersIntentOk = Boolean(
-    client?.options?.intents?.has?.("GuildMembers") ||
-      client?.options?.intents?.has?.(1 << 1) ||
-      intents.ready,
-  );
   checks.push(
     client?.isReady?.()
       ? {
           id: "intents",
           label: "Intents",
           status: "ok",
-          detail: membersIntentOk ? "Bot ready (members/messages)" : "Ready — verify Members intent in portal",
+          detail: `Ready · ${client.guilds?.cache?.size ?? 0} guild(s)`,
         }
-      : { id: "intents", label: "Intents", status: "bad", detail: "Cannot verify — bot offline" },
+      : { id: "intents", label: "Intents", status: "bad", detail: "Bot offline — check token / intents" },
   );
 
   if (settings.raidMode) {
