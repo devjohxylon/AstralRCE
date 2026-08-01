@@ -78,10 +78,20 @@ Every redeploy wipes the container filesystem. **Account links, VIP once-per-wip
 claims, kits, wipe time, staff keys, and stats live in `.data`** — without a volume
 they disappear (this is why `/link` "stops saving" and VIP claims reset).
 
-1. Railway → your bot service → **Volumes** → **Add Volume**
+**CLI (from your machine, linked to the bot service):**
+```bash
+railway link
+railway volume add --mount-path /app/.data
+railway variables --set DATA_DIR=/app/.data
+```
+
+**Or dashboard:**
+1. Railway → bot service → **Volumes** → **Add Volume**
 2. Mount path: `/app/.data` (Nixpacks `cwd` is `/app`)
-3. Variables → set `DATA_DIR=/app/.data`
-4. Redeploy once after attaching
+3. Variables → `DATA_DIR=/app/.data`
+4. Redeploy
+
+The bot also auto-uses `RAILWAY_VOLUME_MOUNT_PATH` when Railway mounts a volume.
 
 Confirm in logs:
 ```
