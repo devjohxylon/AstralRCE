@@ -52,9 +52,11 @@ export async function trackPlayerCount(count) {
 export async function trackPlayerActivity(ign, action) {
   const data = await load();
   const day = getDayKey();
-  
-  if (!data.playerActivity[ign]) {
-    data.playerActivity[ign] = {
+  const key = String(ign || "").trim().toLowerCase();
+  if (!key) return;
+
+  if (!data.playerActivity[key]) {
+    data.playerActivity[key] = {
       firstSeen: new Date().toISOString(),
       lastSeen: new Date().toISOString(),
       daysActive: [],
@@ -62,15 +64,15 @@ export async function trackPlayerActivity(ign, action) {
       totalDeaths: 0,
     };
   }
-  
-  data.playerActivity[ign].lastSeen = new Date().toISOString();
-  
-  if (!data.playerActivity[ign].daysActive.includes(day)) {
-    data.playerActivity[ign].daysActive.push(day);
+
+  data.playerActivity[key].lastSeen = new Date().toISOString();
+
+  if (!data.playerActivity[key].daysActive.includes(day)) {
+    data.playerActivity[key].daysActive.push(day);
   }
 
-  if (action === "kill") data.playerActivity[ign].totalKills += 1;
-  if (action === "death") data.playerActivity[ign].totalDeaths += 1;
+  if (action === "kill") data.playerActivity[key].totalKills += 1;
+  if (action === "death") data.playerActivity[key].totalDeaths += 1;
 
   dirty = true;
 }

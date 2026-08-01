@@ -119,6 +119,7 @@ import {
   searchPlayers,
   listAllProfiles,
 } from "../../modules/profiles/manager.js";
+import { resolveDossierQuery, buildDossier } from "../../modules/profiles/dossier.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -1447,6 +1448,21 @@ export async function attachAdminPanel(app, client) {
       const q = String(req.query.q ?? "").trim();
       const profiles = q ? await searchPlayers(q) : await listAllProfiles();
       res.json({ ok: true, profiles });
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  /** One-panel staff dossier: link, VIP, claims, bans, tickets, playtime, recent kills. */
+  app.get("/admin/api/dossier", requireAuth, requirePerm("players"), async (req, res) => {
+    try {
+      const q = String(req.query.q ?? "").trim();
+      const resolved = await resolveDossierQuery(q);
+      if (!resolved.ok) return res.status(400).json(resolved);
+      if (resolved.ambiguous) return res.json(resolved);
+      const dossier = await buildDossier(resolved.ign);
+      if (!dossier.ok) return res.status(404).json(dossier);
+      res.json(dossier);
     } catch (error) {
       res.status(500).json({ ok: false, error: error.message });
     }
