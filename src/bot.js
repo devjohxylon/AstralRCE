@@ -63,6 +63,9 @@ export function createBotClient() {
       console.error("VIP settings failed:", e.message),
     );
 
+    const { attachLinkClient } = await import("./modules/rcon/linking.js");
+    attachLinkClient(client);
+
     // Keep Discord slash commands in sync on every boot (needed after deploys).
     const { registerDiscordCommands } = await import("./register-commands.js");
     await registerDiscordCommands().catch((e) =>

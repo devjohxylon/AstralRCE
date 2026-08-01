@@ -44,7 +44,9 @@ export async function handleLinkCommand(interaction) {
   if (!sub || sub === "start" || sub === "claim") {
     const ign = interaction.options.getString("player", true);
     await interaction.deferReply({ ephemeral: true });
-    const result = await linkIgn(interaction.user.id, ign);
+    const result = await linkIgn(interaction.user.id, ign, {
+      member: interaction.member,
+    });
     if (!result.ok) return interaction.editReply(result.error);
     if (result.already) {
       return interaction.editReply(`Already linked as **${result.ign}**.`);
@@ -65,7 +67,9 @@ export async function handleLinkCommand(interaction) {
   }
 
   if (sub === "unlink") {
-    const result = await unlinkDiscord(interaction.user.id);
+    const result = await unlinkDiscord(interaction.user.id, {
+      member: interaction.member,
+    });
     if (!result.ok) return reply(interaction, result.error);
     return reply(interaction, `Unlinked from **${result.ign}**.`);
   }
@@ -80,8 +84,8 @@ export async function handleLinkCommand(interaction) {
     if (!(await requireStaff(interaction))) return;
     const user = interaction.options.getUser("user", true);
     const ign = interaction.options.getString("player", true);
-    const result = await forceLink(user.id, ign);
     const member = await interaction.guild.members.fetch(user.id).catch(() => null);
+    const result = await forceLink(user.id, ign, { member });
     if (member) await syncVipForDiscord(user.id, member, { force: true }).catch(() => {});
     return reply(interaction, `Force-linked <@${user.id}> → **${result.ign}**.`);
   }
