@@ -45,39 +45,91 @@ export function findOnlinePlayer(ign) {
   return online.find((p) => p.ign.toLowerCase() === ign.toLowerCase()) ?? null;
 }
 
-async function fetchGuildMember(discordId) {
-  if (!discordClient || !discordId) return null;
-  const guild = config.discord.guildId
-    ? await discordClient.guilds.fetch(config.discord.guildId).catch(() => null)
+async function fetchGuild() {
+  if (!discordClient) return null;
+  return config.discord.guildId
+    ? discordClient.guilds.fetch(config.discord.guildId).catch(() => null)
     : discordClient.guilds.cache.first() || null;
+}
+
+async function fetchGuildMember(discordId) {
+  if (!discordId) return null;
+  const guild = await fetchGuild();
   if (!guild) return null;
   return guild.members.fetch(String(discordId)).catch(() => null);
 }
 
+/**
+ * Resolve ROLE_LINKED to a snowflake.
+ * Accepts a role ID or a role name (e.g. "linkedastral").
+ */
+async function resolveLinkedRoleId(guild = null) {
+  const raw = String(config.roles.linked || "").trim();
+  if (!raw) return { ok: false, error: "ROLE_LINKED is not set" };
+
+  if (/^\d{5,32}$/.test(raw)) {
+    return { ok: true, roleId: raw };
+  }
+
+  const g = guild || (await fetchGuild());
+  if (!g) return { ok: false, error: "Discord guild not ready" };
+
+  if (!g.roles.cache.size) {
+    await g.roles.fetch().catch(() => null);
+  }
+
+  const wanted = raw.toLowerCase();
+  const role =
+    g.roles.cache.find((r) => String(r.name || "").toLowerCase() === wanted) ||
+    g.roles.cache.find((r) => String(r.name || "").toLowerCase().includes(wanted));
+
+  if (!role) {
+    return {
+      ok: false,
+      error: `No Discord role named "${raw}" — set ROLE_LINKED to the role ID (right-click role → Copy Role ID)`,
+    };
+  }
+  return { ok: true, roleId: role.id, roleName: role.name };
+}
+
 /** Give ROLE_LINKED after a successful account link. */
 export async function grantLinkedRole(discordId, member = null) {
-  const roleId = config.roles.linked;
-  if (!roleId) return { ok: true, skipped: true, reason: "no_role" };
-
   const m = member || (await fetchGuildMember(discordId));
   if (!m) return { ok: false, error: "Member not found" };
+
+  const resolved = await resolveLinkedRoleId(m.guild);
+  if (!resolved.ok) {
+    if (resolved.error === "ROLE_LINKED is not set") {
+      return { ok: true, skipped: true, reason: "no_role" };
+    }
+    return { ok: false, error: resolved.error };
+  }
+
+  const roleId = resolved.roleId;
   if (m.roles.cache.has(roleId)) return { ok: true, already: true };
 
   await m.roles.add(roleId, "Linked in-game account");
-  return { ok: true };
+  return { ok: true, roleId };
 }
 
 /** Remove ROLE_LINKED when someone unlinks (or loses their link via force). */
 export async function revokeLinkedRole(discordId, member = null) {
-  const roleId = config.roles.linked;
-  if (!roleId) return { ok: true, skipped: true, reason: "no_role" };
-
   const m = member || (await fetchGuildMember(discordId));
   if (!m) return { ok: false, error: "Member not found" };
+
+  const resolved = await resolveLinkedRoleId(m.guild);
+  if (!resolved.ok) {
+    if (resolved.error === "ROLE_LINKED is not set") {
+      return { ok: true, skipped: true, reason: "no_role" };
+    }
+    return { ok: false, error: resolved.error };
+  }
+
+  const roleId = resolved.roleId;
   if (!m.roles.cache.has(roleId)) return { ok: true, already: true };
 
   await m.roles.remove(roleId, "Unlinked in-game account");
-  return { ok: true };
+  return { ok: true, roleId };
 }
 
 /**
@@ -85,17 +137,18 @@ export async function revokeLinkedRole(discordId, member = null) {
  * Safe to re-run — skips people who already have the role.
  */
 export async function backfillLinkedRoles() {
-  const roleId = config.roles.linked;
-  if (!roleId) {
-    return { ok: false, error: "ROLE_LINKED is not set" };
-  }
   if (!discordClient) {
     return { ok: false, error: "Discord client not ready" };
   }
 
+  const resolved = await resolveLinkedRoleId();
+  if (!resolved.ok) return resolved;
+
   const links = await listLinks();
   const summary = {
     ok: true,
+    roleId: resolved.roleId,
+    roleName: resolved.roleName || null,
     total: links.length,
     granted: 0,
     already: 0,
