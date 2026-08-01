@@ -156,6 +156,12 @@ export const config = {
   },
   roles: {
     staff: parseIdList("ROLE_STAFF_IDS"),
+    // Role names that count as staff (case-insensitive). Default includes AstralAdmin.
+    staffNames: (() => {
+      const fromEnv = parseWordList("ROLE_STAFF_NAMES");
+      const names = fromEnv.length ? fromEnv : ["astraladmin"];
+      return [...new Set(names.map((n) => n.toLowerCase()))];
+    })(),
     verified: optional("ROLE_VERIFIED") || null,
     autoMember: optional("ROLE_AUTO_MEMBER") || null,
     muted: optional("ROLE_MUTED") || null,
