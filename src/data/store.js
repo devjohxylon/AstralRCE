@@ -1,8 +1,11 @@
 import { promises as fs } from "fs";
 import path from "path";
 
-export const DATA_DIR = process.env.DATA_DIR?.trim()
-  || path.join(process.cwd(), ".data");
+// Prefer explicit DATA_DIR, then Railway's auto volume mount, then local .data
+export const DATA_DIR =
+  process.env.DATA_DIR?.trim() ||
+  process.env.RAILWAY_VOLUME_MOUNT_PATH?.trim() ||
+  path.join(process.cwd(), ".data");
 
 async function ensureDir() {
   await fs.mkdir(DATA_DIR, { recursive: true });
@@ -55,7 +58,9 @@ export async function assertDataPersistence() {
       "⚠️  PERSISTENCE WARNING: No Railway volume mounted on the data directory.\n" +
         `   Links, VIP claims, kits, stats, wipe time, and access keys will RESET on every redeploy.\n` +
         `   Fix: Railway → service → Volumes → Add Volume → mount path: /app/.data\n` +
-        `   Then set DATA_DIR=/app/.data (or mount directly on ${DATA_DIR}).`,
+        `   Or CLI: railway volume add --mount-path /app/.data\n` +
+        `            railway variables --set DATA_DIR=/app/.data\n` +
+        `   (With a volume mounted, RAILWAY_VOLUME_MOUNT_PATH is also used automatically.)`,
     );
   } else if (previous) {
     console.log(`Data persistence OK (last boot marker: ${previous.trim()})`);

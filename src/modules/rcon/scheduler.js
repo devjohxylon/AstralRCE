@@ -1,10 +1,8 @@
 import { promises as fs } from "fs";
 import path from "path";
 import { sendGameCommand, isRconEnabled, getRconStatus } from "./client.js";
-import { getAutoMessages, saveAutoMessages } from "../../data/store.js";
+import { DATA_DIR, getAutoMessages, saveAutoMessages } from "../../data/store.js";
 
-const DATA_DIR = process.env.DATA_DIR?.trim()
-  || path.join(process.cwd(), ".data");
 const SCHEDULE_FILE = path.join(DATA_DIR, "scheduled-commands.json");
 
 let timer = null;
