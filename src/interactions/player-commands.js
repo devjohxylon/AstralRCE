@@ -307,7 +307,7 @@ export async function handleVipCommand(interaction) {
     } else {
       lines.push(
         `✅ **Claims are OPEN**`,
-        `Players can claim VIP with quick chat: \`${config.vip.claimPhrase || "i need water"}\``,
+        `Players can claim VIP with quick chat: \`${config.vip.claimPhrase || "i need stone"}\``,
       );
     }
 
