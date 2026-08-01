@@ -1,16 +1,16 @@
-import {
-  PermissionFlagsBits,
-  SlashCommandBuilder,
-} from "discord.js";
+import { SlashCommandBuilder } from "discord.js";
 
-const staff = PermissionFlagsBits.ModerateMembers;
+// 0n = disabled for everyone by default (Discord Administrators still see them).
+// Grant AstralAdmin access in Server Settings → Integrations → bot → Commands.
+// Runtime requireStaff() still enforces AstralAdmin / ROLE_STAFF_IDS.
+const staff = 0n;
 
 export const commandDefinitions = [
   // ——— Website / Astral ———
-  // Visible to everyone so the bot always shows / commands; handlers still check staff where needed
   new SlashCommandBuilder()
     .setName("astral-status")
-    .setDescription("Show Astral bot status"),
+    .setDescription("Show Astral bot status")
+    .setDefaultMemberPermissions(staff),
   new SlashCommandBuilder()
     .setName("astral-leaderboard")
     .setDescription("Sync KAOS leaderboard to the website")
@@ -318,7 +318,7 @@ export const commandDefinitions = [
   new SlashCommandBuilder()
     .setName("ban")
     .setDescription("Ban a member")
-    .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers)
+    .setDefaultMemberPermissions(staff)
     .addUserOption((o) => o.setName("user").setDescription("Member to ban").setRequired(true))
     .addStringOption((o) => o.setName("reason").setDescription("Reason for the ban").setRequired(false))
     .addIntegerOption((o) =>
@@ -331,7 +331,7 @@ export const commandDefinitions = [
   new SlashCommandBuilder()
     .setName("purge")
     .setDescription("Delete recent messages")
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
+    .setDefaultMemberPermissions(staff)
     .addIntegerOption((o) =>
       o
         .setName("amount")
@@ -346,7 +346,7 @@ export const commandDefinitions = [
   new SlashCommandBuilder()
     .setName("slowmode")
     .setDescription("Set channel slowmode")
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels)
+    .setDefaultMemberPermissions(staff)
     .addIntegerOption((o) =>
       o
         .setName("seconds")
@@ -372,7 +372,7 @@ export const commandDefinitions = [
   new SlashCommandBuilder()
     .setName("raidmode")
     .setDescription("Lock all channels during a raid")
-    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    .setDefaultMemberPermissions(staff)
     .addBooleanOption((o) =>
       o.setName("enabled").setDescription("Turn raid mode on or off").setRequired(true),
     ),

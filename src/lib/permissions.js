@@ -14,9 +14,23 @@ function memberHasRole(member, roleId) {
 function memberHasStaffRoleName(member) {
   const wanted = config.roles.staffNames;
   if (!wanted?.length) return false;
-  const roles = member.roles?.cache;
-  if (!roles?.some) return false;
-  return roles.some((role) => wanted.includes(String(role.name || "").toLowerCase()));
+
+  // GuildMember — roles.cache is a Collection of Role
+  if (member.roles?.cache?.some) {
+    return member.roles.cache.some((role) =>
+      wanted.includes(String(role.name || "").toLowerCase()),
+    );
+  }
+
+  // APIInteractionGuildMember — roles is string[] of IDs; resolve names via guild
+  if (Array.isArray(member.roles) && member.guild?.roles?.cache) {
+    return member.roles.some((id) => {
+      const role = member.guild.roles.cache.get(id);
+      return role && wanted.includes(String(role.name || "").toLowerCase());
+    });
+  }
+
+  return false;
 }
 
 function memberHasPermission(member, flag) {
@@ -24,7 +38,6 @@ function memberHasPermission(member, flag) {
   if (!perms) return false;
   try {
     if (typeof perms.has === "function") return perms.has(flag);
-    // Raw bitfield string from the interaction payload
     const bits = BigInt(perms);
     return (bits & BigInt(flag)) === BigInt(flag);
   } catch {
@@ -34,8 +47,14 @@ function memberHasPermission(member, flag) {
 
 /**
  * Staff gate for slash commands / buttons.
- * Intentionally does NOT treat Manage Messages as staff — that permission is
- * often granted to community roles via channel overwrites.
+ *
+ * ONLY:
+ *  - ADMIN_USER_IDS
+ *  - Discord Administrator permission
+ *  - ROLE_STAFF_IDS
+ *  - Role names in ROLE_STAFF_NAMES (default: AstralAdmin)
+ *
+ * Moderate Members / Manage Messages do NOT count — those are too common.
  */
 export function isStaff(member) {
   if (!member) return false;
@@ -49,11 +68,7 @@ export function isStaff(member) {
     return true;
   }
 
-  // Match by role name (default: AstralAdmin)
   if (memberHasStaffRoleName(member)) return true;
-
-  // Real mod bit at guild/role level — not ManageMessages
-  if (memberHasPermission(member, PermissionFlagsBits.ModerateMembers)) return true;
 
   return false;
 }
@@ -66,7 +81,7 @@ export function isAutomodExempt(member) {
 export async function requireStaff(interaction) {
   let member = interaction.member;
 
-  // Prefer a resolved GuildMember so role/permission checks are guild-scoped
+  // Prefer a resolved GuildMember so role name checks work reliably
   if (interaction.guild && interaction.user?.id) {
     const fetched = await interaction.guild.members
       .fetch(interaction.user.id)
@@ -76,7 +91,8 @@ export async function requireStaff(interaction) {
 
   if (!isStaff(member)) {
     const msg = {
-      content: "You need staff permissions to use this command.",
+      content:
+        "You need the **AstralAdmin** role (or another configured staff role) to use this command.",
       ephemeral: true,
     };
     if (interaction.deferred || interaction.replied) {
