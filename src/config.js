@@ -276,7 +276,8 @@ export function channelTypeForId(channelId) {
   return "unknown";
 }
 
+/** True only for IDs listed in ADMIN_USER_IDS. Empty list = nobody (not everyone). */
 export function isAdmin(userId) {
-  if (config.adminUserIds.size === 0) return true;
-  return config.adminUserIds.has(userId);
+  if (!userId || config.adminUserIds.size === 0) return false;
+  return config.adminUserIds.has(String(userId));
 }
