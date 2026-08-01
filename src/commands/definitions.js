@@ -272,6 +272,16 @@ export const commandDefinitions = [
           o.setName("enabled").setDescription("On or off").setRequired(true),
         ),
     ),
+  new SlashCommandBuilder()
+    .setName("vip")
+    .setDescription("VIP claim management")
+    .setDefaultMemberPermissions(staff)
+    .addSubcommand((sub) =>
+      sub.setName("status").setDescription("Show current VIP claim status and lockout info"),
+    )
+    .addSubcommand((sub) =>
+      sub.setName("unlock").setDescription("Clear post-wipe lock and allow VIP claims immediately"),
+    ),
 
   // ——— Moderation ———
   new SlashCommandBuilder()

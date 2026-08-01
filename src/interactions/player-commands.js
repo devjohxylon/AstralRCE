@@ -26,6 +26,10 @@ import {
 } from "../modules/rcon/automessages.js";
 import { syncVipForDiscord } from "../modules/rcon/vip-sync.js";
 import { postLinkPanel } from "../modules/panels/link-panel.js";
+import {
+  getVipClaimStatus,
+  clearVipPostWipeLock,
+} from "../modules/rcon/vip-claims.js";
 
 async function reply(interaction, content, ephemeral = true) {
   if (interaction.deferred || interaction.replied) {
@@ -272,5 +276,51 @@ export async function handleAutoMessageCommand(interaction) {
     const result = await toggleAutoMessage(id, enabled);
     if (!result.ok) return reply(interaction, result.error);
     return reply(interaction, `Auto-message \`${id}\` is now ${enabled ? "on" : "off"}.`);
+  }
+}
+
+export async function handleVipCommand(interaction) {
+  if (!(await requireStaff(interaction))) return;
+  const sub = interaction.options.getSubcommand();
+
+  if (sub === "status") {
+    const lockHours = Number(config.vip.postWipeLockHours) || 4;
+    const status = await getVipClaimStatus(lockHours);
+
+    const lines = [
+      `**VIP Claim Status**`,
+      `Wipe ID: \`${status.wipeId || "not set"}\``,
+      `Total claims this wipe: **${status.totalClaims}**`,
+      ``,
+    ];
+
+    if (status.lockActive) {
+      const hours = Math.floor(status.lockRemainingSeconds / 3600);
+      const minutes = Math.ceil((status.lockRemainingSeconds % 3600) / 60);
+      lines.push(
+        `🔒 **Post-wipe lock is ACTIVE**`,
+        `Players cannot claim VIP for **${hours}h ${minutes}m**`,
+        `Lock started: <t:${Math.floor(new Date(status.wipeStartedAt).getTime() / 1000)}:R>`,
+        ``,
+        `Use \`/vip unlock\` to clear the lock early.`,
+      );
+    } else {
+      lines.push(
+        `✅ **Claims are OPEN**`,
+        `Players can claim VIP with quick chat: \`${config.vip.claimPhrase || "i need water"}\``,
+      );
+    }
+
+    return reply(interaction, lines.join("\n"));
+  }
+
+  if (sub === "unlock") {
+    const result = await clearVipPostWipeLock();
+    if (!result.ok) return reply(interaction, result.error);
+
+    return reply(
+      interaction,
+      `✅ **Post-wipe lock cleared**\nPlayers can now claim VIP immediately.\nWipe ID: \`${result.wipeId || "none"}\``,
+    );
   }
 }
