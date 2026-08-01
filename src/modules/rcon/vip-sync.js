@@ -23,27 +23,69 @@ function fillTemplate(template, ign) {
 }
 
 function claimPhrases() {
-  const raw = config.vip.claimPhrase || "i need water";
+  const raw = config.vip.claimPhrase || "i need stone";
   return String(raw)
     .split("|")
     .map((s) => s.trim().toLowerCase().replace(/\s+/g, " "))
     .filter(Boolean);
 }
 
+/**
+ * Rust RCE quick-chat events are NOT human text — they look like:
+ *   d11_quick_chat_i_need_phrase_format d11_Water
+ *   d11_quick_chat_i_need_phrase_format stones
+ * Map friendly claim phrases → tokens that appear in those payloads.
+ */
+const NEED_RESOURCE_TOKENS = {
+  water: ["d11_water", "water"],
+  stone: ["stones", "d11_stone", "stone"],
+  stones: ["stones", "d11_stone", "stone"],
+  wood: ["d11_wood", "wood"],
+  scrap: ["d11_scrap", "scrap"],
+  food: ["d11_food", "food"],
+  "metal fragments": ["d11_metal_fragments", "metal_fragments", "metal fragments"],
+  "high quality metal": ["metal.refined", "metal refined", "high quality metal"],
+  "low grade fuel": ["lowgradefuel", "low grade fuel"],
+};
+
 /** Normalize quick-chat text for matching. */
 export function normalizeQuickChat(message) {
   return String(message ?? "")
     .toLowerCase()
     .replace(/['']/g, "")
-    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/[^a-z0-9\s._-]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
 
 export function isVipClaimPhrase(message) {
-  const text = normalizeQuickChat(message);
-  if (!text) return false;
-  return claimPhrases().some((phrase) => text === phrase || text.includes(phrase));
+  const raw = String(message ?? "").trim();
+  if (!raw) return false;
+  const text = normalizeQuickChat(raw);
+  const rawLower = raw.toLowerCase();
+
+  const isRceNeedFormat =
+    rawLower.includes("d11_quick_chat_i_need_phrase_format") ||
+    text.includes("i need phrase format");
+
+  for (const phrase of claimPhrases()) {
+    // Human-readable chat / custom text
+    if (text === phrase || text.includes(phrase)) return true;
+
+    // Raw RCE token configured directly as the phrase
+    if (rawLower === phrase || rawLower.includes(phrase)) return true;
+
+    // "i need stone" → match RCE payload ending in stones / d11_Water etc.
+    const needMatch = phrase.match(/^i\s+need\s+(.+)$/);
+    if (needMatch && isRceNeedFormat) {
+      const resource = needMatch[1].trim();
+      const tokens = NEED_RESOURCE_TOKENS[resource] || [resource.replace(/\s+/g, "_"), resource];
+      if (tokens.some((t) => rawLower.includes(t) || text.includes(t))) {
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 async function sayToServer(line) {
@@ -98,17 +140,29 @@ async function fetchGuildMember(discordId) {
   return guild.members.fetch(discordId).catch(() => null);
 }
 
-/** True if linked Discord account has ROLE_VIP. */
+function memberHasVipRole(member) {
+  if (!member?.roles?.cache) return false;
+  const roleId = config.roles.vip;
+  if (roleId && member.roles.cache.has(roleId)) return true;
+  // Fallback: role named VIP / vip (case-insensitive)
+  return member.roles.cache.some((r) => /^vip$/i.test(String(r.name || "").trim()));
+}
+
+/** True if linked Discord account has ROLE_VIP (or a role named VIP). */
 export async function playerHasDiscordVip(ign) {
-  if (!config.roles.vip) return false;
   const link = await getLinkByIgn(ign);
   if (!link?.discordId) return false;
   const member = await fetchGuildMember(link.discordId);
-  return Boolean(member?.roles?.cache?.has(config.roles.vip));
+  if (!member) return false;
+  // If ROLE_VIP isn't configured, still allow a role literally named "VIP"
+  if (!config.roles.vip) {
+    return member.roles.cache.some((r) => /^vip$/i.test(String(r.name || "").trim()));
+  }
+  return memberHasVipRole(member);
 }
 
 /**
- * Claim VIP kit from in-game quick chat (default: "I need water").
+ * Claim VIP kit from in-game quick chat (default: "I need stone").
  * Requires Discord VIP role + linked account.
  * Default: once per wipe, blocked for N hours after wipe automation.
  */
@@ -187,12 +241,12 @@ export async function tryClaimVipFromQuickChat({ player, message } = {}) {
 /** Legacy auto-grant when Discord VIP is detected (join / role / link). Off by default. */
 export async function syncVipForDiscord(discordId, member, { force = false } = {}) {
   if (!config.vip.autoGrant) return { ok: true, skipped: true, reason: "auto_grant_off" };
-  if (!config.roles.vip || !discordId) return { ok: false, error: "ROLE_VIP not set" };
+  if (!discordId) return { ok: false, error: "Missing discord id" };
 
   const link = await getLinkByDiscord(discordId);
   if (!link?.ign) return { ok: false, error: "Not linked" };
 
-  const hasVip = Boolean(member?.roles?.cache?.has(config.roles.vip));
+  const hasVip = memberHasVipRole(member);
   if (!hasVip) return { ok: true, skipped: true, reason: "no_vip_role" };
 
   const last = recentGrants.get(discordId) || 0;
@@ -213,19 +267,18 @@ export async function syncVipForDiscord(discordId, member, { force = false } = {
 }
 
 export async function syncVipOnJoin(ign) {
-  if (!config.roles.vip || !ign) return null;
+  if (!ign) return null;
   const link = await getLinkByIgn(ign);
   if (!link?.discordId) return null;
   return { discordId: link.discordId, ign: link.ign || ign };
 }
 
 export async function handleVipRoleChange(member, added) {
-  if (!config.roles.vip) return null;
   const link = await getLinkByDiscord(member.id);
   if (!link?.ign) return { ok: false, error: "Not linked" };
 
   if (added) {
-    const phrase = config.vip.claimPhrase || "I need water";
+    const phrase = config.vip.claimPhrase || "I need stone";
     logVip(
       `💎 <@${member.id}> got VIP role (linked **${link.ign}**) — claim in-game with quick chat **${phrase}**`,
     );

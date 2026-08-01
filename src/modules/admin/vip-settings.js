@@ -48,10 +48,11 @@ export const VIP_SETTING_FIELDS = [
     key: "claimPhrase",
     type: "text",
     label: "Claim phrase",
-    hint: 'In-game quick chat text. Use | for aliases, e.g. "i need water|need water"',
-    placeholder: "i need water",
+    hint: 'In-game quick chat, e.g. "i need stone". Use | for aliases. Matches Rust QC tokens too.',
+    placeholder: "i need stone",
     env: "VIP_CLAIM_PHRASE",
-    default: () => envDefault("VIP_CLAIM_PHRASE", "i need water") || "i need water",
+    default: () =>
+      envDefault("VIP_CLAIM_PHRASE", "i need stone|i need stones") || "i need stone|i need stones",
   },
   {
     key: "postWipeLockHours",
@@ -147,7 +148,7 @@ export function normalizeVipSettings(stored = {}) {
 export function applyVipOverrides(values = getVipSettingsSync()) {
   config.vip.kitId = values.kitId || "vipkit";
   config.vip.claimEnabled = Boolean(values.claimEnabled);
-  config.vip.claimPhrase = values.claimPhrase || "i need water";
+  config.vip.claimPhrase = values.claimPhrase || "i need stone|i need stones";
   config.vip.postWipeLockHours = Number(values.postWipeLockHours);
   if (!Number.isFinite(config.vip.postWipeLockHours)) config.vip.postWipeLockHours = 4;
   config.vip.oncePerWipe = values.oncePerWipe !== false;
@@ -156,7 +157,13 @@ export function applyVipOverrides(values = getVipSettingsSync()) {
   config.vip.revokeCommand = values.revokeCommand?.trim() || null;
 
   const roleId = String(values.roleId || "").trim();
-  config.roles.vip = /^\d{5,32}$/.test(roleId) ? roleId : null;
+  if (/^\d{5,32}$/.test(roleId)) {
+    config.roles.vip = roleId;
+  } else {
+    // Don't wipe env ROLE_VIP when the panel field is empty
+    const fromEnv = envDefault("ROLE_VIP") || "";
+    config.roles.vip = /^\d{5,32}$/.test(fromEnv) ? fromEnv : config.roles.vip || null;
+  }
 }
 
 export async function loadVipSettings() {

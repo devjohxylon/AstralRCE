@@ -66,10 +66,10 @@ export async function findVipClaim({ ign, discordId } = {}) {
 
 export async function recordVipClaim({ ign, discordId, kitId } = {}) {
   const state = await readState();
-  if (!state.wipeId || !state.wipeStartedAt) {
-    // First claim ever / no wipe marked yet — open a wipe window now
+  // Track wipe id for bookkeeping only — do NOT set wipeStartedAt here.
+  // wipeStartedAt starts the post-wipe lock and must only come from wipe automation.
+  if (!state.wipeId) {
     state.wipeId = new Date().toISOString().slice(0, 10);
-    state.wipeStartedAt = new Date().toISOString();
   }
   const key = String(ign || "").trim().toLowerCase();
   if (!key) throw new Error("Missing IGN");
