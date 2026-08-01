@@ -80,6 +80,57 @@ export async function revokeLinkedRole(discordId, member = null) {
   return { ok: true };
 }
 
+/**
+ * Grant ROLE_LINKED to everyone currently linked.
+ * Safe to re-run — skips people who already have the role.
+ */
+export async function backfillLinkedRoles() {
+  const roleId = config.roles.linked;
+  if (!roleId) {
+    return { ok: false, error: "ROLE_LINKED is not set" };
+  }
+  if (!discordClient) {
+    return { ok: false, error: "Discord client not ready" };
+  }
+
+  const links = await listLinks();
+  const summary = {
+    ok: true,
+    total: links.length,
+    granted: 0,
+    already: 0,
+    missing: 0,
+    failed: 0,
+    errors: [],
+  };
+
+  for (const link of links) {
+    try {
+      const result = await grantLinkedRole(link.discordId);
+      if (result.skipped) continue;
+      if (result.already) {
+        summary.already += 1;
+      } else if (result.ok) {
+        summary.granted += 1;
+      } else if (result.error === "Member not found") {
+        summary.missing += 1;
+      } else {
+        summary.failed += 1;
+        if (summary.errors.length < 10) {
+          summary.errors.push(`${link.ign}: ${result.error || "failed"}`);
+        }
+      }
+    } catch (error) {
+      summary.failed += 1;
+      if (summary.errors.length < 10) {
+        summary.errors.push(`${link.ign}: ${error.message}`);
+      }
+    }
+  }
+
+  return summary;
+}
+
 // Instant link: claim an IGN to this Discord account. Online check optional (off by default).
 export async function linkIgn(discordId, ign, { requireOnline = false, member = null } = {}) {
   const trimmed = String(ign ?? "").trim();

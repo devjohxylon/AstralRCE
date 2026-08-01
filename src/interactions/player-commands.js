@@ -89,6 +89,21 @@ export async function handleLinkCommand(interaction) {
     if (member) await syncVipForDiscord(user.id, member, { force: true }).catch(() => {});
     return reply(interaction, `Force-linked <@${user.id}> → **${result.ign}**.`);
   }
+
+  if (sub === "syncrole") {
+    if (!(await requireStaff(interaction))) return;
+    await interaction.deferReply({ ephemeral: true });
+    const result = await backfillLinkedRoles();
+    if (!result.ok) return interaction.editReply(result.error);
+    return interaction.editReply(
+      `Linked role sync complete.\n` +
+        `• **${result.granted}** granted\n` +
+        `• **${result.already}** already had it\n` +
+        `• **${result.missing}** not in the Discord server\n` +
+        `• **${result.failed}** failed` +
+        (result.errors?.length ? `\n\n${result.errors.join("\n")}` : ""),
+    );
+  }
 }
 
 export async function handleHomeCommand(interaction) {

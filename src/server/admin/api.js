@@ -23,6 +23,7 @@ import {
   getMapImageMeta,
 } from "../../modules/rcon/map-preview.js";
 import {
+  backfillLinkedRoles,
   forceLink,
   listLinks,
   unlinkDiscord,
@@ -799,6 +800,23 @@ export async function attachAdminPanel(app, client) {
     const result = await forceLink(String(discordId), String(ign));
     await audit(req, "link_force", { discordId, ign });
     res.json({ ok: true, ...result });
+  });
+
+  app.post("/admin/api/links/sync-role", requireAuth, requirePerm("links"), async (req, res) => {
+    try {
+      const result = await backfillLinkedRoles();
+      if (!result.ok) return res.status(400).json(result);
+      await audit(req, "link_sync_role", {
+        total: result.total,
+        granted: result.granted,
+        already: result.already,
+        missing: result.missing,
+        failed: result.failed,
+      });
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
   });
 
   app.delete("/admin/api/links/:discordId", requireAuth, requirePerm("links"), async (req, res) => {
