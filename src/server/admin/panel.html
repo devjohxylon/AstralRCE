@@ -3099,14 +3099,14 @@ async function renderProfiles() {
         <h3>Player dossiers</h3>
         <span class="pill info">${(data.profiles || []).length}</span>
       </div>
-      <p class="card-desc">Search staff notes by IGN, tag, or note text. Open anyone online from the Online tab.</p>
+      <p class="card-desc">One-panel dossier: link, VIP, claims, bans, tickets, playtime, recent kills. Search by IGN, Discord ID, tag, or note.</p>
       <div class="form-row" style="margin-bottom:.85rem">
         <input id="profileSearch" placeholder="Search IGN / tag / note…" value="${esc(q)}" />
         <button class="primary" data-action="searchProfiles">Search</button>
         <button data-action="clearProfileSearch">Clear</button>
       </div>
       <div class="form-row" style="margin-bottom:1rem">
-        <input id="profileOpenIgn" placeholder="Open dossier by exact IGN" />
+        <input id="profileOpenIgn" placeholder="Open by IGN or Discord ID" />
         <button data-action="openProfileIgn">Open</button>
       </div>
       <table class="table">
@@ -3116,16 +3116,56 @@ async function renderProfiles() {
     </div>`;
 }
 
-async function renderPlayerDossier(ign) {
-  const data = await api(`/profiles/${encodeURIComponent(ign)}`);
+async function renderPlayerDossier(query) {
+  const data = await api(`/dossier?q=${encodeURIComponent(query)}`);
+
+  if (data.ambiguous) {
+    const matches = (data.matches || []).map((m) => `
+      <tr>
+        <td data-label="IGN"><strong>${esc(m.ign)}</strong></td>
+        <td data-label="Tags">${(m.tags || []).map((t) => `<span class="pill">${esc(t)}</span>`).join(" ") || "—"}</td>
+        <td data-label="Actions" class="actions">
+          <button data-action="viewPlayer" data-ign="${esc(m.ign)}">Open</button>
+        </td>
+      </tr>`).join("") || `<tr><td colspan="3"><div class="empty">No matches</div></td></tr>`;
+    return `
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <button data-action="closeProfile" style="margin-bottom:.55rem">← Back</button>
+            <h3 style="margin:0">Multiple matches</h3>
+            <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:.35rem 0 0">Query: ${esc(query)}</p>
+          </div>
+        </div>
+        <table class="table" style="margin-top:.85rem">
+          <thead><tr><th>IGN</th><th>Tags</th><th></th></tr></thead>
+          <tbody>${matches}</tbody>
+        </table>
+      </div>`;
+  }
+
   const p = data.profile || {};
-  const stats = p.stats || {};
-  const history = data.banHistory || [];
-  const online = p.online;
-  const link = p.link;
+  const stats = data.stats || p.stats || {};
+  const activity = data.activity || p.activity || {};
+  const history = data.bans?.history || [];
+  const online = data.online || p.online;
+  const link = data.link || p.link;
+  const vip = data.vip || {};
+  const tickets = data.tickets?.open || [];
+  const kills = data.recentKills || [];
+  const displayIgn = data.ign || p.ign || query;
+  if (displayIgn && state.selectedPlayer !== displayIgn) state.selectedPlayer = displayIgn;
+
+  const statusPills = [
+    online ? `<span class="pill ok">Online</span>` : `<span class="pill">Offline</span>`,
+    link ? `<span class="pill ok">Linked</span>` : `<span class="pill">Not linked</span>`,
+    vip.hasDiscordRole ? `<span class="pill ok">VIP role</span>` : `<span class="pill">No VIP role</span>`,
+    vip.claim ? `<span class="pill ok">Claimed</span>` : `<span class="pill">No claim</span>`,
+    data.bans?.active ? `<span class="pill bad">Banned</span>` : "",
+  ].filter(Boolean).join(" ");
 
   const tags = (p.tags || []).map((t) =>
-    `<span class="pill">${esc(t)} <button class="ghost" style="padding:0;margin-left:.25rem;font-size:.7rem" data-action="delProfileTag" data-ign="${esc(p.ign)}" data-tag="${esc(t)}">×</button></span>`
+    `<span class="pill">${esc(t)} <button class="ghost" style="padding:0;margin-left:.25rem;font-size:.7rem" data-action="delProfileTag" data-ign="${esc(displayIgn)}" data-tag="${esc(t)}">×</button></span>`
   ).join(" ") || `<span class="muted">No tags</span>`;
 
   const notes = (p.notes || []).slice().reverse().map((n) => `
@@ -3135,7 +3175,7 @@ async function renderPlayerDossier(ign) {
           <div>${esc(n.text)}</div>
           <div class="muted" style="font-family:var(--mono);font-size:.68rem;margin-top:.35rem">${esc(n.author || "staff")} · ${esc(new Date(n.timestamp).toLocaleString())}</div>
         </div>
-        <button class="danger" data-action="delProfileNote" data-ign="${esc(p.ign)}" data-id="${esc(n.id)}">Delete</button>
+        <button class="danger" data-action="delProfileNote" data-ign="${esc(displayIgn)}" data-id="${esc(n.id)}">Delete</button>
       </div>
     </div>`).join("") || `<div class="empty">No notes yet</div>`;
 
@@ -3154,20 +3194,56 @@ async function renderPlayerDossier(ign) {
       <td data-label="Status">${b.active ? `<span class="pill bad">active</span>` : `<span class="pill">ended</span>`}</td>
     </tr>`).join("") || `<tr><td colspan="4"><div class="empty">No ban history</div></td></tr>`;
 
+  const ticketRows = tickets.map((t) => `
+    <tr>
+      <td data-label="ID"><code>${esc(t.id)}</code></td>
+      <td data-label="Type">${esc(t.type || "—")}</td>
+      <td data-label="Opened">${esc(t.createdAt ? new Date(t.createdAt).toLocaleString() : "—")}</td>
+      <td data-label="Channel">${t.channelId ? `<code>${esc(t.channelId)}</code>` : "—"}</td>
+    </tr>`).join("") || `<tr><td colspan="4"><div class="empty">No open tickets</div></td></tr>`;
+
+  const killRows = kills.slice(0, 20).map((k) => {
+    const isKiller = String(k.killer || "").toLowerCase() === String(displayIgn).toLowerCase();
+    return `
+    <tr>
+      <td data-label="When">${esc(k.at ? new Date(k.at).toLocaleString() : "—")}</td>
+      <td data-label="Killer">${isKiller ? `<strong>${esc(k.killer)}</strong>` : esc(k.killer || "—")}</td>
+      <td data-label="Victim">${!isKiller ? `<strong>${esc(k.victim)}</strong>` : esc(k.victim || "—")}</td>
+      <td data-label="Weapon">${esc(k.weapon || "—")}${k.headshot ? ` <span class="pill bad">HS</span>` : ""}</td>
+    </tr>`;
+  }).join("") || `<tr><td colspan="4"><div class="empty">No recent combat in memory</div></td></tr>`;
+
+  const vipClaimLine = vip.claim
+    ? `Kit <code>${esc(vip.claim.kitId || "vip")}</code> · wipe <code>${esc(vip.claim.wipeId || "—")}</code> · ${esc(vip.claim.at ? new Date(vip.claim.at).toLocaleString() : "—")}`
+    : "No VIP claim this wipe";
+
+  const seenLine = [
+    activity.firstSeen ? `First seen ${new Date(activity.firstSeen).toLocaleString()}` : null,
+    activity.lastSeen ? `Last seen ${new Date(activity.lastSeen).toLocaleString()}` : null,
+    activity.daysActive?.length ? `${activity.daysActive.length} days active` : null,
+  ].filter(Boolean).join(" · ") || "No activity tracked yet";
+
   return `
     <div class="card" style="margin-bottom:.9rem">
       <div class="card-head">
         <div>
           <button data-action="closeProfile" style="margin-bottom:.55rem">← Back</button>
-          <h3 style="margin:0">${esc(p.ign || ign)}</h3>
-          <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:.35rem 0 0">
-            ${online ? `<span class="pill ok">Online</span> ${online.platform || ""} · ping ${online.ping ?? "—"}` : `<span class="pill">Offline</span>`}
-            ${link ? ` · Discord <code>${esc(link.discordId)}</code>` : " · not linked"}
+          <h3 style="margin:0">${esc(displayIgn)}</h3>
+          <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:.35rem 0 0;display:flex;flex-wrap:wrap;gap:.35rem;align-items:center">
+            ${statusPills}
+            ${online ? `<span>${esc(online.platform || "")} · ping ${online.ping ?? "—"}</span>` : ""}
           </p>
+          <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:.45rem 0 0">
+            ${link
+              ? `Discord <code>${esc(link.discordId)}</code>${link.linkedAt ? ` · linked ${esc(new Date(link.linkedAt).toLocaleString())}` : ""}${link.forced ? " · forced" : ""}`
+              : "Not linked to Discord"}
+          </p>
+          <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:.35rem 0 0">VIP: ${vipClaimLine}</p>
+          <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:.35rem 0 0">${esc(seenLine)}</p>
         </div>
         <div class="actions">
-          ${can("kick") && online ? `<button data-action="kick" data-ign="${esc(p.ign)}">Kick</button>` : ""}
-          ${can("ban") ? `<button class="danger" data-action="ban" data-ign="${esc(p.ign)}">Ban</button>` : ""}
+          ${can("kick") && online ? `<button data-action="kick" data-ign="${esc(displayIgn)}">Kick</button>` : ""}
+          ${can("ban") ? `<button class="danger" data-action="ban" data-ign="${esc(displayIgn)}">Ban</button>` : ""}
         </div>
       </div>
       <div class="grid stats" style="margin-top:.85rem">
@@ -3181,10 +3257,34 @@ async function renderPlayerDossier(ign) {
     <div class="split">
       <div style="display:grid;gap:1rem">
         <div class="card">
+          <div class="card-head">
+            <h3>Recent kills</h3>
+            <span class="pill info">${kills.length}</span>
+          </div>
+          <p class="card-desc">In-memory combat feed (killer or victim).</p>
+          <table class="table">
+            <thead><tr><th>When</th><th>Killer</th><th>Victim</th><th>Weapon</th></tr></thead>
+            <tbody>${killRows}</tbody>
+          </table>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h3>Open tickets</h3>
+            <span class="pill info">${tickets.length}</span>
+          </div>
+          <p class="card-desc">Linked Discord tickets currently open.</p>
+          <table class="table">
+            <thead><tr><th>ID</th><th>Type</th><th>Opened</th><th>Channel</th></tr></thead>
+            <tbody>${ticketRows}</tbody>
+          </table>
+        </div>
+
+        <div class="card">
           <h3>Staff notes</h3>
           <div class="form-row">
             <input id="profileNote" placeholder="Add a note…" />
-            <button class="primary" data-action="addProfileNote" data-ign="${esc(p.ign)}">Add</button>
+            <button class="primary" data-action="addProfileNote" data-ign="${esc(displayIgn)}">Add</button>
           </div>
           <div style="margin-top:.75rem">${notes}</div>
         </div>
@@ -3193,7 +3293,7 @@ async function renderPlayerDossier(ign) {
           <h3>Warnings</h3>
           <div class="form-row">
             <input id="profileWarning" placeholder="Warning reason…" />
-            <button class="danger" data-action="addProfileWarning" data-ign="${esc(p.ign)}">Warn</button>
+            <button class="danger" data-action="addProfileWarning" data-ign="${esc(displayIgn)}">Warn</button>
           </div>
           <table class="table" style="margin-top:.75rem">
             <thead><tr><th>Reason</th><th>By</th><th>When</th></tr></thead>
@@ -3208,7 +3308,7 @@ async function renderPlayerDossier(ign) {
           <div style="margin-bottom:.75rem">${tags}</div>
           <div class="form-row">
             <input id="profileTag" placeholder="e.g. toxic, vip, watch" />
-            <button data-action="addProfileTag" data-ign="${esc(p.ign)}">Add tag</button>
+            <button data-action="addProfileTag" data-ign="${esc(displayIgn)}">Add tag</button>
           </div>
         </div>
 
@@ -3224,7 +3324,7 @@ async function renderPlayerDossier(ign) {
             <input id="profileTpY" placeholder="Y" />
             <input id="profileTpZ" placeholder="Z" />
           </div>
-          <button class="primary" style="margin-top:.7rem;width:100%" data-action="profileTeleport" data-ign="${esc(p.ign)}">Teleport</button>
+          <button class="primary" style="margin-top:.7rem;width:100%" data-action="profileTeleport" data-ign="${esc(displayIgn)}">Teleport</button>
         </div>` : ""}
 
         <div class="card">
@@ -5093,7 +5193,7 @@ function bindView() {
         }
         if (a === "openProfileIgn") {
           const ign = document.getElementById("profileOpenIgn")?.value?.trim();
-          if (!ign) { toast("Enter an IGN", true); return; }
+          if (!ign) { toast("Enter an IGN or Discord ID", true); return; }
           state.selectedPlayer = ign;
           render();
           return;
