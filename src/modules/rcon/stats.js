@@ -4,8 +4,41 @@ let cache = null;
 let dirty = false;
 const sessions = new Map();
 
+/** World/NPC prefabs the kill parser sometimes mislabels as Player. */
+export function isWorldActorName(name) {
+  const n = String(name || "").trim();
+  if (!n) return true;
+  if (/\(\s*entity\s*\)/i.test(n)) return true;
+  if (/\(\s*world\s*\)/i.test(n)) return true;
+  if (/\(\s*npc\s*\)/i.test(n)) return true;
+  // Prefab ids like lock.code.a.pilot / autoturret_deployed (not normal IGNs)
+  if (/^[a-z0-9_]+(?:\.[a-z0-9_]+)+$/i.test(n)) return true;
+  return false;
+}
+
+function isPlayerActor(actor) {
+  if (!actor?.name || isWorldActorName(actor.name)) return false;
+  const type = String(actor.type || "Player");
+  return type === "Player";
+}
+
+function scrubWorldActors(data) {
+  if (!data?.players) return false;
+  let removed = false;
+  for (const name of Object.keys(data.players)) {
+    if (isWorldActorName(name)) {
+      delete data.players[name];
+      removed = true;
+    }
+  }
+  return removed;
+}
+
 async function load() {
-  if (!cache) cache = await getPlayerStats();
+  if (!cache) {
+    cache = await getPlayerStats();
+    if (scrubWorldActors(cache)) dirty = true;
+  }
   return cache;
 }
 
@@ -22,6 +55,7 @@ function blankPlayer() {
 }
 
 function playerRecord(data, name) {
+  if (isWorldActorName(name)) return null;
   if (!data.players[name]) data.players[name] = blankPlayer();
   data.players[name].lastSeen = new Date().toISOString();
   return data.players[name];
@@ -30,33 +64,42 @@ function playerRecord(data, name) {
 export async function recordKill({ killer, victim }) {
   const data = await load();
 
-  // Only player-vs-player counts toward K/D; NPCs and world deaths are tracked separately.
-  const killerIsPlayer = killer?.type === "Player";
-  const victimIsPlayer = victim?.type === "Player";
+  // Only real player-vs-player counts toward K/D; NPCs / entities are separate.
+  const killerIsPlayer = isPlayerActor(killer);
+  const victimIsPlayer = isPlayerActor(victim);
 
   if (killerIsPlayer && victimIsPlayer) {
     if (killer.name === victim.name) {
-      playerRecord(data, victim.name).suicides += 1;
+      const row = playerRecord(data, victim.name);
+      if (row) row.suicides += 1;
     } else {
-      playerRecord(data, killer.name).kills += 1;
-      playerRecord(data, victim.name).deaths += 1;
+      const k = playerRecord(data, killer.name);
+      const v = playerRecord(data, victim.name);
+      if (k) k.kills += 1;
+      if (v) v.deaths += 1;
     }
   } else if (killerIsPlayer && !victimIsPlayer) {
-    playerRecord(data, killer.name).npcKills += 1;
+    const k = playerRecord(data, killer.name);
+    if (k) k.npcKills += 1;
   } else if (victimIsPlayer) {
-    playerRecord(data, victim.name).deaths += 1;
+    const v = playerRecord(data, victim.name);
+    if (v) v.deaths += 1;
   }
 
   dirty = true;
 }
 
 export async function recordSuicide(name) {
+  if (isWorldActorName(name)) return;
   const data = await load();
-  playerRecord(data, name).suicides += 1;
+  const row = playerRecord(data, name);
+  if (!row) return;
+  row.suicides += 1;
   dirty = true;
 }
 
 export async function startSession(name) {
+  if (isWorldActorName(name)) return;
   const data = await load();
   playerRecord(data, name);
   sessions.set(name, Date.now());
@@ -67,9 +110,12 @@ export async function endSession(name) {
   const started = sessions.get(name);
   if (!started) return;
   sessions.delete(name);
+  if (isWorldActorName(name)) return;
 
   const data = await load();
-  playerRecord(data, name).playtimeMs += Date.now() - started;
+  const row = playerRecord(data, name);
+  if (!row) return;
+  row.playtimeMs += Date.now() - started;
   dirty = true;
 }
 
@@ -78,7 +124,13 @@ async function flushOpenSessions() {
   const now = Date.now();
   const data = await load();
   for (const [name, started] of sessions) {
-    playerRecord(data, name).playtimeMs += now - started;
+    if (isWorldActorName(name)) {
+      sessions.delete(name);
+      continue;
+    }
+    const row = playerRecord(data, name);
+    if (!row) continue;
+    row.playtimeMs += now - started;
     sessions.set(name, now);
   }
 }
@@ -118,6 +170,7 @@ export async function getLeaderboard(category = "kills", limit = 10) {
   if (sessions.size) await flushOpenSessions();
 
   return Object.entries(data.players)
+    .filter(([name]) => !isWorldActorName(name))
     .filter(([, p]) => !meta.minKills || p.kills >= meta.minKills)
     .map(([name, p]) => ({ name, value: meta.key(p), raw: p }))
     .filter((row) => row.value > 0)
@@ -136,9 +189,10 @@ export function leaderboardCategories() {
 }
 
 export async function getPlayerCard(name) {
+  if (isWorldActorName(name)) return null;
   const data = await load();
   const key = Object.keys(data.players).find(
-    (n) => n.toLowerCase() === name.toLowerCase(),
+    (n) => !isWorldActorName(n) && n.toLowerCase() === name.toLowerCase(),
   );
   if (!key) return null;
 
@@ -157,7 +211,9 @@ export async function resetStats(wipeLabel) {
 
 export async function statsSummary() {
   const data = await load();
-  const players = Object.values(data.players);
+  const players = Object.entries(data.players)
+    .filter(([name]) => !isWorldActorName(name))
+    .map(([, p]) => p);
   return {
     wipe: data.wipe,
     trackedPlayers: players.length,
