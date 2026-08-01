@@ -133,6 +133,20 @@ export async function lockChannel(channel, lock) {
 }
 
 export async function triggerRaidAlert(guild, joinCount) {
+  const { getSettings, saveSettings } = await import("../../data/store.js");
+  const settings = await getSettings().catch(() => null);
+  if (settings) {
+    settings.raidAlerts = Array.isArray(settings.raidAlerts) ? settings.raidAlerts : [];
+    settings.raidAlerts.unshift({
+      id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+      at: new Date().toISOString(),
+      joinCount,
+      windowSeconds: config.automod.raidWindowSeconds,
+    });
+    settings.raidAlerts = settings.raidAlerts.slice(0, 50);
+    await saveSettings(settings).catch(() => {});
+  }
+
   await sendModLog(guild, {
     title: "⚠️ Possible raid detected",
     description: `${joinCount} joins in ${config.automod.raidWindowSeconds}s. Consider \`/raidmode on\`.`,

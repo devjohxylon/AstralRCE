@@ -95,7 +95,12 @@ export async function banPlayer(ign, reason, admin, duration = null, steamId = n
   await logAction("ban_player", {
     admin,
     target: ign,
-    extra: { reason, duration: duration ? `${duration}ms` : "permanent" },
+    undoable: true,
+    extra: {
+      reason,
+      duration: duration ? `${duration}ms` : "permanent",
+      durationMs: duration || null,
+    },
   });
 
   return { ok: true, ban: result.ban };
@@ -122,7 +127,14 @@ export async function unbanPlayer(ign, admin, reason = "Unbanned") {
   await logAction("unban_player", {
     admin,
     target: ign,
-    extra: { reason },
+    undoable: true,
+    extra: {
+      reason,
+      previousReason: ban.reason || null,
+      previousDurationMs: ban.expiresAt
+        ? Math.max(0, new Date(ban.expiresAt).getTime() - Date.now())
+        : null,
+    },
   });
 
   return { ok: true, ban };

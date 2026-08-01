@@ -19,6 +19,8 @@ async function persist() {
 
 setInterval(() => persist().catch(() => {}), 30000);
 
+const UNDOABLE = new Set(["ban_player", "unban_player"]);
+
 export async function logAction(action, details = {}) {
   const data = await load();
   
@@ -30,6 +32,9 @@ export async function logAction(action, details = {}) {
     target: details.target || null,
     details: details.extra || null,
     ip: details.ip || null,
+    undoable: Boolean(details.undoable ?? UNDOABLE.has(action)),
+    undoneAt: null,
+    undoneBy: null,
   };
   
   data.entries.unshift(entry);
@@ -38,6 +43,24 @@ export async function logAction(action, details = {}) {
   
   dirty = true;
   return entry;
+}
+
+export async function getAuditEntry(id) {
+  const data = await load();
+  return data.entries.find((e) => e.id === id) || null;
+}
+
+export async function markAuditUndone(id, by) {
+  const data = await load();
+  const entry = data.entries.find((e) => e.id === id);
+  if (!entry) return { ok: false, error: "Audit entry not found" };
+  if (!entry.undoable) return { ok: false, error: "This action cannot be undone" };
+  if (entry.undoneAt) return { ok: false, error: "Already undone" };
+  entry.undoneAt = new Date().toISOString();
+  entry.undoneBy = by || "staff";
+  dirty = true;
+  await persist();
+  return { ok: true, entry };
 }
 
 export async function getAuditEntries(filters = {}) {

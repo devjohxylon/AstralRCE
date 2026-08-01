@@ -656,6 +656,25 @@ button { transition: all .15s ease; }
   gap: .65rem;
   margin-bottom: 1rem;
 }
+.health-strip.dense { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+.inbox-row {
+  display: flex; gap: .75rem; align-items: flex-start;
+  padding: .75rem 0; border-bottom: 1px solid rgba(255,255,255,.06);
+}
+.inbox-row:last-child { border-bottom: none; }
+.inbox-kind {
+  flex: none; width: 5.5rem; font-family: var(--mono); font-size: .62rem;
+  text-transform: uppercase; letter-spacing: .04em; padding-top: .2rem;
+  color: rgba(215,221,230,.45);
+}
+.inbox-body { flex: 1; min-width: 0; }
+.inbox-body strong { display: block; font-size: .88rem; margin-bottom: .2rem; }
+.inbox-meta { font-family: var(--mono); font-size: .68rem; color: rgba(215,221,230,.45); }
+.signals-row { display: flex; flex-wrap: wrap; gap: .35rem; margin: .55rem 0 .15rem; }
+.staff-mobile-bar {
+  display: none;
+}
+.dossier-actions { display: flex; flex-wrap: wrap; gap: .4rem; }
 .health-card {
   padding: .7rem .8rem;
   border: 1px solid var(--line);
@@ -1507,6 +1526,50 @@ button { transition: all .15s ease; }
     padding: .45rem .7rem;
     font-size: .75rem;
   }
+  .health-strip, .health-strip.dense {
+    grid-template-columns: 1fr 1fr;
+  }
+  .dossier-actions {
+    width: 100%;
+  }
+  .dossier-actions > button {
+    flex: 1 1 calc(50% - .25rem);
+    min-height: 44px;
+  }
+  .staff-mobile-bar {
+    display: flex;
+    position: sticky;
+    bottom: max(.65rem, env(safe-area-inset-bottom));
+    z-index: 20;
+    gap: .4rem;
+    margin-top: 1rem;
+    padding: .55rem;
+    border: 1px solid var(--line2);
+    border-radius: 12px;
+    background: rgba(8,9,11,.94);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow: 0 -8px 28px rgba(0,0,0,.45);
+  }
+  .staff-mobile-bar button {
+    flex: 1;
+    min-height: 48px;
+    font-size: .82rem;
+    touch-action: manipulation;
+  }
+  .player-hub-search {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: .45rem;
+  }
+  .player-hub-search input,
+  .player-hub-search button {
+    width: 100%;
+    min-height: 48px;
+    font-size: 16px;
+  }
+  .inbox-row { flex-direction: column; gap: .35rem; }
+  .inbox-kind { width: auto; }
 
   .dropdown-menu {
     position: fixed; left: 50%; bottom: max(16px, env(safe-area-inset-bottom));
@@ -1771,6 +1834,7 @@ const NAV_SECTIONS = {
     sub: "Server health and quick controls",
     tabs: [
       { id: "overview", label: "Overview", perm: "overview" },
+      { id: "inbox", label: "Inbox", perm: "overview" },
       { id: "map", label: "Map", perm: "overview" },
     ],
   },
@@ -1804,6 +1868,7 @@ const NAV_SECTIONS = {
     sub: "Status, wipe automation, and analytics",
     tabs: [
       { id: "status", label: "Status", perm: "overview" },
+      { id: "health", label: "Health", perm: "overview" },
       { id: "wipe", label: "Wipe", perm: "overview" },
       { id: "analytics", label: "Analytics", perm: "overview" },
     ],
@@ -1824,6 +1889,7 @@ const ADVANCED_TABS = [
 
 const TAB_META = {
   overview: { title: "Home", sub: "Server health and quick controls", perm: "overview" },
+  inbox: { title: "Inbox", sub: "Moderation feed — groups, tickets, bans, spikes", perm: "overview" },
   map: { title: "Live map", sub: "Fullscreen radar — calibrate once, watch everyone move", perm: "overview" },
   players: { title: "Players", sub: "Search anyone — online roster below", perm: "players" },
   profiles: { title: "Players", sub: "Staff dossiers — stats, notes, actions", perm: "players" },
@@ -1835,6 +1901,7 @@ const TAB_META = {
   automation: { title: "Community", sub: "Auto messages and scheduled commands", perm: "automation" },
   events: { title: "Community", sub: "Automate RCON commands on a schedule", perm: "schedule" },
   status: { title: "Server", sub: "Live telemetry, map, wipe, and connections", perm: "overview" },
+  health: { title: "Health", sub: "Volume, RCON, Discord, last kill, leaderboard", perm: "overview" },
   wipe: { title: "Server", sub: "Checklist and one-click wipe automation", perm: "overview" },
   analytics: { title: "Server", sub: "Pop, FPS, and weapon stats", perm: "overview" },
 };
@@ -2200,6 +2267,7 @@ async function render({ animate = false } = {}) {
   }
   try {
     if (state.tab === "overview") view.innerHTML = renderOverview();
+    if (state.tab === "inbox") view.innerHTML = await renderInbox();
     if (state.tab === "map") view.innerHTML = await renderMap();
     if (state.tab === "players") view.innerHTML = await renderPlayers();
     if (state.tab === "profiles") view.innerHTML = await renderProfiles();
@@ -2208,6 +2276,7 @@ async function render({ animate = false } = {}) {
     if (state.tab === "console") view.innerHTML = renderConsole();
     if (state.tab === "stats") view.innerHTML = await renderStats();
     if (state.tab === "status") view.innerHTML = await renderServerStatus();
+    if (state.tab === "health") view.innerHTML = await renderHealth();
     if (state.tab === "wipe") view.innerHTML = await renderWipe();
     if (state.tab === "analytics") view.innerHTML = await renderAnalytics();
     if (state.tab === "warps") view.innerHTML = await renderWarps();
@@ -2231,6 +2300,107 @@ async function render({ animate = false } = {}) {
 function statCard(value, label, liveKey) {
   const inner = liveKey ? `<span data-live="${liveKey}">${value}</span>` : value;
   return `<div class="card stat"><div class="metric">${inner}<small>${esc(label)}</small></div></div>`;
+}
+
+async function renderInbox() {
+  const data = await api("/inbox?limit=60");
+  const items = data.items || [];
+  const counts = data.counts || {};
+  const kindLabel = {
+    group: "Group",
+    combat_spike: "Spike",
+    combat: "Combat",
+    ticket: "Ticket",
+    ban: "Ban",
+    unban: "Unban",
+    raid: "Raid",
+    staff: "Staff",
+  };
+
+  const rows = items.map((item) => {
+    const ignBtns = (item.igns || [])
+      .filter(Boolean)
+      .slice(0, 4)
+      .map((ign) => `<button data-action="viewPlayer" data-ign="${esc(ign)}">Dossier</button>`)
+      .join("");
+    const sev = item.severity === "bad" ? "bad" : item.severity === "warn" ? "warn" : "info";
+    return `
+      <div class="inbox-row">
+        <div class="inbox-kind"><span class="pill ${sev}">${esc(kindLabel[item.kind] || item.kind)}</span></div>
+        <div class="inbox-body">
+          <strong>${esc(item.title)}</strong>
+          <div class="muted" style="font-size:.8rem">${esc(item.detail || "")}</div>
+          <div class="inbox-meta">${esc(item.at ? new Date(item.at).toLocaleString() : "—")}</div>
+        </div>
+        <div class="actions">${ignBtns || (item.discordId ? `<button data-action="viewPlayer" data-ign="${esc(item.discordId)}">Dossier</button>` : "")}</div>
+      </div>`;
+  }).join("") || `<div class="empty">Inbox clear<span class="empty-hint">Group alerts, tickets, bans, and combat spikes land here</span></div>`;
+
+  return `
+    <div class="card" style="margin-bottom:.85rem">
+      <div class="card-head">
+        <h3>Moderation inbox</h3>
+        <button data-action="goTab" data-tab="inbox">Refresh</button>
+      </div>
+      <p class="card-desc">One feed for group alerts, combat spikes, open tickets, bans, raid joins, and staff actions. Open a dossier without leaving the chaos.</p>
+      <div class="pills" style="margin-bottom:.5rem">
+        <span class="pill bad">${counts.group || 0} groups</span>
+        <span class="pill warn">${counts.spike || 0} spikes</span>
+        <span class="pill warn">${counts.ticket || 0} tickets</span>
+        <span class="pill bad">${counts.ban || 0} bans</span>
+        <span class="pill bad">${counts.raid || 0} raids</span>
+      </div>
+    </div>
+    <div class="card">${rows}</div>`;
+}
+
+async function renderHealth() {
+  const data = await api("/health");
+  const checks = data.checks || [];
+  const summary = data.summary || {};
+  const strip = `
+    <div class="health-strip dense">
+      ${checks.map((h) => `
+        <div class="health-card ${esc(h.status || "")}">
+          <div class="h-label">${esc(h.label)}</div>
+          <div class="h-value">${esc(h.status === "ok" ? "OK" : h.status === "bad" ? "Down" : "Check")}</div>
+          <div class="h-detail">${esc(h.detail || "")}</div>
+        </div>`).join("")}
+    </div>`;
+
+  const persist = data.persistence || {};
+  const lastKill = data.lastKill;
+  return `
+    <div class="card" style="margin-bottom:.85rem">
+      <div class="card-head">
+        <h3>Ops health</h3>
+        <span class="pill ${summary.overall === "ok" ? "ok" : summary.overall === "bad" ? "bad" : "warn"}">
+          ${summary.ok || 0} ok · ${summary.warn || 0} warn · ${summary.bad || 0} down
+        </span>
+      </div>
+      <p class="card-desc">Railway volume, RCON, Discord, last kill, leaderboard push — so deploys aren’t a mystery.</p>
+      ${strip}
+    </div>
+    <div class="split">
+      <div class="card">
+        <h3>Persistence</h3>
+        <table class="table"><tbody>
+          <tr><td data-label="DATA_DIR">${esc(persist.dataDir || "—")}</td></tr>
+          <tr><td data-label="Volume">${persist.persistent ? `<span class="pill ok">OK</span>` : `<span class="pill bad">Missing</span>`}</td></tr>
+          <tr><td data-label="Links">${persist.linkCount ?? 0}</td></tr>
+          <tr><td data-label="Railway">${persist.onRailway ? "yes" : "no"}</td></tr>
+        </tbody></table>
+      </div>
+      <div class="card">
+        <h3>Signals</h3>
+        <table class="table"><tbody>
+          <tr><td data-label="Last kill">${lastKill ? esc(`${lastKill.killer} → ${lastKill.victim}`) : "—"}</td></tr>
+          <tr><td data-label="Kill at">${lastKill?.at ? esc(new Date(lastKill.at).toLocaleString()) : "—"}</td></tr>
+          <tr><td data-label="Leaderboard">${data.leaderboardLastPublishedAt ? esc(new Date(data.leaderboardLastPublishedAt).toLocaleString()) : "Never"}</td></tr>
+          <tr><td data-label="Raid mode">${data.raidMode ? `<span class="pill warn">ON</span>` : `<span class="pill ok">Off</span>`}</td></tr>
+        </tbody></table>
+      </div>
+    </div>`;
 }
 
 function renderOverview() {
@@ -2273,11 +2443,11 @@ function renderOverview() {
 
   const quick = `
     <div class="quick-actions">
+      ${can("overview") ? `<button class="primary" data-action="goTab" data-tab="inbox">Mod inbox</button>` : ""}
       ${can("players") ? `<button data-action="goTab" data-tab="players">Find player</button>` : ""}
+      ${can("overview") ? `<button data-action="goTab" data-tab="health">Health</button>` : ""}
       ${can("serverCommands") ? `<button data-action="goTab" data-tab="commands">Give kit / rank</button>` : ""}
-      ${can("serverCommands") ? `<button data-action="goTab" data-tab="discord">Discord settings</button>` : ""}
       ${can("overview") ? `<button data-action="goTab" data-tab="wipe">Wipe tools</button>` : ""}
-      ${can("broadcast") ? "" : ""}
     </div>`;
 
   const onlineRows = online.slice(0, 8).map((p) => `
@@ -3154,6 +3324,7 @@ async function renderPlayerDossier(query) {
   const openTickets = data.tickets?.open || [];
   const closedTickets = data.tickets?.closed || [];
   const kills = data.recentKills || [];
+  const signals = data.signals || [];
   const displayIgn = data.ign || p.ign || query;
   if (displayIgn && state.selectedPlayer !== displayIgn) state.selectedPlayer = displayIgn;
 
@@ -3164,6 +3335,12 @@ async function renderPlayerDossier(query) {
     vip.claim ? `<span class="pill ok">Claimed</span>` : `<span class="pill">No claim</span>`,
     data.bans?.active ? `<span class="pill bad">Banned</span>` : "",
   ].filter(Boolean).join(" ");
+
+  const signalPills = signals.length
+    ? `<div class="signals-row">${signals.map((s) =>
+        `<span class="pill ${s.severity === "bad" ? "bad" : s.severity === "warn" ? "warn" : "info"}" title="${esc(s.detail || "")}">${esc(s.label)}</span>`
+      ).join("")}</div>`
+    : "";
 
   const tags = (p.tags || []).map((t) =>
     `<span class="pill">${esc(t)} <button class="ghost" style="padding:0;margin-left:.25rem;font-size:.7rem" data-action="delProfileTag" data-ign="${esc(displayIgn)}" data-tag="${esc(t)}">×</button></span>`
@@ -3211,7 +3388,7 @@ async function renderPlayerDossier(query) {
       <td data-label="When">${esc(k.at ? new Date(k.at).toLocaleString() : "—")}</td>
       <td data-label="Killer">${isKiller ? `<strong>${esc(k.killer)}</strong>` : esc(k.killer || "—")}</td>
       <td data-label="Victim">${!isKiller ? `<strong>${esc(k.victim)}</strong>` : esc(k.victim || "—")}</td>
-      <td data-label="Weapon">${esc(k.weapon || "—")}${k.headshot ? ` <span class="pill bad">HS</span>` : ""}</td>
+      <td data-label="Weapon">${esc(k.weapon || "—")}${k.headshot ? ` <span class="pill bad">HS</span>` : ""}${k.distance != null ? ` · ${esc(String(k.distance))}m` : ""}</td>
     </tr>`;
   }).join("") || `<tr><td colspan="4"><div class="empty">No combat logged yet</div></td></tr>`;
 
@@ -3242,10 +3419,12 @@ async function renderPlayerDossier(query) {
           </p>
           <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:.35rem 0 0">VIP: ${vipClaimLine}</p>
           <p class="muted" style="font-family:var(--mono);font-size:.72rem;margin:.35rem 0 0">${esc(seenLine)}</p>
+          ${signalPills}
         </div>
-        <div class="actions">
+        <div class="actions dossier-actions">
           ${can("kick") && online ? `<button data-action="kick" data-ign="${esc(displayIgn)}">Kick</button>` : ""}
           ${can("ban") ? `<button class="danger" data-action="ban" data-ign="${esc(displayIgn)}">Ban</button>` : ""}
+          ${can("players") ? `<button data-action="focusProfileWarn" data-ign="${esc(displayIgn)}">Warn</button>` : ""}
         </div>
       </div>
       <div class="grid stats" style="margin-top:.85rem">
@@ -3291,7 +3470,7 @@ async function renderPlayerDossier(query) {
           <div style="margin-top:.75rem">${notes}</div>
         </div>
 
-        <div class="card">
+        <div class="card" id="profileWarnCard">
           <h3>Warnings</h3>
           <div class="form-row">
             <input id="profileWarning" placeholder="Warning reason…" />
@@ -3337,6 +3516,12 @@ async function renderPlayerDossier(query) {
           </table>
         </div>
       </div>
+    </div>
+
+    <div class="staff-mobile-bar">
+      ${can("kick") && online ? `<button data-action="kick" data-ign="${esc(displayIgn)}">Kick</button>` : ""}
+      ${can("players") ? `<button data-action="focusProfileWarn" data-ign="${esc(displayIgn)}">Warn</button>` : ""}
+      ${can("ban") ? `<button class="danger" data-action="ban" data-ign="${esc(displayIgn)}">Ban</button>` : ""}
     </div>`;
 }
 
@@ -4489,29 +4674,44 @@ async function renderLogs() {
       source: "panel",
     })),
     ...(system.entries || []).map((e) => ({
+      id: e.id,
       at: e.timestamp,
       who: e.admin || "System",
       role: "",
       action: e.action,
       detail: e.details || (e.target ? { target: e.target } : null),
+      target: e.target || null,
       source: "system",
+      undoable: Boolean(e.undoable) && !e.undoneAt,
+      undoneAt: e.undoneAt || null,
     })),
   ]
     .filter((e) => e.at)
     .sort((a, b) => new Date(b.at) - new Date(a.at))
     .slice(0, 200);
 
-  const rows = merged.map((e) => `
+  const rows = merged.map((e) => {
+    const undoBtn = e.source === "system" && e.undoable && can("ban")
+      ? `<button data-action="undoAudit" data-id="${esc(e.id)}">Undo</button>`
+      : e.undoneAt
+        ? `<span class="pill">undone</span>`
+        : "";
+    const targetBtn = e.target
+      ? `<button class="ghost" style="padding:0;font-weight:600" data-action="viewPlayer" data-ign="${esc(e.target)}">${esc(e.target)}</button>`
+      : "";
+    return `
     <tr>
       <td data-label="When" class="muted">${new Date(e.at).toLocaleString()}</td>
       <td data-label="Who">
         <strong>${esc(e.who)}</strong>
         ${e.role ? `<div class="muted" style="font-size:.65rem">${esc(e.role)}</div>` : ""}
       </td>
-      <td data-label="Action"><code>${esc(e.action)}</code></td>
+      <td data-label="Action"><code>${esc(e.action)}</code>${targetBtn ? `<div style="margin-top:.25rem">${targetBtn}</div>` : ""}</td>
       <td data-label="Source"><span class="log-source ${esc(e.source)}">${esc(e.source)}</span></td>
       <td data-label="Detail" class="log-detail muted">${formatLogDetail(e.detail)}</td>
-    </tr>`).join("") || `<tr><td colspan="5"><div class="empty">No log entries yet<span class="empty-hint">Panel actions and system events will show here</span></div></td></tr>`;
+      <td data-label="Undo" class="actions">${undoBtn || "—"}</td>
+    </tr>`;
+  }).join("") || `<tr><td colspan="6"><div class="empty">No log entries yet<span class="empty-hint">Panel actions and system events will show here</span></div></td></tr>`;
 
   return `
     <div class="card">
@@ -4519,9 +4719,9 @@ async function renderLogs() {
         <h3>Logs</h3>
         <span class="pill info">${merged.length} entries</span>
       </div>
-      <p class="card-desc">Panel actions and system audit in one place. Detail chips stay wrapped so the table doesn’t blow out.</p>
+      <p class="card-desc">Who did what. Ban/unban can be undone. Kit/give/wipe stay permanent.</p>
       <div class="table-wrap"><table class="table">
-        <thead><tr><th>When</th><th>Who</th><th>Action</th><th>Source</th><th>Detail</th></tr></thead>
+        <thead><tr><th>When</th><th>Who</th><th>Action</th><th>Source</th><th>Detail</th><th></th></tr></thead>
         <tbody>${rows}</tbody>
       </table></div>
     </div>`;
@@ -5206,6 +5406,23 @@ function bindView() {
           const ign = document.getElementById("profileOpenIgn")?.value?.trim();
           if (!ign) { toast("Enter an IGN or Discord ID", true); return; }
           state.selectedPlayer = ign;
+          render();
+          return;
+        }
+        if (a === "focusProfileWarn") {
+          const card = document.getElementById("profileWarnCard");
+          const input = document.getElementById("profileWarning");
+          card?.scrollIntoView({ behavior: "smooth", block: "center" });
+          input?.focus();
+          return;
+        }
+        if (a === "undoAudit") {
+          const id = el.dataset.id;
+          if (!id) return;
+          if (!confirm("Undo this ban/unban action?")) return;
+          const result = await api(`/audit/${encodeURIComponent(id)}/undo`, { method: "POST", body: {} });
+          if (!result.ok) { toast(result.error || "Undo failed", true); return; }
+          toast("Undone");
           render();
           return;
         }

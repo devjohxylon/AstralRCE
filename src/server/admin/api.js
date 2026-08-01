@@ -393,6 +393,25 @@ export async function attachAdminPanel(app, client) {
     });
   });
 
+  app.get("/admin/api/health", requireAuth, requirePerm("overview"), async (_req, res) => {
+    try {
+      const { buildHealthReport } = await import("../../modules/admin/health.js");
+      res.json(await buildHealthReport(client));
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  app.get("/admin/api/inbox", requireAuth, requirePerm("overview"), async (req, res) => {
+    try {
+      const { buildInbox } = await import("../../modules/admin/inbox.js");
+      const limit = Number(req.query.limit) || 60;
+      res.json(await buildInbox({ limit }));
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
   app.get("/admin/api/players", requireAuth, requirePerm("players"), async (_req, res) => {
     const links = await listLinks();
     const linkByIgn = Object.fromEntries(links.map((l) => [l.ign.toLowerCase(), l]));
@@ -1538,7 +1557,11 @@ export async function attachAdminPanel(app, client) {
   });
 
   // ——— Audit Log ———
-  const { getAuditEntries } = await import("../../modules/audit/logger.js");
+  const {
+    getAuditEntries,
+    getAuditEntry,
+    markAuditUndone,
+  } = await import("../../modules/audit/logger.js");
   
   app.get("/admin/api/audit", requireAuth, requirePerm("logs"), async (req, res) => {
     try {
@@ -1552,6 +1575,59 @@ export async function attachAdminPanel(app, client) {
       };
       const entries = await getAuditEntries(filters);
       res.json({ ok: true, entries });
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  /** Undo safe audit actions (ban ↔ unban). Kit/give/wipe are refused. */
+  app.post("/admin/api/audit/:id/undo", requireAuth, requirePerm("ban"), async (req, res) => {
+    try {
+      const entry = await getAuditEntry(req.params.id);
+      if (!entry) return res.status(404).json({ ok: false, error: "Audit entry not found" });
+      if (!entry.undoable) {
+        return res.status(400).json({
+          ok: false,
+          error: "This action cannot be undone (kit/give/wipe/RCON stay permanent)",
+        });
+      }
+      if (entry.undoneAt) return res.status(400).json({ ok: false, error: "Already undone" });
+
+      const {
+        banPlayer: banFn,
+        unbanPlayer: unbanFn,
+      } = await import("../../modules/bans/manager.js");
+
+      const ign = entry.target;
+      if (!ign) return res.status(400).json({ ok: false, error: "No target IGN on audit entry" });
+
+      if (entry.action === "ban_player") {
+        const result = await unbanFn(ign, req.session.label, `Undo ban by ${req.session.label}`);
+        if (!result.ok) return res.status(400).json(result);
+        await sendGameCommand(`unban "${ign}"`).catch(() =>
+          sendGameCommand(`global.unban "${ign}"`),
+        );
+        await markAuditUndone(entry.id, req.session.label);
+        await audit(req, "audit_undo", { id: entry.id, action: entry.action, ign });
+        return res.json({ ok: true, undone: "ban_player", result });
+      }
+
+      if (entry.action === "unban_player") {
+        const reason = entry.details?.previousReason || entry.details?.reason || "Re-ban (undo unban)";
+        const durationMs = entry.details?.previousDurationMs || null;
+        const result = await banFn(ign, reason, req.session.label, durationMs);
+        if (!result.ok && result.error !== "Player is already banned") {
+          return res.status(400).json(result);
+        }
+        await sendGameCommand(`ban "${ign}" "${reason}"`).catch(() =>
+          sendGameCommand(`global.ban "${ign}" "${reason}"`),
+        );
+        await markAuditUndone(entry.id, req.session.label);
+        await audit(req, "audit_undo", { id: entry.id, action: entry.action, ign });
+        return res.json({ ok: true, undone: "unban_player", result });
+      }
+
+      return res.status(400).json({ ok: false, error: `Unsupported undo for ${entry.action}` });
     } catch (error) {
       res.status(500).json({ ok: false, error: error.message });
     }
