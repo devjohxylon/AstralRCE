@@ -62,6 +62,13 @@ export function createBotClient() {
     await loadVipSettings().catch((e) =>
       console.error("VIP settings failed:", e.message),
     );
+
+    // Keep Discord slash commands in sync on every boot (needed after deploys).
+    const { registerDiscordCommands } = await import("./register-commands.js");
+    await registerDiscordCommands().catch((e) =>
+      console.error("Slash command registration failed:", e.message),
+    );
+
     console.log(`Watching ${config.channels.watch.size} relay channel(s)`);
 
     // With RCON connected we get live player counts straight from the game,
