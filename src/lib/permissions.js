@@ -11,6 +11,14 @@ function memberHasRole(member, roleId) {
   return false;
 }
 
+function memberHasStaffRoleName(member) {
+  const wanted = config.roles.staffNames;
+  if (!wanted?.length) return false;
+  const roles = member.roles?.cache;
+  if (!roles?.some) return false;
+  return roles.some((role) => wanted.includes(String(role.name || "").toLowerCase()));
+}
+
 function memberHasPermission(member, flag) {
   const perms = member?.permissions;
   if (!perms) return false;
@@ -40,6 +48,9 @@ export function isStaff(member) {
   if (config.roles.staff.some((roleId) => memberHasRole(member, roleId))) {
     return true;
   }
+
+  // Match by role name (default: AstralAdmin)
+  if (memberHasStaffRoleName(member)) return true;
 
   // Real mod bit at guild/role level — not ManageMessages
   if (memberHasPermission(member, PermissionFlagsBits.ModerateMembers)) return true;
