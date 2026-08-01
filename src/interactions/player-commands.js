@@ -97,7 +97,11 @@ export async function handleLinkCommand(interaction) {
     const result = await backfillLinkedRoles();
     if (!result.ok) return interaction.editReply(result.error);
     return interaction.editReply(
-      `Linked role sync complete.\n` +
+      `Linked role sync complete` +
+        (result.roleName || result.roleId
+          ? ` (\`${result.roleName || result.roleId}\`)`
+          : "") +
+        `.\n` +
         `• **${result.granted}** granted\n` +
         `• **${result.already}** already had it\n` +
         `• **${result.missing}** not in the Discord server\n` +
