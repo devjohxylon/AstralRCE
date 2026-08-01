@@ -1,6 +1,7 @@
 import { config } from "../config.js";
 import { requireStaff } from "../lib/permissions.js";
 import {
+  backfillLinkedRoles,
   forceLink,
   getLinkByDiscord,
   linkIgn,
