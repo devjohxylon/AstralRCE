@@ -181,6 +181,19 @@ export async function closeTicket(guild, ticketId, closedById, { channelId = nul
   ticket.closedAt = new Date().toISOString();
   ticket.closedBy = closedById;
   data.open = data.open.filter((t) => t.id !== ticket.id);
+  if (!Array.isArray(data.closed)) data.closed = [];
+  data.closed.unshift({
+    id: ticket.id,
+    guildId: ticket.guildId || null,
+    channelId: ticket.channelId || null,
+    userId: ticket.userId || null,
+    type: ticket.type || "general",
+    status: "closed",
+    createdAt: ticket.createdAt || null,
+    closedAt: ticket.closedAt,
+    closedBy: ticket.closedBy,
+  });
+  data.closed = data.closed.slice(0, 1000);
   await saveTickets(data);
 
   const channel =

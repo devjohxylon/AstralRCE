@@ -2392,7 +2392,7 @@ async function renderPlayers() {
         <td data-label="Link">${p.linked ? `<span class="pill ok">linked</span>` : `<span class="pill">unlinked</span>`}</td>
         <td data-label="Notes">${p.noteCount || 0}${p.warningCount ? ` · <span class="pill warn">${p.warningCount} warn</span>` : ""}</td>
         <td data-label="Actions" class="actions">
-          <button data-action="viewPlayer" data-ign="${esc(p.ign)}">Open</button>
+          <button data-action="viewPlayer" data-ign="${esc(p.ign)}">Dossier</button>
           ${can("kick") && p.online ? `<button data-action="kick" data-ign="${esc(p.ign)}">Kick</button>` : ""}
           ${can("ban") ? `<button class="danger" data-action="ban" data-ign="${esc(p.ign)}">Ban</button>` : ""}
         </td>
@@ -2423,7 +2423,7 @@ async function renderPlayers() {
         <div class="dropdown">
           <button class="ghost dropdown-btn" data-toggle-dropdown="${esc(p.ign)}">Actions</button>
           <div class="dropdown-menu" data-dropdown="${esc(p.ign)}">
-            <button data-action="viewPlayer" data-ign="${esc(p.ign)}">View Profile</button>
+            <button data-action="viewPlayer" data-ign="${esc(p.ign)}">Open dossier</button>
             ${can("serverCommands") ? `<button data-action="goTab" data-tab="commands">Give kit / rank</button>` : ""}
             ${can("kick") ? `<button data-action="kick" data-ign="${esc(p.ign)}">Kick Player</button>` : ""}
             ${can("ban") ? `<button class="danger" data-action="ban" data-ign="${esc(p.ign)}">Ban Player</button>` : ""}
@@ -3151,7 +3151,8 @@ async function renderPlayerDossier(query) {
   const online = data.online || p.online;
   const link = data.link || p.link;
   const vip = data.vip || {};
-  const tickets = data.tickets?.open || [];
+  const openTickets = data.tickets?.open || [];
+  const closedTickets = data.tickets?.closed || [];
   const kills = data.recentKills || [];
   const displayIgn = data.ign || p.ign || query;
   if (displayIgn && state.selectedPlayer !== displayIgn) state.selectedPlayer = displayIgn;
@@ -3194,13 +3195,14 @@ async function renderPlayerDossier(query) {
       <td data-label="Status">${b.active ? `<span class="pill bad">active</span>` : `<span class="pill">ended</span>`}</td>
     </tr>`).join("") || `<tr><td colspan="4"><div class="empty">No ban history</div></td></tr>`;
 
-  const ticketRows = tickets.map((t) => `
+  const ticketRows = [...openTickets, ...closedTickets].map((t) => `
     <tr>
-      <td data-label="ID"><code>${esc(t.id)}</code></td>
+      <td data-label="Status">${t.status === "open" ? `<span class="pill ok">open</span>` : `<span class="pill">closed</span>`}</td>
       <td data-label="Type">${esc(t.type || "—")}</td>
       <td data-label="Opened">${esc(t.createdAt ? new Date(t.createdAt).toLocaleString() : "—")}</td>
-      <td data-label="Channel">${t.channelId ? `<code>${esc(t.channelId)}</code>` : "—"}</td>
-    </tr>`).join("") || `<tr><td colspan="4"><div class="empty">No open tickets</div></td></tr>`;
+      <td data-label="Closed">${esc(t.closedAt ? new Date(t.closedAt).toLocaleString() : "—")}</td>
+      <td data-label="ID"><code>${esc(String(t.id || "").slice(0, 8))}</code></td>
+    </tr>`).join("") || `<tr><td colspan="5"><div class="empty">No tickets on record</div></td></tr>`;
 
   const killRows = kills.slice(0, 20).map((k) => {
     const isKiller = String(k.killer || "").toLowerCase() === String(displayIgn).toLowerCase();
@@ -3211,7 +3213,7 @@ async function renderPlayerDossier(query) {
       <td data-label="Victim">${!isKiller ? `<strong>${esc(k.victim)}</strong>` : esc(k.victim || "—")}</td>
       <td data-label="Weapon">${esc(k.weapon || "—")}${k.headshot ? ` <span class="pill bad">HS</span>` : ""}</td>
     </tr>`;
-  }).join("") || `<tr><td colspan="4"><div class="empty">No recent combat in memory</div></td></tr>`;
+  }).join("") || `<tr><td colspan="4"><div class="empty">No combat logged yet</div></td></tr>`;
 
   const vipClaimLine = vip.claim
     ? `Kit <code>${esc(vip.claim.kitId || "vip")}</code> · wipe <code>${esc(vip.claim.wipeId || "—")}</code> · ${esc(vip.claim.at ? new Date(vip.claim.at).toLocaleString() : "—")}`
@@ -3261,7 +3263,7 @@ async function renderPlayerDossier(query) {
             <h3>Recent kills</h3>
             <span class="pill info">${kills.length}</span>
           </div>
-          <p class="card-desc">In-memory combat feed (killer or victim).</p>
+          <p class="card-desc">Persisted combat log (killer or victim) — survives restarts.</p>
           <table class="table">
             <thead><tr><th>When</th><th>Killer</th><th>Victim</th><th>Weapon</th></tr></thead>
             <tbody>${killRows}</tbody>
@@ -3270,12 +3272,12 @@ async function renderPlayerDossier(query) {
 
         <div class="card">
           <div class="card-head">
-            <h3>Open tickets</h3>
-            <span class="pill info">${tickets.length}</span>
+            <h3>Tickets</h3>
+            <span class="pill info">${openTickets.length} open · ${closedTickets.length} closed</span>
           </div>
-          <p class="card-desc">Linked Discord tickets currently open.</p>
+          <p class="card-desc">Open + closed ticket history for the linked Discord account.</p>
           <table class="table">
-            <thead><tr><th>ID</th><th>Type</th><th>Opened</th><th>Channel</th></tr></thead>
+            <thead><tr><th>Status</th><th>Type</th><th>Opened</th><th>Closed</th><th>ID</th></tr></thead>
             <tbody>${ticketRows}</tbody>
           </table>
         </div>
@@ -4405,16 +4407,22 @@ async function renderReports() {
       <td data-label="Time" class="muted">${new Date(g.at).toLocaleString()}</td>
       <td data-label="Size"><span class="pill bad">${g.size}/${g.max}</span></td>
       <td data-label="Team ID">#${esc(g.teamId)}</td>
-      <td data-label="Members">${(g.members || []).map((n) => esc(n)).join(", ")}</td>
+      <td data-label="Members">${(g.members || []).map((n) =>
+        `<button class="ghost" style="padding:0;display:inline;font-weight:600" data-action="viewPlayer" data-ign="${esc(n)}">${esc(n)}</button>`
+      ).join(", ") || "—"}</td>
     </tr>`).join("") || `<tr><td colspan="4"><div class="empty">No group alerts yet<span class="empty-hint">Groups will trigger alerts when large teams form</span></div></td></tr>`;
 
   const combatRows = (data.combat || []).map((c) => `
     <tr>
       <td data-label="Time" class="muted">${new Date(c.at).toLocaleString()}</td>
-      <td data-label="Killer"><strong>${esc(c.killer)}</strong></td>
-      <td data-label="Victim">${esc(c.victim)}</td>
+      <td data-label="Killer"><button class="ghost" style="padding:0;justify-content:flex-start;font-weight:700" data-action="viewPlayer" data-ign="${esc(c.killer)}">${esc(c.killer)}</button></td>
+      <td data-label="Victim"><button class="ghost" style="padding:0;justify-content:flex-start;font-weight:600" data-action="viewPlayer" data-ign="${esc(c.victim)}">${esc(c.victim)}</button></td>
       <td data-label="Weapon">${esc(c.weapon || "—")}${c.headshot ? " · HS" : ""}</td>
-    </tr>`).join("") || `<tr><td colspan="4"><div class="empty">No combat events yet<span class="empty-hint">Waiting for PvP kills to track</span></div></td></tr>`;
+      <td data-label="Actions" class="actions">
+        <button data-action="viewPlayer" data-ign="${esc(c.killer)}">Killer</button>
+        <button data-action="viewPlayer" data-ign="${esc(c.victim)}">Victim</button>
+      </td>
+    </tr>`).join("") || `<tr><td colspan="5"><div class="empty">No combat events yet<span class="empty-hint">Waiting for PvP kills to track</span></div></td></tr>`;
 
   return `
     <div class="section-stack">
@@ -4425,17 +4433,19 @@ async function renderReports() {
             <button data-action="scanGroups">Scan now</button>
           </div>
         </div>
+        <p class="card-desc">Click a member name to open their dossier.</p>
         <div class="table-wrap"><table class="table"><thead><tr><th>When</th><th>Size</th><th>Team</th><th>Members</th></tr></thead><tbody>${groupRows}</tbody></table></div>
       </div>
       <div class="card">
         <div class="card-head">
           <h3 style="margin:0">Combat log</h3>
         </div>
+        <p class="card-desc">Persisted across restarts. Open a killer or victim dossier from any row.</p>
         <div class="form-row" style="margin-top:0;margin-bottom:.55rem">
           <input id="reportSearch" placeholder="Search IGN" value="${esc(state.reportQuery || "")}" />
           <button data-action="searchCombat">Search</button>
         </div>
-        <div class="table-wrap"><table class="table"><thead><tr><th>When</th><th>Killer</th><th>Victim</th><th>Detail</th></tr></thead><tbody>${combatRows}</tbody></table></div>
+        <div class="table-wrap"><table class="table"><thead><tr><th>When</th><th>Killer</th><th>Victim</th><th>Detail</th><th></th></tr></thead><tbody>${combatRows}</tbody></table></div>
       </div>
     </div>`;
 }
@@ -4537,13 +4547,14 @@ async function renderBans() {
         : "";
       return `
       <tr>
-        <td data-label="Player"><strong>${esc(b.ign)}</strong></td>
+        <td data-label="Player"><button class="ghost" style="padding:0;justify-content:flex-start;font-weight:700" data-action="viewPlayer" data-ign="${esc(b.ign)}">${esc(b.ign)}</button></td>
         <td data-label="Reason"><strong style="font-weight:600">${esc(reason)}</strong>${unbanNote}</td>
         <td data-label="Admin">${esc(b.admin || "—")}</td>
         <td data-label="Banned">${esc(when)}</td>
         <td data-label="${inactive ? "Unbanned" : "Expires"}">${inactive ? esc(b.unbannedAt ? new Date(b.unbannedAt).toLocaleString() : "—") : esc(expires)}</td>
         <td data-label="Actions" class="actions">
-          ${!inactive && can("ban") ? `<button class="danger" data-action="unban" data-ign="${esc(b.ign)}">Unban</button>` : `<span class="muted">${esc(b.source || "")}</span>`}
+          <button data-action="viewPlayer" data-ign="${esc(b.ign)}">Dossier</button>
+          ${!inactive && can("ban") ? `<button class="danger" data-action="unban" data-ign="${esc(b.ign)}">Unban</button>` : (!inactive ? "" : `<span class="muted">${esc(b.source || "")}</span>`)}
         </td>
       </tr>`;
     }).join("") || `<tr><td colspan="6"><div class="empty">${inactive ? "No past bans" : "No active bans"}<span class="empty-hint">${inactive ? "Past bans keep their original reason here" : "Click Sync from server if players were banned outside the panel"}</span></div></td></tr>`;
@@ -4589,7 +4600,7 @@ async function renderBans() {
         <h3>Ban history</h3>
         <span class="pill info">${history.length}</span>
       </div>
-      <p class="card-desc">Inactive / past bans with the original reason. Open a player profile for that player’s full dossier.</p>
+      <p class="card-desc">Inactive / past bans with the original reason. Use Dossier to open the full player view.</p>
       <div class="table-wrap"><table class="table">
         <thead><tr><th>Player</th><th>Reason</th><th>Admin</th><th>Banned</th><th>Unbanned</th><th></th></tr></thead>
         <tbody>${banRows(history.slice(0, 50), { inactive: true })}</tbody>

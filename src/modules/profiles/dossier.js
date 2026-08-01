@@ -7,18 +7,30 @@ import { getOnlinePlayers } from "../rcon/client.js";
 import { getBanHistory, isPlayerBanned } from "../bans/manager.js";
 import { getPlayerProfile, searchPlayers } from "./manager.js";
 
-async function listOpenTickets(discordId) {
-  if (!discordId) return [];
-  const data = await getTickets().catch(() => ({ open: [] }));
-  return (data.open || [])
-    .filter((t) => String(t.userId) === String(discordId) && t.status === "open")
-    .map((t) => ({
-      id: t.id,
-      type: t.type,
-      channelId: t.channelId,
-      createdAt: t.createdAt,
-      status: t.status,
-    }));
+function mapTicketSummary(t) {
+  return {
+    id: t.id,
+    type: t.type,
+    channelId: t.channelId || null,
+    createdAt: t.createdAt || null,
+    closedAt: t.closedAt || null,
+    closedBy: t.closedBy || null,
+    status: t.status || "open",
+  };
+}
+
+async function listTicketsForDiscord(discordId) {
+  if (!discordId) return { open: [], closed: [] };
+  const data = await getTickets().catch(() => ({ open: [], closed: [] }));
+  const uid = String(discordId);
+  const open = (data.open || [])
+    .filter((t) => String(t.userId) === uid)
+    .map(mapTicketSummary);
+  const closed = (data.closed || [])
+    .filter((t) => String(t.userId) === uid)
+    .slice(0, 40)
+    .map(mapTicketSummary);
+  return { open, closed };
 }
 
 /**
@@ -91,7 +103,7 @@ export async function buildDossier(ign) {
   const [banHistory, banned, tickets, vipRole, vipClaim] = await Promise.all([
     getBanHistory(resolvedIgn).catch(() => []),
     isPlayerBanned(resolvedIgn).catch(() => false),
-    listOpenTickets(discordId),
+    listTicketsForDiscord(discordId),
     playerHasDiscordVip(resolvedIgn).catch(() => false),
     findVipClaim({ ign: resolvedIgn, discordId }).catch(() => null),
   ]);
@@ -125,8 +137,8 @@ export async function buildDossier(ign) {
       history: banHistory,
     },
     tickets: {
-      open: tickets,
-      note: "Only open tickets are stored in bot data (closed ones go to Discord transcript).",
+      open: tickets.open,
+      closed: tickets.closed,
     },
     stats: profile.stats || null,
     activity: profile.activity || null,

@@ -1,11 +1,18 @@
 import { EmbedBuilder } from "discord.js";
 import { config } from "../../config.js";
 import { getManager } from "./client.js";
-import { getSettings, saveSettings } from "../../data/store.js";
+import {
+  COMBAT_LOG_MAX,
+  getCombatLog,
+  getSettings,
+  saveCombatLog,
+  saveSettings,
+} from "../../data/store.js";
 
-const COMBAT_MAX = 200;
+const COMBAT_MAX = Math.min(500, COMBAT_LOG_MAX || 500);
 const GROUP_MAX_DEFAULT = 3;
 const GROUP_COOLDOWN_MS = 10 * 60_000; // don't spam same team
+const COMBAT_PERSIST_MS = 1500;
 
 const combatLog = [];
 const groupAlerts = [];
@@ -13,6 +20,8 @@ const recentGroupAlerts = new Map(); // teamId -> timestamp
 
 let discordClient = null;
 let scanTimer = null;
+let combatPersistTimer = null;
+let combatDirty = false;
 
 export function attachReportsClient(client) {
   discordClient = client;
@@ -36,8 +45,36 @@ function memberNames(team) {
   return [...new Set(names)];
 }
 
+async function persistCombatLog() {
+  if (!combatDirty) return;
+  combatDirty = false;
+  await saveCombatLog({ entries: combatLog.slice(0, COMBAT_MAX) });
+}
+
+function scheduleCombatPersist() {
+  combatDirty = true;
+  if (combatPersistTimer) return;
+  combatPersistTimer = setTimeout(() => {
+    combatPersistTimer = null;
+    persistCombatLog().catch((err) =>
+      console.error("Combat log persist failed:", err.message),
+    );
+  }, COMBAT_PERSIST_MS);
+}
+
 function pushCombat(entry) {
   combatLog.unshift(entry);
+  if (combatLog.length > COMBAT_MAX) combatLog.length = COMBAT_MAX;
+  scheduleCombatPersist();
+}
+
+export async function loadPersistedCombatLog() {
+  const data = await getCombatLog();
+  const rows = Array.isArray(data.entries) ? data.entries : [];
+  for (const row of rows.reverse()) {
+    if (!row?.id) continue;
+    if (!combatLog.some((c) => c.id === row.id)) combatLog.unshift(row);
+  }
   if (combatLog.length > COMBAT_MAX) combatLog.length = COMBAT_MAX;
 }
 
@@ -174,6 +211,7 @@ export async function scanAllTeams() {
 export function startGroupScanner() {
   if (scanTimer) return;
   loadPersistedGroupAlerts().catch(() => {});
+  loadPersistedCombatLog().catch(() => {});
   scanTimer = setInterval(() => {
     scanAllTeams().catch(() => {});
   }, 90_000);

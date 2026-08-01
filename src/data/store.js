@@ -102,12 +102,33 @@ export async function saveGiveaways(data) {
 }
 
 export async function getTickets() {
-  return readJson("tickets.json", { open: [] });
+  const data = await readJson("tickets.json", { open: [], closed: [] });
+  if (!Array.isArray(data.open)) data.open = [];
+  if (!Array.isArray(data.closed)) data.closed = [];
+  return data;
 }
 
 export async function saveTickets(data) {
-  await writeJson("tickets.json", data);
+  await writeJson("tickets.json", {
+    open: Array.isArray(data?.open) ? data.open : [],
+    closed: Array.isArray(data?.closed) ? data.closed : [],
+  });
 }
+
+const COMBAT_LOG_MAX = 500;
+
+export async function getCombatLog() {
+  const data = await readJson("combat-log.json", { entries: [] });
+  if (!Array.isArray(data.entries)) data.entries = [];
+  return data;
+}
+
+export async function saveCombatLog(data) {
+  const entries = Array.isArray(data?.entries) ? data.entries.slice(0, COMBAT_LOG_MAX) : [];
+  await writeJson("combat-log.json", { entries });
+}
+
+export { COMBAT_LOG_MAX };
 
 export async function getSettings() {
   return readJson("settings.json", { raidMode: false, lockedChannelIds: [] });
