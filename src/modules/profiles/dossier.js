@@ -2,10 +2,11 @@ import { getTickets } from "../../data/store.js";
 import { getLinkByDiscord, getLinkByIgn, listLinks } from "../rcon/linking.js";
 import { findVipClaim } from "../rcon/vip-claims.js";
 import { playerHasDiscordVip } from "../rcon/vip-sync.js";
-import { searchCombat } from "../rcon/reports.js";
+import { listReports, searchCombat } from "../rcon/reports.js";
 import { getOnlinePlayers } from "../rcon/client.js";
 import { getBanHistory, isPlayerBanned } from "../bans/manager.js";
 import { getPlayerProfile, searchPlayers } from "./manager.js";
+import { buildAbuseSignals } from "./abuse-signals.js";
 
 function mapTicketSummary(t) {
   return {
@@ -86,7 +87,6 @@ export async function resolveDossierQuery(query) {
     };
   }
 
-  // Allow opening a bare IGN even with no profile yet
   return { ok: true, ign: q };
 }
 
@@ -108,19 +108,33 @@ export async function buildDossier(ign) {
     findVipClaim({ ign: resolvedIgn, discordId }).catch(() => null),
   ]);
 
-  const recentKills = searchCombat(resolvedIgn, 25);
+  const recentKills = searchCombat(resolvedIgn, 40);
+  const groupAppearances = listReports({ limit: 40 }).groups || [];
+
+  const linkPayload = link
+    ? {
+        discordId: link.discordId,
+        linkedAt: link.linkedAt,
+        forced: Boolean(link.forced),
+        previousIgns: Array.isArray(link.previousIgns) ? link.previousIgns : [],
+      }
+    : null;
+
+  const signals = buildAbuseSignals({
+    ign: resolvedIgn,
+    banHistory,
+    tickets,
+    recentKills,
+    profile,
+    link: linkPayload,
+    groupAppearances,
+  });
 
   return {
     ok: true,
     ign: resolvedIgn,
     profile,
-    link: link
-      ? {
-          discordId: link.discordId,
-          linkedAt: link.linkedAt,
-          forced: Boolean(link.forced),
-        }
-      : null,
+    link: linkPayload,
     vip: {
       hasDiscordRole: Boolean(vipRole),
       claim: vipClaim
@@ -140,6 +154,7 @@ export async function buildDossier(ign) {
       open: tickets.open,
       closed: tickets.closed,
     },
+    signals,
     stats: profile.stats || null,
     activity: profile.activity || null,
     recentKills,

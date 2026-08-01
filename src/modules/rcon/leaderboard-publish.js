@@ -42,9 +42,17 @@ async function resolveLeaderboardMessage(channel, client, messageId) {
 
 async function persistMessageId(messageId) {
   const settings = await getSettings();
-  if (settings.leaderboardMessageId === messageId) return;
-  settings.leaderboardMessageId = messageId;
-  await saveSettings(settings);
+  const now = new Date().toISOString();
+  let changed = false;
+  if (settings.leaderboardMessageId !== messageId) {
+    settings.leaderboardMessageId = messageId;
+    changed = true;
+  }
+  if (settings.leaderboardLastPublishedAt !== now) {
+    settings.leaderboardLastPublishedAt = now;
+    changed = true;
+  }
+  if (changed) await saveSettings(settings);
 }
 
 /**

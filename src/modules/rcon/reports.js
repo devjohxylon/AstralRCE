@@ -8,6 +8,7 @@ import {
   saveCombatLog,
   saveSettings,
 } from "../../data/store.js";
+import { getPositionFor } from "./live-map.js";
 
 const COMBAT_MAX = Math.min(500, COMBAT_LOG_MAX || 500);
 const GROUP_MAX_DEFAULT = 3;
@@ -83,6 +84,21 @@ function pushGroup(entry) {
   if (groupAlerts.length > 100) groupAlerts.length = 100;
 }
 
+function combatDistance(data, killer, victim) {
+  const raw = data?.distance ?? data?.Distance ?? data?.dist ?? data?.meters ?? null;
+  if (raw != null && raw !== "") {
+    const n = Number(raw);
+    if (Number.isFinite(n) && n >= 0) return Math.round(n);
+  }
+  const a = getPositionFor(killer?.name);
+  const b = getPositionFor(victim?.name);
+  if (!a || !b) return null;
+  const dx = Number(a.x) - Number(b.x);
+  const dz = Number(a.z) - Number(b.z);
+  if (![dx, dz].every(Number.isFinite)) return null;
+  return Math.round(Math.sqrt(dx * dx + dz * dz));
+}
+
 /** Record a kill into the staff combat log (+ optional Discord reports channel). */
 export function recordCombatEvent(data) {
   const killer = data?.killer;
@@ -94,6 +110,7 @@ export function recordCombatEvent(data) {
   const bodyPart = data?.bodyPart || data?.BodyPart || data?.hitBone || null;
   const headshot = Boolean(data?.headshot) || /head/i.test(String(bodyPart ?? ""));
   const pvp = killer.type === "Player" && victim.type === "Player";
+  const distance = combatDistance(data, killer, victim);
 
   const entry = {
     id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
@@ -105,6 +122,7 @@ export function recordCombatEvent(data) {
     victimType: victim.type,
     weapon: weapon || null,
     headshot,
+    distance,
     pvp,
   };
   pushCombat(entry);

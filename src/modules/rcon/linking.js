@@ -16,7 +16,16 @@ export async function getLinkByDiscord(discordId) {
 export async function getLinkByIgn(ign) {
   const data = await getLinks();
   const key = Object.keys(data.byIgn).find((n) => n.toLowerCase() === ign.toLowerCase());
-  return key ? { ign: key, ...data.byIgn[key] } : null;
+  if (!key) return null;
+  const row = data.byIgn[key];
+  const discordRow = row.discordId ? data.byDiscord[row.discordId] : null;
+  return {
+    ign: key,
+    ...row,
+    previousIgns: Array.isArray(discordRow?.previousIgns)
+      ? discordRow.previousIgns
+      : [],
+  };
 }
 
 export async function listLinks() {
@@ -26,7 +35,20 @@ export async function listLinks() {
     ign: link.ign,
     linkedAt: link.linkedAt,
     forced: Boolean(link.forced),
+    previousIgns: Array.isArray(link.previousIgns) ? link.previousIgns : [],
   }));
+}
+
+function withPreviousIgns(existing, nextIgn) {
+  const history = Array.isArray(existing?.previousIgns) ? [...existing.previousIgns] : [];
+  const prev = existing?.ign;
+  if (prev && String(prev).toLowerCase() !== String(nextIgn).toLowerCase()) {
+    history.unshift({
+      ign: prev,
+      at: existing.linkedAt || new Date().toISOString(),
+    });
+  }
+  return history.slice(0, 20);
 }
 
 export async function requireLinkedIgn(discordId) {
@@ -273,7 +295,13 @@ export async function forceLink(discordId, ign, { member = null } = {}) {
     taken && String(taken.discordId) !== String(discordId) ? taken.discordId : null;
   if (taken) delete data.byDiscord[taken.discordId];
 
-  data.byDiscord[discordId] = { ign, linkedAt: new Date().toISOString(), forced: true };
+  const previousIgns = withPreviousIgns(existing, ign);
+  data.byDiscord[discordId] = {
+    ign,
+    linkedAt: new Date().toISOString(),
+    forced: true,
+    previousIgns,
+  };
   data.byIgn[ign] = { discordId, linkedAt: new Date().toISOString(), forced: true };
   delete data.pending?.[discordId];
   await saveLinks(data);
